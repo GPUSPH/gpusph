@@ -38,7 +38,7 @@
 	- a parallel reduction for max neibs number is done inside neiblist, block
 	size for neiblist MUST BE A POWER OF 2
  */
-#if (__COMPUTE == 75)
+#if (__COMPUTE__ == 75 || __COMPUTE__ == 86)
 	#define BLOCK_SIZE_CALCHASH		256
 	#define MIN_BLOCKS_CALCHASH		4
 	#define BLOCK_SIZE_REORDERDATA	256
@@ -74,7 +74,6 @@
 #define _BUILDNEIBS_KERNEL_
 
 #include "particledefine.h"
-#include "textures.cuh"
 #include "vector_math.h"
 
 // TODO : what was CELLTYPE_MASK_* supposed to be ? Can we delete ?
@@ -91,6 +90,7 @@
 #include "neibs_iteration.cuh"
 /*! \endcond */
 
+#include "geom_core.cu"
 
 /** \namespace cuneibs
  *  \brief Contains all device functions/kernels/variables used for neighbor list construction
@@ -110,6 +110,8 @@ __device__ int d_maxFluidBoundaryNeibs;		///< Computed maximum number of fluid +
 __device__ int d_maxVertexNeibs;			///< Computed maximum number of vertex neighbors across particles
 __device__ int d_hasTooManyNeibs;			///< id of a particle with too many neighbors
 __device__ int d_hasMaxNeibs[PT_TESTPOINT];	///< Number of neighbors of that particle
+__device__ int d_hasTooManyParticles; ///< Index of a cell with too many particles
+__device__ int d_hasHowManyParticles; ///< How many particles are in the  cell with too many particles
 /** @} */
 
 /** \addtogroup neibs_device_functions_params Neighbor list device function variables
@@ -130,12 +132,15 @@ struct common_niC_vars
 	/// Constructor
 	/*!	Computes structure members value according to the grid position.
 	 */
+	template<BoundaryType boundarytype, flag_t simflags>
 	__device__ __forceinline__
-	common_niC_vars(int3 const& gridPos		///< [in] position in the grid
+	common_niC_vars(
+		buildneibs_params<boundarytype, simflags> const& bparams,
+		int3 const& gridPos		///< [in] position in the grid
 					) :
 		gridHash(calcGridHash(gridPos)),
-		bucketStart(tex1Dfetch(cellStartTex, gridHash)),
-		bucketEnd(tex1Dfetch(cellEndTex, gridHash))
+		bucketStart(bparams.fetchCellStart(gridHash)),
+		bucketEnd(bparams.fetchCellEnd(gridHash))
 	{}
 };
 
@@ -159,10 +164,11 @@ struct sa_boundary_niC_vars
 	 * 	\param[in] index : particle index
 	 * 	\param[in] bparams : TODO
 	 */
+	template<flag_t simflags>
 	__device__ __forceinline__
-	sa_boundary_niC_vars(const uint index, buildneibs_params<SA_BOUNDARY> const& bparams) :
-		vertices(tex1Dfetch(vertTex, index)),
-		boundElement(tex1Dfetch(boundTex, index)),
+	sa_boundary_niC_vars(const uint index, buildneibs_params<SA_BOUNDARY, simflags> const& bparams) :
+		vertices(bparams.fetchVert(index)),
+		boundElement(bparams.fetchBound(index)),
 		// j is 0, 1 or 2 depending on which is smaller (in magnitude) between
 		// boundElement.{x,y,z}
 		j(
@@ -196,12 +202,13 @@ struct niC_vars :
 	common_niC_vars,
 	COND_STRUCT(boundarytype == SA_BOUNDARY, sa_boundary_niC_vars)
 {
+	template<flag_t simflags>
 	__device__ __forceinline__
 	niC_vars(
 		int3 const& gridPos,
 		const uint index,
-		buildneibs_params<boundarytype> const& bparams) :
-		common_niC_vars(gridPos),
+		buildneibs_params<boundarytype, simflags> const& bparams) :
+		common_niC_vars(bparams, gridPos),
 		COND_STRUCT(boundarytype == SA_BOUNDARY, sa_boundary_niC_vars)(index, bparams)
 	{}
 };
@@ -385,10 +392,11 @@ calcNeibCell(
  * 	\return : true if the distance is < to the squared influence radius, false otherwise
  * 	\tparam boundarytype : the boundary model used
  */
-template<BoundaryType boundarytype>
+template<BoundaryType boundarytype, flag_t simflags>
 __device__ __forceinline__
-bool isCloseEnough(float3 const& relPos, particleinfo const& neib_info,
-	buildneibs_params<boundarytype> const& params)
+enable_if_t<boundarytype != SA_BOUNDARY, bool>
+isCloseEnough(float3 const& relPos, particleinfo const& neib_info,
+	buildneibs_params<boundarytype, simflags> const& params)
 {
 	// Default : check against the influence radius
 	return sqlength(relPos) < params.sqinfluenceradius;
@@ -396,10 +404,11 @@ bool isCloseEnough(float3 const& relPos, particleinfo const& neib_info,
 
 /// Specialization of isCloseEnough for SA boundaries
 /// \see isCloseEnough
-template<>
+template<BoundaryType boundarytype, flag_t simflags>
 __device__ __forceinline__
-bool isCloseEnough<SA_BOUNDARY>(float3 const& relPos, particleinfo const& neib_info,
-	buildneibs_params<SA_BOUNDARY> const& params)
+enable_if_t<boundarytype == SA_BOUNDARY, bool>
+isCloseEnough(float3 const& relPos, particleinfo const& neib_info,
+	buildneibs_params<boundarytype, simflags> const& params)
 {
 	const float rp2(sqlength(relPos));
 	// Include boundary neighbors which are a little further than sqinfluenceradius
@@ -420,21 +429,23 @@ bool isCloseEnough<SA_BOUNDARY>(float3 const& relPos, particleinfo const& neib_i
  * 	\return : true if the distance is < to the squared influence radius, false otherwise
  * 	\tparam boundarytype : the boundary model used
  */
-template<BoundaryType boundarytype>
+template<BoundaryType boundarytype, flag_t simflags>
 __device__ __forceinline__
-void process_niC_segment(const uint index, const uint neib_id, float3 const& relPos,
-	buildneibs_params<boundarytype> const& params,
+enable_if_t<boundarytype != SA_BOUNDARY>
+process_niC_segment(const uint index, const uint neib_id, float3 const& relPos,
+	buildneibs_params<boundarytype, simflags> const& params,
 	niC_vars<boundarytype> const& var)
 { /* Do nothing by default */ }
 
 
 /// Specialization of process_niC_segment for SA boundaries
 /// \see process_niC_segment
-template<>
+template<BoundaryType boundarytype, flag_t simflags>
 __device__ __forceinline__
-void process_niC_segment<SA_BOUNDARY>(const uint index, const uint neib_id, float3 const& relPos,
-	buildneibs_params<SA_BOUNDARY> const& params,
-	niC_vars<SA_BOUNDARY> const& var)
+enable_if_t<boundarytype == SA_BOUNDARY>
+process_niC_segment(const uint index, const uint neib_id, float3 const& relPos,
+	buildneibs_params<boundarytype, simflags> const& params,
+	niC_vars<boundarytype> const& var)
 {
 	int i = -1;
 	if (neib_id == var.vertices.x)
@@ -449,8 +460,8 @@ void process_niC_segment<SA_BOUNDARY>(const uint index, const uint neib_id, floa
 		// 1. set one coordinate to 0 and rotate the remaining 2-D vector
 		// 2. cross product between coord1 and the normal of the boundary element
 		float2 relPosProj = make_float2(0.0);
-		relPosProj.x = dot(relPos, as_float3(var.coord1));
-		relPosProj.y = dot(relPos, as_float3(var.coord2));
+		relPosProj.x = dot3(relPos, var.coord1);
+		relPosProj.y = dot3(relPos, var.coord2);
 		// save relPosProj in vertPos buffer
 		if (i==0)
 			params.vertPos0[index] = relPosProj;
@@ -533,10 +544,11 @@ bool too_many_neibs(const uint* neibs_num, ParticleType neib_type)
  * First and last particle index for grid cells and particle's information
  * are read through texture fetches.
  */
-template <SPHFormulation sph_formulation, typename ViscSpec, BoundaryType boundarytype, Periodicity periodicbound>
+template <SPHFormulation sph_formulation, typename ViscSpec, BoundaryType boundarytype, Periodicity periodicbound,
+		 flag_t simflags>
 __device__ __forceinline__ void
 neibsInCell(
-			buildneibs_params<boundarytype> const& params,			// build neibs parameters
+			buildneibs_params<boundarytype, simflags> const& params,			// build neibs parameters
 			int3			gridPos,	// current particle grid position
 			const int3		gridOffset,	// cell offset from current particle grid position
 			const uchar		cell,		// cell number (0 ... 26)
@@ -574,7 +586,7 @@ neibsInCell(
 		if (neib_index == index)
 			continue;
 
-		const particleinfo neib_info = tex1Dfetch(infoTex, neib_index);
+		const particleinfo neib_info = params.fetchInfo(neib_index);
 
 		// Testpoints have a neighbor list, but are not considered in the neighbor list
 		// of other points
@@ -603,11 +615,7 @@ neibsInCell(
 
 		// Compute relative position between particle and potential neighbor
 		// NOTE: using as_float3 instead of make_float3 result in a 25% performance loss
-		#if PREFER_L1
-		const float4 neib_pos = params.posArray[neib_index];
-		#else
-		const float4 neib_pos = tex1Dfetch(posTex, neib_index);
-		#endif
+		const float4 neib_pos = params.fetchPos(neib_index);
 
 		// Skip inactive particles
 		if (INACTIVE(neib_pos))
@@ -825,43 +833,30 @@ fixHashDevice(	hashKey*		particleHash,			///< [in,out] particle's hashes
  * 		- compute the new number of particles accounting for those
  * 		marked for deletion
  *
- *  In order to avoid WAR issues we use double buffering : the unsorted data
- *  are read trough texture fetches and the sorted one written in a coalesced
- *  way in global memory.
+ *  In order to avoid Write-After-Read issues we use double buffering.
+ *  We used to this through textures, but newer architectures now share
+ *  the L1 cache with the texture cache when using const restrict pointers,
+ *  so we use those everywhere instead, wrapped in the reorder_data
+ *  structure template that gets passed as first argument to this kernel.
  *
- * \todo should be templatized according to boundary type. (Alexis)
 // \todo k goes with e, make it a float2. (Alexis).
 // \todo document segmentStart (Alexis).
  */
-// FIXME: we cannot avoid WAR, instead we need to be prepared to WAR ....
+template<typename RP /* reorder_data specialization */>
 __global__
 /*! \cond */
 __launch_bounds__(BLOCK_SIZE_REORDERDATA, MIN_BLOCKS_REORDERDATA)
 /*! \endcond */
-void reorderDataAndFindCellStartDevice(	uint*			cellStart,			///< [out] index of cells first particle
-										uint*			cellEnd,			///< [out] index of cells last particle
-										uint*			segmentStart,		///< [out]
-										float4*			sortedPos,			///< [out] new sorted particle's positions
-										float4*			sortedVel,			///< [out] new sorted particle's velocities
-										float4*			sortedVol,			///< [out] new sorted particle's informations
-										float*			sortedEnergy,		// new sorted particle's internal energy (out)
-										float4*			sortedBoundElements,///< [out] new sorted boundary elements normals and surface
-										float4*			sortedGradGamma,	///< [out] new sorted gradient of gamma
-										vertexinfo*		sortedVertices,		///< [out] new sorted vertices
-										float*			sortedTKE,			///< [out] new sorted k
-										float*			sortedEps,			///< [out] new sorted e
-										float*			sortedTurbVisc,		///< [out] new sorted eddy viscosity
-										float*			sortedEffPres,		///< [out] new sorted effective pressure
-										float4*			sortedEulerVel,		///< [out] new sorted IO/k-e boundary velocity (used in SA only)
-								const	uint*			unsortedNextIDs,	///< [in] old (unsorted) next ID for particle generators
-										uint*			sortedNextIDs,		///< [out] new sorted next ID for particle generators
-								const	float4*			unsortedDummyVel,	///< [in] old (unsorted) dummy boundary velocity
-										float4*			sortedDummyVel,		///< [out] new sorted dummy boundary velocity
-										const particleinfo*	particleInfo,	///< [in] previously sorted particle's informations
-										const hashKey*	particleHash,		///< [in] previously sorted particle's hashes
-										const uint*		particleIndex,		///< [in] previously sorted particle's indexes
-										const uint		numParticles,		///< [in] total number of particles
-										uint*			newNumParticles)	///< [out] device pointer to new number of active particles
+void reorderDataAndFindCellStartDevice(
+			RP								 rparams,		///< [in/out] data to be reordered
+			uint* __restrict__				cellStart,		///< [out] index of cells first particle
+			uint* __restrict__				cellEnd,		///< [out] index of cells last particle
+			uint* __restrict__				segmentStart,	///< [out] multi-GPU segments
+	const	 particleinfo * __restrict__	particleInfo,	///< [in] previously sorted particle's informations
+	const	 hashKey* __restrict__			particleHash,	///< [in] previously sorted particle's hashes
+	const	 uint* __restrict__				particleIndex,	///< [in] previously sorted particle's indexes
+	const	 uint							numParticles,	///< [in] total number of particles
+			uint* __restrict__				newNumParticles)	///< [out] device pointer to new number of active particles
 {
 	// Shared hash array of dimension blockSize + 1
 	extern __shared__ uint sharedHash[];
@@ -936,67 +931,102 @@ void reorderDataAndFindCellStartDevice(	uint*			cellStart,			///< [out] index of
 
 		// Now use the sorted index to reorder particle's data
 		const uint sortedIndex = particleIndex[index];
-		const float4 pos = tex1Dfetch(posTex, sortedIndex);
-		const float4 vel = tex1Dfetch(velTex, sortedIndex);
 
-		sortedPos[index] = pos;
-		sortedVel[index] = vel;
-
-		if (sortedVol) {
-			sortedVol[index] = tex1Dfetch(volTex, sortedIndex);
-		}
-
-		if (sortedEnergy) {
-			sortedEnergy[index] = tex1Dfetch(energyTex, sortedIndex);
-		}
-
-		if (sortedBoundElements) {
-			sortedBoundElements[index] = tex1Dfetch(boundTex, sortedIndex);
-		}
-
-		if (sortedGradGamma) {
-			sortedGradGamma[index] = tex1Dfetch(gamTex, sortedIndex);
-		}
-
-		if (sortedVertices) {
-			if (BOUNDARY(particleInfo[index])) {
-				const vertexinfo vertices = tex1Dfetch(vertTex, sortedIndex);
-				sortedVertices[index] = vertices;
-			}
-			else
-				sortedVertices[index] = make_vertexinfo(0, 0, 0, 0);
-		}
-
-		if (sortedTKE) {
-			sortedTKE[index] = tex1Dfetch(keps_kTex, sortedIndex);
-		}
-
-		if (sortedEps) {
-			sortedEps[index] = tex1Dfetch(keps_eTex, sortedIndex);
-		}
-
-		if (sortedTurbVisc) {
-			sortedTurbVisc[index] = tex1Dfetch(tviscTex, sortedIndex);
-		}
-
-		if (sortedEffPres) {
-			sortedEffPres[index] = tex1Dfetch(effpresTex, sortedIndex);
-		}
-
-		if (sortedEulerVel) {
-			sortedEulerVel[index] = tex1Dfetch(eulerVelTex, sortedIndex);
-		}
-
-		if (sortedNextIDs) {
-			sortedNextIDs[index] = unsortedNextIDs[sortedIndex];
-		}
-
-		if (sortedDummyVel) {
-			sortedDummyVel[index] = unsortedDummyVel[sortedIndex];
-		}
-
+		// The particleInfo fetch is only actually needed by the BUFFER_VERTICES sorter,
+		// TODO measure the impact of this usage
+		rparams.reorder(index, sortedIndex, particleInfo[index]);
 	}
 }
+
+/// Find the planes within the influence radius of the particle
+/*! If neither ENABLE_PLANES nor ENABLE_DEM are active, do nothing
+ */
+template<BoundaryType boundarytype, flag_t simflags>
+__device__ __forceinline__
+enable_if_t<!HAS_DEM_OR_PLANES(simflags)>
+findNeighboringPlanes(
+	buildneibs_params<boundarytype, simflags> params,
+	const int3& gridPos,
+	const float3& pos,
+	int index)
+{ /* do nothing */ }
+
+/// Check if the DEM is in range
+/*! Do nothing if not ENABLE_DEM */
+template<BoundaryType boundarytype, flag_t simflags>
+__device__ __forceinline__
+enable_if_t<!HAS_DEM(simflags), bool>
+isDemInRange(
+	buildneibs_params<boundarytype, simflags> params,
+	const int3& gridPos,
+	const float3& pos,
+	int index)
+{ return false; /* result won't be used anyway */ }
+
+/// Check if the DEM is in range
+/*! Actual check in case DEM is enabled */
+template<BoundaryType boundarytype, flag_t simflags>
+__device__ __forceinline__
+enable_if_t<HAS_DEM(simflags), bool>
+isDemInRange(
+	buildneibs_params<boundarytype, simflags> params,
+	const int3& gridPos,
+	const float3& pos,
+	int index)
+{
+	const float2 demPos = cugeom::DemPos(gridPos, pos);
+	// TODO find a way to be more accurate about this
+	const float globalZ = d_worldOrigin.z + (gridPos.z + 0.5f)*d_cellSize.z + pos.z;
+	const float globalZ0 = cugeom::DemInterpol(params, demPos);
+	const float r = globalZ - globalZ0;
+	if (r < 0)
+		printf("Particle %d id %d behind DEM!\n", index, (int)id(params.fetchInfo(index)));
+	return (r*r < params.sqinfluenceradius);
+}
+
+/// Find the planes within the influence radius of the particle
+/*! If ENABLE_PLANES or ENABLE_DEM are active, go over each defined plane
+ * and see if the distance is within the required radius
+ */
+template<BoundaryType boundarytype, flag_t simflags>
+__device__ __forceinline__
+enable_if_t<HAS_DEM_OR_PLANES(simflags)>
+findNeighboringPlanes(
+	buildneibs_params<boundarytype, simflags> params,
+	const int3& gridPos,
+	const float3& pos,
+	int index)
+{
+	using namespace cugeom;
+	int neib_planes = 0;
+	// we cheat a bit: we know that an int4 stores x, y, z, w consecutively,
+	// so we can take the address of the x component, and the other
+	// will follow
+	int *store = &(params.neibPlanes[index].x);
+
+	if ( HAS_PLANES(simflags) ) {
+		for (int p = 0; p < d_numplanes; ++p) {
+			float r = signedPlaneDistance(gridPos, pos, d_plane[p]);
+			if (r < 0)
+				printf("Particle %d behind plane %d!\n", index, p);
+			if (r*r < params.sqinfluenceradius) {
+				store[neib_planes++] = p;
+				if (neib_planes > 3) break;
+			}
+		}
+	}
+
+	if ( HAS_DEM(simflags) && neib_planes < 4 ) {
+		if (isDemInRange(params, gridPos, pos, index)) {
+			store[neib_planes++] = MAX_PLANES;
+		}
+	}
+
+	while (neib_planes < 4) {
+		store[neib_planes++] = -1;
+	}
+}
+
 
 
 /// Builds particles neighbors list
@@ -1024,6 +1054,7 @@ void reorderDataAndFindCellStartDevice(	uint*			cellStart,			///< [out] index of
  *	TODO: finish implementation for SA_BOUNDARY (include PT_VERTEX)
  */
 template<SPHFormulation sph_formulation, typename ViscSpec, BoundaryType boundarytype, Periodicity periodicbound,
+	flag_t simflags,
 	bool neibcount,
 	/* Number of shared arrays for the maximum number of neighbors:
 	 * this is 1 (counting fluid + boundary) for all boundary types, except
@@ -1033,7 +1064,7 @@ __global__ void
 /*! \cond */
 __launch_bounds__( BLOCK_SIZE_BUILDNEIBS, MIN_BLOCKS_BUILDNEIBS)
 /*! \endcond */
-buildNeibsListDevice(buildneibs_params<boundarytype> params)
+buildNeibsListDevice(buildneibs_params<boundarytype, simflags> params)
 {
 	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
 
@@ -1047,7 +1078,7 @@ buildNeibsListDevice(buildneibs_params<boundarytype> params)
 			break;
 
 		// Read particle info from texture
-		const particleinfo info = tex1Dfetch(infoTex, index);
+		const particleinfo info = params.fetchInfo(index);
 
 		// The way the neighbors list is constructed depends on
 		// the boundary type used in the simulation.
@@ -1074,11 +1105,7 @@ buildNeibsListDevice(buildneibs_params<boundarytype> params)
 			break;
 
 		// Get particle position
-		#if PREFER_L1
-		const float4 pos = params.posArray[index];
-		#else
-		const float4 pos = tex1Dfetch(posTex, index);
-		#endif
+		const float4 pos = params.fetchPos(index);
 
 		// If the particle is inactive we have nothing to do
 		if (INACTIVE(pos))
@@ -1105,6 +1132,8 @@ buildNeibsListDevice(buildneibs_params<boundarytype> params)
 				}
 			}
 		}
+
+		findNeighboringPlanes(params, gridPos, pos3, index);
 	} while (0);
 
 	// Each of the sections of the neighbor list is terminated by a NEIBS_END. This allow
@@ -1135,9 +1164,9 @@ buildNeibsListDevice(buildneibs_params<boundarytype> params)
 		}
 
 		if (overflow) {
-			const particleinfo info = tex1Dfetch(infoTex, index);
-			atomicCAS(&d_hasTooManyNeibs, -1, (int)id(info));
-			if (d_hasTooManyNeibs == id(info)) {
+			const particleinfo info = params.fetchInfo(index);
+			const int old = atomicCAS(&d_hasTooManyNeibs, -1, (int)id(info));
+			if (old == -1) {
 				d_hasMaxNeibs[PT_FLUID] = neibs_num[PT_FLUID];
 				d_hasMaxNeibs[PT_BOUNDARY] = neibs_num[PT_BOUNDARY];
 				d_hasMaxNeibs[PT_VERTEX] = neibs_num[PT_VERTEX];
@@ -1190,6 +1219,29 @@ buildNeibsListDevice(buildneibs_params<boundarytype> params)
 		}
 	}
 	return;
+}
+
+/// Check if any cells have more particles that can be enumerated in CELLNUM_SHIFT
+__global__ void
+checkCellSizeDevice(cell_params params, uint nCells)
+{
+	const uint index = INTMUL(blockIdx.x, blockDim.x) + threadIdx.x;
+
+	if (index >= nCells)
+		return;
+
+	const uint start = params.fetchCellStart(index);
+	const uint end = params.fetchCellEnd(index);
+
+	const uint delta = end - start;
+
+	if (delta > NEIBINDEX_MASK) {
+		int old = atomicCAS(&d_hasTooManyParticles, -1, index);
+		if (old == -1)
+			d_hasHowManyParticles = delta;
+	}
+
+
 }
 /** @} */
 }

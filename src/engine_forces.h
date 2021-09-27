@@ -91,31 +91,6 @@ public:
 					uint	numBodiesParticles) = 0;
 	/// @}
 
-
-	// TODO texture bind/unbind and dtreduce for forces should be handled in a different way:
-	// they are sets of operations to be done before/after the forces kernel, which are
-	// called separately because the kernel might be split into inner/outer calls, and
-	// the pre-/post- calls have to do before the first and after the last
-
-	/// Bind textures needed in the forces kernel execution
-	virtual void
-	bind_textures(const BufferList& bufread, uint numParticles,
-		RunMode run_mode) = 0;
-
-	/// Unbind the textures after the forces kernel execution
-	virtual void
-	unbind_textures(RunMode run_mode) = 0;
-
-	/// Set the DEM
-	/// TODO set/unsetDEM should be moved to the BC engine,
-	/// and the latter should be called by the destructor
-	virtual void
-	setDEM(const float *hDem, int width, int height) = 0;
-
-	/// Free DEM-related resources
-	virtual void
-	unsetDEM() = 0;
-
 	/// Striping support: round a number of particles down to the largest multiple
 	/// of the block size that is not greater than it
 	virtual uint
@@ -140,6 +115,17 @@ public:
 		const	float	slength,
 		const	float	influenceRadius,
 		const	float	dt) = 0;
+
+	/// Compute CSPM coefficients for CCSPH and ANTUONO / DELTA_SPH
+	virtual void
+	compute_cspm_coeff(
+		const BufferList& bufread,
+		BufferList& bufwrite,
+		const	uint	numParticles,
+		const	uint	particleRangeEnd,
+		const	float	deltap,
+		const	float	slength,
+		const	float	influenceRadius) = 0;
 
 	/// Basic forces step.
 	/// \return the number of blocks launched (which is the number of blocks to

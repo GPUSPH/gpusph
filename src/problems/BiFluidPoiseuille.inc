@@ -166,11 +166,10 @@ BIFLUIDPOISEUILLE_PROBLEM::BIFLUIDPOISEUILLE_PROBLEM(GlobalData *_gdata) :
 	if (simparams()->boundarytype == SA_BOUNDARY) {
 		// Building the geometry
 		//*** Add the Fluid
-		GeometryID fluid = addHDF5File(GT_FLUID, Point(0,0,0), "./data_files/PoiseuilleFlowSA/0.PoiseuilleFlowSA.fluid.h5sph", NULL);
+		addHDF5File(GT_FLUID, Point(0,0,0), "./data_files/PoiseuilleFlowSA/0.PoiseuilleFlowSA.fluid.h5sph", NULL);
 
 		//*** Add the Main Container
-		GeometryID container = addHDF5File(GT_FIXED_BOUNDARY, Point(0,0,0), "./data_files/PoiseuilleFlowSA/0.PoiseuilleFlowSA.boundary.kent0.h5sph", NULL);
-		disableCollisions(container);
+		addHDF5File(GT_FIXED_BOUNDARY, Point(0,0,0), "./data_files/PoiseuilleFlowSA/0.PoiseuilleFlowSA.boundary.kent0.h5sph", NULL);
 	} else {
 		// Building the geometry
 		dyn_layers = ceil(simparams()->influenceRadius/m_deltap) + 1;
@@ -181,9 +180,8 @@ BIFLUIDPOISEUILLE_PROBLEM::BIFLUIDPOISEUILLE_PROBLEM(GlobalData *_gdata) :
 		const double3 periodicity_gap = make_double3(m_deltap/2, m_deltap/2, 0);
 
 		/* Walls */
-		GeometryID walls = addBox(GT_FIXED_BOUNDARY, FT_SOLID,
+		addBox(GT_FIXED_BOUNDARY, FT_SOLID,
 				periodicity_gap + make_double3(0, 0, 0), l - m_deltap, a - m_deltap, H - m_deltap + 2*dyn_offset.z) ;
-		disableCollisions(walls);
 		GeometryID unfill_walls = addBox(GT_FIXED_BOUNDARY, FT_NOFILL,
 				periodicity_gap + make_double3(0, 0, 0), l - m_deltap, a - m_deltap, H - 2*m_deltap) ;
 		disableCollisions(unfill_walls);

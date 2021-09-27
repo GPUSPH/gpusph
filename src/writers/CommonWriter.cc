@@ -308,7 +308,7 @@ CommonWriter::need_write(double t) const
 	return Writer::need_write(t);
 }
 
-static const char* TF[] = { "false", "true" };
+//static const char* TF[] = { "false", "true" }; // unused at the moment
 static const char* ED[] = { "disabled", "enabled" };
 
 // TODO mark params overridden by options with a *
@@ -326,7 +326,7 @@ CommonWriter::write_simparams(ostream &out)
 	out << " kernelradius = " << SP->kernelradius << endl;
 	out << " influenceRadius = " << SP->influenceRadius << endl;
 	out << " SPH formulation: " << SP->sph_formulation << " (" << SPHFormulationName[SP->sph_formulation] << ")" << endl;
-	out << " multi-fluid support: " << ED[!!(SP->simflags & ENABLE_MULTIFLUID)] << endl;
+	out << " multi-fluid support: " << ED[HAS_MULTIFLUID(SP->simflags)] << endl;
 	out << " Rheology: " << RheologyName[SP->rheologytype] << endl;
 	if (SP->rheologytype != INVISCID) {
 		out << "\tTurbulence model: " << TurbulenceName[SP->turbmodel] << endl;
@@ -363,13 +363,17 @@ CommonWriter::write_simparams(ostream &out)
 		++flt;
 	}
 
-	out << " adaptive time stepping " << ED[!!(SP->simflags & ENABLE_DTADAPT)] << endl;
-	if (SP->simflags & ENABLE_DTADAPT)
+	out << " adaptive time stepping " << ED[HAS_DTADAPT(SP->simflags)] << endl;
+	if (HAS_DTADAPT(SP->simflags))
 		out << "    safety factor for adaptive time step = " << SP->dtadaptfactor << endl;
-	out << " internal energy computation " << ED[!!(SP->simflags & ENABLE_INTERNAL_ENERGY)] << endl;
+	out << " internal energy computation " << ED[HAS_INTERNAL_ENERGY(SP->simflags)] << endl;
 
-	out << " XSPH correction " << ED[!!(SP->simflags & ENABLE_XSPH)] << endl;
+	out << " XSPH correction " << ED[HAS_XSPH(SP->simflags)] << endl;
 
+	const bool has_ccsph = HAS_CCSPH(SP->simflags);
+	out << " Conservative Corrective Smoothed Particle Hydrodynamics (CCSPH) " << ED[has_ccsph] << endl;
+	if (has_ccsph)
+		out << "    determinant threshold: " << SP->ccsph_min_det << endl;
 	switch (SP->densitydiffusiontype) {
 	case FERRARI:
 		out << " Ferrari density diffusion enabled" << endl;
@@ -390,16 +394,23 @@ CommonWriter::write_simparams(ostream &out)
 		// recompute the input xi
 		out << "    ξ = " << SP->densityDiffCoeff/(2.0f*SP->slength) << endl;
 		break;
+	case ANTUONO:
+		out << " Antuono (δ-SPH) density diffusion enabled" << endl;
+		// recompute the input delta (note: δ in Delta-SPH and ξ in Colagrossi
+		//  are the same parameter, just different name)
+		break;
+		out << "    δ = " << SP->densityDiffCoeff/(2.0f*SP->slength) << endl;
+		break;
 	default:
 		break;
 	}
-	out << " moving bodies " << ED[!!(SP->simflags & ENABLE_MOVING_BODIES)] << endl;
-	out << " open boundaries " << ED[!!(SP->simflags & ENABLE_INLET_OUTLET)] << endl;
-	out << " water depth computation " << ED[!!(SP->simflags & ENABLE_WATER_DEPTH)] << endl;
+	out << " moving bodies " << ED[HAS_MOVING_BODIES(SP->simflags)] << endl;
+	out << " open boundaries " << ED[HAS_INLET_OUTLET(SP->simflags)] << endl;
+	out << " water depth computation " << ED[HAS_WATER_DEPTH(SP->simflags)] << endl;
 	out << " time-dependent gravity " << ED[!!(SP->gcallback)] << endl;
 
-	const bool has_dem = !!(SP->simflags & ENABLE_DEM);
-	const bool has_planes = !!(SP->simflags & ENABLE_PLANES);
+	const bool has_dem = HAS_DEM(SP->simflags);
+	const bool has_planes = HAS_PLANES(SP->simflags);
 
 	out << " geometric boundaries: " << endl;
 	out << "   DEM: " << ED[has_dem];
@@ -445,7 +456,7 @@ CommonWriter::write_physparams(ostream &out)
 		out << " gamma[ " << f << " ] = " << PP->gammacoeff[f] << endl;
 		out << " sscoeff[ " << f << " ] = " << PP->sscoeff[f] << endl;
 		out << " sspowercoeff[ " << f << " ] = " << PP->sspowercoeff[f] << endl;
-		out << " sound speed[ " << f << " ] = " << m_problem->soundspeed(PP->rho0[f],f) << endl;
+		out << " sound speed[ " << f << " ] = " << m_problem->soundspeed(0, f) << endl;
 	}
 	if (PP->numFluids() > 1 && SP->sph_formulation == SPH_GRENIER)
 		out << " interface epsilon = " << PP->epsinterface << endl;
@@ -505,11 +516,11 @@ CommonWriter::write_physparams(ostream &out)
 		out << "\tvisccoeff[ " << f << " ] = " << PP->visccoeff[f]
 			<< (SP->compvisc == KINEMATIC ? " (m^2/s)" : " (Pa s)") <<endl;
 
-	if (SP->simflags & ENABLE_XSPH) {
+	if (HAS_XSPH(SP->simflags)) {
 		out << " epsxsph = " << PP->epsxsph << endl;
 	}
 
-	if (SP->simflags & ENABLE_DEM) {
+	if (HAS_DEM(SP->simflags)) {
 		out << " DEM resolution EW = " << PP->ewres << ", NS = " << PP->nsres << endl;
 		out << " DEM displacement for normal computation dx = " << PP->demdx << ", dy = " << PP->demdy << endl;
 		out << " DEM zmin = " << PP->demzmin << endl;

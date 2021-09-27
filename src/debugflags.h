@@ -39,7 +39,10 @@ struct DebugFlags {
 #include "debugflags.def"
 };
 
+/// Global debug flags object
+extern DebugFlags g_debug;
+
 /// Get a DebugFlag from a comma-separated list
-DebugFlags parse_debug_flags(std::string const& str);
+void parse_debug_flags(std::string const& str);
 
 #endif

@@ -28,58 +28,90 @@
 #ifndef _BUILDNEIBS_PARAMS_H
 #define _BUILDNEIBS_PARAMS_H
 
-#include "cond_params.h"
+#include "common_params.h"
 #include "particledefine.h"
+
+#include "buffer.h"
+#include "define_buffers.h"
+#include "cudabuffer.h"
 
 /** \addtogroup neibs_buildnibskernel_params Neighbor list kernel parameters
  * 	\ingroup neibs
  *  Templatized structures holding parameters passed to buildneibs kernel
  *  @{ */
+
+DEFINE_BUFFER_WRAPPER(cellStart_wrapper, BUFFER_CELLSTART, cellStart, CellStart);
+DEFINE_BUFFER_WRAPPER(cellEnd_wrapper, BUFFER_CELLEND, cellEnd, CellEnd);
+
+struct cell_params : cellStart_wrapper, cellEnd_wrapper
+{
+	cell_params(const BufferList& bufread) :
+		cellStart_wrapper(bufread),
+		cellEnd_wrapper(bufread)
+	{}
+};
+
 /// Common parameters used in buildneibs kernel
 /*!	Parameters passed to buildneibs device function depends on the type of
  * 	of boundary used. This structure contains the parameters common to all
  * 	boundary types.
  */
-struct common_buildneibs_params
+struct common_buildneibs_params :
+	pos_info_wrapper, ///< particle's positions and info (in)
+	cell_params
 {
-			neibdata	*neibsList;				///< neighbor's list (out)
-#if PREFER_L1
-	const	float4		*posArray;				///< particle's positions (in)
-#endif
-	const	hashKey		*particleHash;			///< particle's hashes (in)
+	const	hashKey		* __restrict__ particleHash;			///< particle's hashes (in)
+			neibdata	* __restrict__ neibsList;				///< neighbor's list (out)
 	const	uint		numParticles;			///< total number of particles
 	const	float		sqinfluenceradius;		///< squared influence radius
 
 	common_buildneibs_params(
-				neibdata	*_neibsList,
-		const	float4		*_pos,
-		const	hashKey		*_particleHash,
+		const	BufferList&	bufread,
+				BufferList& bufwrite,
 		const	uint		_numParticles,
-		const	float		_sqinfluenceradius) :
-		neibsList(_neibsList),
-#if PREFER_L1
-		posArray(_pos),
-#endif
-		particleHash(_particleHash),
+		const	float		_sqinfluenceradius)
+	:
+		pos_info_wrapper(bufread),
+		cell_params(bufread),
+		particleHash(bufread.getData<BUFFER_HASH>()),
+		neibsList(bufwrite.getData<BUFFER_NEIBSLIST>()),
 		numParticles(_numParticles),
 		sqinfluenceradius(_sqinfluenceradius)
 	{}
 };
 
-/// Parameters used only with SA_BOUNDARY buildneibs specialization
-struct sa_boundary_buildneibs_params
+/// Parameters used only when ENABLE_PLANES or ENBLE_DEM
+struct planes_buildneibs_params
 {
-			float2	*vertPos0;				///< relative position of vertex to segment, first vertex
-			float2	*vertPos1;				///< relative position of vertex to segment, second vertex
-			float2	*vertPos2;				///< relative position of vertex to segment, third vertex
+			int4	* __restrict__ neibPlanes; ///< list of neighboring planes
+
+	planes_buildneibs_params(BufferList& bufwrite) :
+		neibPlanes(bufwrite.getData<BUFFER_NEIBPLANES>())
+	{}
+};
+
+/*! Wrapper for const acces to BUFFER_VERTICES
+ *  Access is provided by the fetchVert(index) method, without revealing details about
+ *  the storage form (texture or linear array)
+ */
+DEFINE_BUFFER_WRAPPER(vertices_wrapper, BUFFER_VERTICES, vert, Vert);
+
+
+/// Parameters used only with SA_BOUNDARY buildneibs specialization
+struct sa_boundary_buildneibs_params :
+	vertices_wrapper, ///< ID of the vertices of each boundary element (in)
+	boundelements_wrapper, ///< boundary elements (in)
+	vertPos_params<true>  ///< relative position of vertex to segment, one float2 array per vertex (out)
+{
 	const	float	boundNlSqInflRad;		///< neighbor search radius for PT_FLUID <-> PT_BOUNDARY interaction
 
 	sa_boundary_buildneibs_params(
-				float2	*_vertPos[],
+		const	BufferList& bufread,
+				BufferList& bufwrite,
 		const	float	_boundNlSqInflRad) :
-		vertPos0(_vertPos[0]),
-		vertPos1(_vertPos[1]),
-		vertPos2(_vertPos[2]),
+		vertices_wrapper(bufread),
+		boundelements_wrapper(bufread),
+		vertPos_params<true>(bufwrite),
 		boundNlSqInflRad(_boundNlSqInflRad)
 	{}
 };
@@ -90,27 +122,30 @@ struct sa_boundary_buildneibs_params
  *  It then delegates the appropriate subset of arguments to the appropriate
  *  structures it derives from, in the correct order
  */
-template<BoundaryType boundarytype>
+template<BoundaryType boundarytype, flag_t simflags,
+	typename cond_sa_params = typename COND_STRUCT(boundarytype == SA_BOUNDARY, sa_boundary_buildneibs_params),
+	typename cond_planes_params = typename COND_STRUCT(HAS_DEM_OR_PLANES(simflags),
+		planes_buildneibs_params),
+	typename cond_dem_params = typename COND_STRUCT(HAS_DEM(simflags), dem_params)>
 struct buildneibs_params :
 	common_buildneibs_params,
-	COND_STRUCT(boundarytype == SA_BOUNDARY, sa_boundary_buildneibs_params)
+	cond_planes_params,
+	cond_dem_params,
+	cond_sa_params
 {
-
 	buildneibs_params(
-		// Common
-				neibdata	*_neibsList,
-		const	float4		*_pos,
-		const	hashKey		*_particleHash,
+		const	BufferList&	bufread,
+				BufferList& bufwrite,
 		const	uint		_numParticles,
 		const	float		_sqinfluenceradius,
 
 		// SA_BOUNDARY
-				float2	*_vertPos[],
 		const	float	_boundNlSqInflRad) :
-		common_buildneibs_params(_neibsList, _pos, _particleHash,
+		common_buildneibs_params(bufread, bufwrite,
 			_numParticles, _sqinfluenceradius),
-		COND_STRUCT(boundarytype == SA_BOUNDARY, sa_boundary_buildneibs_params)(
-			_vertPos, _boundNlSqInflRad)
+		cond_planes_params(bufwrite),
+		cond_dem_params(), // dem_params automatically initialize from the global DEM object
+		cond_sa_params(bufread, bufwrite, _boundNlSqInflRad)
 	{}
 };
 /** @} */

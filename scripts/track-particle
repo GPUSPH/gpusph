@@ -1,0 +1,74 @@
+#!/usr/bin/python
+
+# Follow the properties of a particle throughout a simulation.
+
+# Usage: scripts/track-particle -p particle_id vtu_index
+
+import os
+from argparse import ArgumentParser
+from paraview.simple import *
+
+parser = ArgumentParser(description='Extract field values from source files')
+parser.add_argument('src', metavar='path', nargs='+')
+parser.add_argument('-p', dest='particle_id', required=True)
+
+args = parser.parse_args()
+
+files = args.src
+pid = int(args.particle_id)
+
+Connect()
+
+# Open the index file
+try:
+    vtp = OpenDataFile(files)
+except RuntimeError:
+    try:
+        vtp = OpenDataFile(os.path.join(files[0], 'VTUinp.pvd'))
+    except RuntimeError:
+        vtp = OpenDataFile(os.path.join(files[0], 'data', 'VTUinp.pvd'))
+
+# get all available timesteps
+timestep = vtp.TimestepValues
+
+print("%d timesteps" % (len(timestep)))
+
+# threshold on particle id
+particle = Threshold(vtp)
+particle.Scalars = 'Part id'
+particle.ThresholdRange = [pid, pid]
+
+particle.UpdatePipeline(timestep[0])
+
+data_info = particle.GetPointDataInformation()
+
+header = "time,x,y,z"
+fmt = "%g,%g,%g,%g"
+
+arrays = data_info.items()
+
+for name, ar in arrays:
+    dim = ar.GetNumberOfComponents()
+    if dim == 1:
+        header += ",%s" % (name)
+        fmt += ",%g"
+    elif dim == 3:
+        header += ",{name}_X,{name}_Y,{name}_Z".format(name=name)
+        fmt += ",%g,%g,%g"
+    else:
+        raise RuntimeError("array %s has unsupported number of components %d" % (name, dim))
+
+print(header)
+for time in timestep:
+    particle.UpdatePipeline(time)
+    # we have a single particle, so the bounds are the particle coordinates,
+    # repeated twice: get only the even components
+    bounds = (time,) + particle.GetDataInformation().GetBounds()[0::2]
+
+    for _, ar in arrays:
+        dim = ar.GetNumberOfComponents()
+        for i in range(dim):
+            # we exploit the fact that we have a single particle to get the data value
+            bounds +=  ar.GetRange(i)[0::2]
+
+    print(fmt % bounds)

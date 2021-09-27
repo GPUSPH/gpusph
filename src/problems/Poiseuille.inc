@@ -149,9 +149,11 @@ POISEUILLE_PROBLEM::POISEUILLE_PROBLEM(GlobalData *_gdata) :
 
 	// Geometry--------------------------------------------------
 	setPositioning(PP_CENTER);
-	GeometryID bottom = addRect(GT_FIXED_BOUNDARY, FT_BORDER,
+	// bottom
+	addRect(GT_FIXED_BOUNDARY, FT_BORDER,
 		Point(0,0,-(lz/2)), lx - m_deltap, ly - m_deltap);
-	GeometryID fluid = addBox(GT_FLUID, FT_SOLID, Point(0,0,0),
+	// fluid
+	addBox(GT_FLUID, FT_SOLID, Point(0,0,0),
 		lx - m_deltap, ly - m_deltap, lz- 2*m_deltap );
 
 	setPositioning(PP_CORNER);

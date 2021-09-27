@@ -129,9 +129,9 @@ StillWater::StillWater(GlobalData *_gdata) : Problem(_gdata)
 	// distance between fluid box and wall
 	float wd = m_deltap;
 
-	GeometryID experiment_box = addBox(GT_FIXED_BOUNDARY, FT_BORDER,
+	// outer walls
+	addBox(GT_FIXED_BOUNDARY, FT_BORDER,
 		Point(m_origin), m_size.x, m_size.y, m_size.z);
-	disableCollisions(experiment_box);
 
 	m_fluidOrigin = m_origin;
 	if (dyn_layers > 1) // shift by the extra offset of the experiment box
@@ -140,7 +140,7 @@ StillWater::StillWater(GlobalData *_gdata) : Problem(_gdata)
 	double shift = 2*wd;
 	if (dyn_layers > 1)
 		shift = (dyn_layers-1)*m_deltap*2;
-	GeometryID fluid = addBox(GT_FLUID, FT_SOLID,
+	addBox(GT_FLUID, FT_SOLID,
 		m_fluidOrigin, l-shift, w-shift, H-shift);
 
 }

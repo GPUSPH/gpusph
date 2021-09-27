@@ -49,6 +49,9 @@
 // UINT_MAX
 #include "limits.h"
 
+// Debug flags
+#include "debugflags.h"
+
 using namespace std;
 
 GPUWorker::GPUWorker(GlobalData* _gdata, devcount_t _deviceIndex) :
@@ -128,6 +131,7 @@ GPUWorker::GPUWorker(GlobalData* _gdata, devcount_t _deviceIndex) :
 		m_dBuffers.addBuffer<CUDABuffer, BUFFER_RB_KEYS>();
 	}
 
+
 	m_dBuffers.addBuffer<CUDABuffer, BUFFER_CELLSTART>(-1);
 	m_dBuffers.addBuffer<CUDABuffer, BUFFER_CELLEND>(-1);
 	if (MULTI_DEVICE) {
@@ -139,8 +143,21 @@ GPUWorker::GPUWorker(GlobalData* _gdata, devcount_t _deviceIndex) :
 	m_dBuffers.addBuffer<CUDABuffer, BUFFER_PARTINDEX>();
 	m_dBuffers.addBuffer<CUDABuffer, BUFFER_NEIBSLIST>(-1); // neib list is initialized to all bits set
 
-	if (m_simparams->simflags & ENABLE_XSPH)
+	if (HAS_DEM_OR_PLANES(m_simparams->simflags))
+		m_dBuffers.addBuffer<CUDABuffer, BUFFER_NEIBPLANES>(-1); // neib planes list is initialized to all bits set
+
+	if (HAS_XSPH(m_simparams->simflags))
 		m_dBuffers.addBuffer<CUDABuffer, BUFFER_XSPH>(0);
+
+	// TODO we may want to allocate them for delta-SPH in the debugging case
+	if (HAS_CCSPH(m_simparams->simflags)) {
+		m_dBuffers.addBuffer<CUDABuffer, BUFFER_WCOEFF>(0);
+		m_dBuffers.addBuffer<CUDABuffer, BUFFER_FCOEFF>(0);
+	}
+
+	if (m_simparams->densitydiffusiontype == ANTUONO) {
+		m_dBuffers.addBuffer<CUDABuffer, BUFFER_RENORMDENS>(0);
+	}
 
 	// If the user enabled a(n actual) turbulence model, enable BUFFER_TAU, to
 	// store the shear stress tensor.
@@ -157,7 +174,7 @@ GPUWorker::GPUWorker(GlobalData* _gdata, devcount_t _deviceIndex) :
 	if (m_simframework->hasPostProcessEngine(VORTICITY))
 		m_dBuffers.addBuffer<CUDABuffer, BUFFER_VORTICITY>();
 
-	if (m_simparams->simflags & ENABLE_DTADAPT) {
+	if (HAS_DTADAPT(m_simparams->simflags)) {
 		m_dBuffers.addBuffer<CUDABuffer, BUFFER_CFL>();
 		m_dBuffers.addBuffer<CUDABuffer, BUFFER_CFL_TEMP>();
 		if (m_simparams->boundarytype == SA_BOUNDARY && USING_DYNAMIC_GAMMA(m_simparams->simflags))
@@ -197,10 +214,10 @@ GPUWorker::GPUWorker(GlobalData* _gdata, devcount_t _deviceIndex) :
 	}
 
 	if (m_simparams->boundarytype == SA_BOUNDARY &&
-		(m_simparams->simflags & ENABLE_INLET_OUTLET || m_simparams->turbmodel == KEPSILON))
+		(HAS_INLET_OUTLET(m_simparams->simflags) || m_simparams->turbmodel == KEPSILON))
 		m_dBuffers.addBuffer<CUDABuffer, BUFFER_EULERVEL>();
 
-	if (m_simparams->simflags & ENABLE_INLET_OUTLET)
+	if (HAS_INLET_OUTLET(m_simparams->simflags))
 		m_dBuffers.addBuffer<CUDABuffer, BUFFER_NEXTID>();
 
 	if (m_simparams->sph_formulation == SPH_GRENIER) {
@@ -216,7 +233,7 @@ GPUWorker::GPUWorker(GlobalData* _gdata, devcount_t _deviceIndex) :
 			m_dBuffers.addBuffer<CUDABuffer, BUFFER_PRIVATE4>();
 	}
 
-	if (m_simparams->simflags & ENABLE_INTERNAL_ENERGY) {
+	if (HAS_INTERNAL_ENERGY(m_simparams->simflags)) {
 		m_dBuffers.addBuffer<CUDABuffer, BUFFER_INTERNAL_ENERGY>();
 		m_dBuffers.addBuffer<CUDABuffer, BUFFER_INTERNAL_ENERGY_UPD>(0);
 	}
@@ -942,7 +959,7 @@ void GPUWorker::transferBursts(CommandStruct const& cmd)
 // staged on host otherwise. Network transfers use the NetworkManager (MPI-based).
 void GPUWorker::importExternalCells(CommandStruct const& cmd)
 {
-	if (gdata->debug.check_buffer_update) checkBufferUpdate(cmd);
+	if (g_debug.check_buffer_update) checkBufferUpdate(cmd);
 
 	if (cmd.command == APPEND_EXTERNAL)
 		transferBurstsSizes();
@@ -973,13 +990,14 @@ size_t GPUWorker::allocateHostBuffers() {
 	if (MULTI_DEVICE) {
 		allocated += m_hBuffers.get<BUFFER_COMPACT_DEV_MAP>()->alloc(m_nGridCells);
 
-		// allocate a 1Mb transferBuffer if peer copies are disabled
+		// allocate a 4MB transferBuffer if peer copies are disabled
+#define INITIAL_TRANSFER_BUFFER_SIZE size_t(4*1024*1024)
 		if (m_disableP2Ptranfers)
-			resizePeerTransferBuffer(1024 * 1024);
+			resizePeerTransferBuffer(INITIAL_TRANSFER_BUFFER_SIZE);
 
 		// ditto for network transfers
 		if (!gdata->clOptions->gpudirect)
-			resizeNetworkTransferBuffer(1024 * 1024);
+			resizeNetworkTransferBuffer(INITIAL_TRANSFER_BUFFER_SIZE);
 
 		// TODO migrate these to the buffer system as well
 		cudaMallocHost(&(gdata->s_dCellStarts[m_deviceIndex]), uintCellsSize);
@@ -1050,7 +1068,7 @@ size_t GPUWorker::allocateDeviceBuffers() {
 	}
 
 	// water depth at open boundaries
-	if (m_simparams->simflags & (ENABLE_INLET_OUTLET | ENABLE_WATER_DEPTH)) {
+	if (QUERY_ALL_FLAGS(m_simparams->simflags, ENABLE_INLET_OUTLET | ENABLE_WATER_DEPTH)) {
 		CUDA_SAFE_CALL(cudaMalloc((void**)&m_dIOwaterdepth, m_simparams->numOpenBoundaries*sizeof(uint)));
 		allocated += m_simparams->numOpenBoundaries*sizeof(uint);
 	}
@@ -1086,13 +1104,12 @@ size_t GPUWorker::allocateDeviceBuffers() {
 		forcesEngine->setfeanatcoords(gdata->s_hFeaNatCoords, gdata->s_hFeaOwningNodes, m_numFeaParts);
 
 	}
-
-	if (m_simparams->simflags & ENABLE_DEM) {
+	if (HAS_DEM(m_simparams->simflags)) {
 		int nrows = gdata->problem->get_dem_nrows();
 		int ncols = gdata->problem->get_dem_ncols();
 		printf("Thread %d setting DEM texture\t cols = %d\trows =%d\n",
 				m_deviceIndex, ncols, nrows);
-		forcesEngine->setDEM(gdata->problem->get_dem(), ncols, nrows);
+		m_simframework->setDEM(gdata->problem->get_dem(), ncols, nrows);
 	}
 
 	m_deviceMemory += allocated;
@@ -1145,10 +1162,11 @@ void GPUWorker::deallocateDeviceBuffers() {
 
 	CUDA_SAFE_CALL(cudaFree(m_dNewNumParticles));
 
-	if (m_simparams->simflags & (ENABLE_INLET_OUTLET | ENABLE_WATER_DEPTH))
+	if (QUERY_ALL_FLAGS(m_simparams->simflags, ENABLE_INLET_OUTLET | ENABLE_WATER_DEPTH))
 		CUDA_SAFE_CALL(cudaFree(m_dIOwaterdepth));
 
-	// here: dem device buffers?
+	if (HAS_DEM(m_simparams->simflags))
+		m_simframework->unsetDEM();
 }
 
 void GPUWorker::createEventsAndStreams()
@@ -1358,7 +1376,15 @@ void GPUWorker::runCommand<DUMP>(CommandStruct const& cmd)
 		// the cell-specific buffers are always dumped as a whole,
 		// since this is only used to debug the neighbors list on host
 		// TODO FIXME this probably doesn't work on multi-GPU
-		if (buf_to_get & BUFFERS_CELL) {
+		// A similar argument holds for BUFFER_NEIBSLIST: due to the
+		// structure of the array, if we download based on howManyParticles
+		// rather than the actual allocated elements, the last element in the list
+		// of neighbors of the last particles will not be downloaded
+		// This again will most probably not work in multi-GPU, but since we're
+		// only doing this if debug.neibs, it shouldn't matter much
+		// (or at least we'll look for a way to FIXME this when we'll need
+		// to debug.neibs in multi-GPU context).
+		if (buf_to_get & (BUFFERS_CELL | BUFFER_NEIBSLIST)) {
 			_size = buf->get_allocated_elements() * buf->get_element_size();
 			dst_index_offset = 0;
 		}
@@ -1430,21 +1456,27 @@ void GPUWorker::runCommand<UNDUMP>(CommandStruct const& cmd)
 }
 
 
-// if m_hPeerTransferBuffer is not big enough, reallocate it. Round up to 1Mb
+// Transfer buffers are sized in multiples of 1MB
+#define TRANSFER_BUFFER_ROUNDING size_t(1024*1024)
+
+// if m_hPeerTransferBuffer is not big enough, reallocate it
 void GPUWorker::resizePeerTransferBuffer(size_t required_size)
 {
 	// is it big enough already?
 	if (required_size < m_hPeerTransferBufferSize) return;
 
-	// will round up to...
-	size_t ROUND_TO = 1024*1024;
-
 	// store previous size, compute new
 	size_t prev_size = m_hPeerTransferBufferSize;
-	m_hPeerTransferBufferSize = ((required_size / ROUND_TO) + 1 ) * ROUND_TO;
+	// actually allocate size is obtained rounding up to the next multiple of TRANSFER_BUFFER_ROUNDING
+	m_hPeerTransferBufferSize = round_up(required_size, TRANSFER_BUFFER_ROUNDING);
 
-	// dealloc first
-	if (m_hPeerTransferBufferSize) {
+	// if the buffer was already allocated, deallocate it first
+	if (prev_size) {
+		// make sure there are no pending / running transfers using the current buffer
+		// (this can happen if there are 2 non-peered neighbors and the resize triggers
+		// on the second neighbor while transferring data with the first
+		CUDA_SAFE_CALL(cudaStreamSynchronize(m_asyncPeerCopiesStream));
+
 		CUDA_SAFE_CALL(cudaFreeHost(m_hPeerTransferBuffer));
 		m_hostMemory -= prev_size;
 	}
@@ -1462,15 +1494,16 @@ void GPUWorker::resizeNetworkTransferBuffer(size_t required_size)
 	// is it big enough already?
 	if (required_size < m_hNetworkTransferBufferSize) return;
 
-	// will round up to...
-	size_t ROUND_TO = 1024*1024;
-
 	// store previous size, compute new
 	size_t prev_size = m_hNetworkTransferBufferSize;
-	m_hNetworkTransferBufferSize = ((required_size / ROUND_TO) + 1 ) * ROUND_TO;
+	// actually allocate size is obtained rounding up to the next multiple of TRANSFER_BUFFER_ROUNDING
+	m_hNetworkTransferBufferSize = round_up(required_size, TRANSFER_BUFFER_ROUNDING);
 
-	// dealloc first
-	if (m_hNetworkTransferBufferSize) {
+	// if the buffer was already allocated, deallocate it first
+	if (prev_size) {
+		// TODO when we switch to non-blocking MPI calls, we'll have to wait here
+		// for pending transfers, as in resizePeerTransferBuffer()
+
 		CUDA_SAFE_CALL(cudaFreeHost(m_hNetworkTransferBuffer));
 		m_hostMemory -= prev_size;
 	}
@@ -1935,7 +1968,7 @@ void GPUWorker::runCommand<REORDER>(CommandStruct const& cmd)
 	const BufferList unsorted =
 		extractExistingBufferList(m_dBuffers, cmd.reads);
 	BufferList sorted =
-		// updates holds the buffers sorted in SORT, which will only read actually
+		// updates holds the buffers sorted in SORT, which will only be read actually
 		extractExistingBufferList(m_dBuffers, cmd.updates) |
 		// the writes specification includes a dynamic buffer selection,
 		// because the sorted state will have the buffers that were also
@@ -1946,6 +1979,7 @@ void GPUWorker::runCommand<REORDER>(CommandStruct const& cmd)
 
 	// reset also if the device is empty (or we will download uninitialized values)
 	sorted.get<BUFFER_CELLSTART>()->clobber();
+	sorted.validate_access();
 
 	// if the device is not empty, do the actual sorting. Otherwise, just mark the buffers as updated
 	if (m_numParticles > 0) {
@@ -1980,6 +2014,9 @@ void GPUWorker::runCommand<BUILDNEIBS>(CommandStruct const& cmd)
 	BufferList bufwrite =
 		extractGeneralBufferList(m_dBuffers, cmd.writes);
 
+	bufread.validate_access();
+	bufwrite.validate_access();
+
 	bufwrite.add_manipulator_on_write("buildneibs");
 
 	// reset the neighbor list
@@ -1990,8 +2027,7 @@ void GPUWorker::runCommand<BUILDNEIBS>(CommandStruct const& cmd)
 	// it is used to add segments into the neighbour list even if they are outside the kernel support
 	const float boundNlSqInflRad = powf(sqrt(m_simparams->nlSqInfluenceRadius) + m_simparams->slength/m_simparams->sfactor/2.0f,2.0f);
 
-	neibsEngine->buildNeibsList(
-					bufread,
+	neibsEngine->buildNeibsList(	bufread,
 					bufwrite,
 					m_numParticles,
 					numPartsToElaborate,
@@ -2053,10 +2089,10 @@ GPUWorker::BufferListPair GPUWorker::pre_forces(CommandStruct const& cmd, uint n
 	// clear out the buffers computed by forces
 	bufwrite.get<BUFFER_FORCES>()->clobber();
 
-	if (m_simparams->simflags & ENABLE_FEA)
+	if (HAS_FEA(m_simparams->simflags))
 		bufwrite.get<BUFFER_FEA_EXCH>()->clobber();
 
-	if (m_simparams->simflags & ENABLE_XSPH)
+	if (HAS_XSPH(m_simparams->simflags))
 		bufwrite.get<BUFFER_XSPH>()->clobber();
 
 	if (m_simparams->turbmodel == KEPSILON) {
@@ -2066,7 +2102,7 @@ GPUWorker::BufferListPair GPUWorker::pre_forces(CommandStruct const& cmd, uint n
 		bufwrite.get<BUFFER_TAU>()->clobber();
 	}
 
-	if (m_simparams->simflags & ENABLE_INTERNAL_ENERGY) {
+	if (HAS_INTERNAL_ENERGY(m_simparams->simflags)) {
 		bufwrite.get<BUFFER_INTERNAL_ENERGY_UPD>()->clobber();
 	}
 
@@ -2077,7 +2113,7 @@ GPUWorker::BufferListPair GPUWorker::pre_forces(CommandStruct const& cmd, uint n
 		bufwrite.get<BUFFER_RB_TORQUES>()->clobber();
 	}
 
-	if (m_simparams->simflags & ENABLE_DTADAPT) {
+	if (HAS_DTADAPT(m_simparams->simflags)) {
 		bufwrite.get<BUFFER_CFL>()->clobber();
 		bufwrite.get<BUFFER_CFL_TEMP>()->clobber();
 		if (m_simparams->boundarytype == SA_BOUNDARY && USING_DYNAMIC_GAMMA(m_simparams->simflags))
@@ -2087,9 +2123,6 @@ GPUWorker::BufferListPair GPUWorker::pre_forces(CommandStruct const& cmd, uint n
 	}
 
 	bufwrite.clear_pending_state();
-
-	if (numPartsToElaborate > 0)
-		forcesEngine->bind_textures(bufread, m_numParticles, gdata->run_mode);
 
 	return make_pair(bufread, bufwrite);
 
@@ -2101,10 +2134,8 @@ GPUWorker::BufferListPair GPUWorker::pre_forces(CommandStruct const& cmd, uint n
  */
 float GPUWorker::post_forces(CommandStruct const& cmd)
 {
-	forcesEngine->unbind_textures(gdata->run_mode);
-
 	// no reduction for fixed timestep
-	if (!(m_simparams->simflags & ENABLE_DTADAPT))
+	if (!HAS_DTADAPT(m_simparams->simflags))
 		return m_simparams->dt;
 
 	const BufferList bufread = extractExistingBufferList(m_dBuffers, cmd.reads);
@@ -2280,7 +2311,7 @@ void GPUWorker::runCommand<FORCES_COMPLETE>(CommandStruct const& cmd)
 		// wait for the completion of the kernel
 		cudaDeviceSynchronize();
 
-		// unbind the textures
+		// cleanup post forces and get dt
 		returned_dt = post_forces(cmd);
 	}
 
@@ -2292,6 +2323,36 @@ void GPUWorker::runCommand<FORCES_COMPLETE>(CommandStruct const& cmd)
 		gdata->dts[m_deviceIndex] = returned_dt;
 }
 
+template<>
+void GPUWorker::runCommand<CALC_CSPM_COEFF>(CommandStruct const& cmd)
+{
+
+	uint numPartsToElaborate = (cmd.only_internal ? m_particleRangeEnd : m_numParticles);
+
+	// is the device empty? (unlikely but possible before LB kicks in)
+	if (numPartsToElaborate == 0) return;
+
+	const int step = cmd.step.number;
+
+	const BufferList bufread = extractExistingBufferList(m_dBuffers, cmd.reads);
+	BufferList bufwrite = extractExistingBufferList(m_dBuffers, cmd.updates) |
+		extractGeneralBufferList(m_dBuffers, cmd.writes);
+
+	bufwrite.add_manipulator_on_write("computeCspmCoeff" + to_string(step));
+
+	const float dt = cmd.dt(gdata);
+
+	forcesEngine->compute_cspm_coeff(
+		bufread,
+		bufwrite,
+		m_numParticles,
+		numPartsToElaborate,
+		gdata->problem->m_deltap,
+		m_simparams->slength,
+		m_simparams->influenceRadius);
+
+	bufwrite.clear_pending_state();
+}
 
 template<>
 void GPUWorker::runCommand<FORCES_SYNC>(CommandStruct const& cmd)
@@ -2343,6 +2404,8 @@ void GPUWorker::runCommand<EULER>(CommandStruct const& cmd)
 {
 	uint numPartsToElaborate = (cmd.only_internal ? m_particleRangeEnd : m_numParticles);
 
+	uint nans_found = 0;
+
 	const int step = cmd.step.number;
 
 	const BufferList bufread = extractExistingBufferList(m_dBuffers, cmd.reads);
@@ -2355,7 +2418,7 @@ void GPUWorker::runCommand<EULER>(CommandStruct const& cmd)
 	// run the kernel if the device is not empty (unlikely but possible before LB kicks in)
 	// otherwise just mark the buffers
 	if (numPartsToElaborate > 0) {
-		integrationEngine->basicstep(
+		nans_found = integrationEngine->basicstep(
 			bufread,
 			bufwrite,
 			m_numParticles,
@@ -2375,6 +2438,9 @@ void GPUWorker::runCommand<EULER>(CommandStruct const& cmd)
 		m_dBuffers.rename_state(cmd.src, cmd.dst);
 	bufwrite.clear_pending_state();
 
+	if (nans_found)
+		throw std::runtime_error(to_string(nans_found) + " NaNs found at iteration " +
+			to_string(gdata->iterations) + " step " + to_string(step));
 }
 
 template<>
@@ -2560,7 +2626,7 @@ void GPUWorker::runCommand<IMPOSE_OPEN_BOUNDARY_CONDITION>(CommandStruct const& 
 	gdata->problem->imposeBoundaryConditionHost(
 		bufwrite,
 		bufread,
-		(m_simparams->simflags & ENABLE_WATER_DEPTH) ? m_dIOwaterdepth : NULL,
+		HAS_WATER_DEPTH(m_simparams->simflags) ? m_dIOwaterdepth : NULL,
 		gdata->t,
 		m_numParticles,
 		m_simparams->numOpenBoundaries,
@@ -2906,7 +2972,7 @@ void GPUWorker::runCommand<SA_CALC_VERTEX_BOUNDARY_CONDITIONS>(CommandStruct con
 				m_simparams->slength,
 				m_simparams->influenceRadius,
 				step,
-				!gdata->clOptions->resume_fname.empty(),
+				gdata->resume,
 				cmd.dt(gdata),
 				m_dNewNumParticles,
 				m_globalDeviceIdx,
@@ -3401,13 +3467,13 @@ void GPUWorker::simulationThread() {
 		if (gdata->keep_going)
 			uploadSubdomain();
 
-		if (gdata->problem->simparams()->simflags & ENABLE_INLET_OUTLET)
+		if (HAS_INLET_OUTLET(gdata->problem->simparams()->simflags))
 			uploadNumOpenVertices();
 
 		gdata->threadSynchronizer->barrier();  // end of UPLOAD, begins SIMULATION ***
 
-		const bool dbg_step_printf = gdata->debug.print_step;
-		const bool dbg_buffer_lists = gdata->debug.inspect_buffer_lists;
+		const bool dbg_step_printf = g_debug.print_step;
+		const bool dbg_buffer_lists = g_debug.inspect_buffer_lists;
 
 		// TODO automate the dbg_step_printf output
 		// Here is a copy-paste from the CPU thread worker of branch cpusph, as a canvas

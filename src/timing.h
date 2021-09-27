@@ -41,13 +41,6 @@ typedef unsigned int uint;
 typedef unsigned long ulong;
 
 typedef struct TimingInfo {
-	// current simulation time
-	//float   t;
-	// current simulation timestep
-	//float   dt;
-	// current number of particles
-	//uint	numParticles;
-
 	// maximum number of fluid+boundary neibs
 	uint	maxFluidBoundaryNeibs;
 	// maximum number of vertex neibs
@@ -56,47 +49,19 @@ typedef struct TimingInfo {
 	int	hasTooManyNeibs;
 	// number of neibs of that particle
 	int	hasMaxNeibs[PT_TESTPOINT];
+	// index of a cell with too many particles
+	int	hasTooManyParticles;
+	// how many particles are in the cell with too many particles
+	int	hasHowManyParticles;
 
-	// iterations done so far
-	//ulong	iterations;
 	// number of particle-particle interactions with current neiblist
 	uint	numInteractions;
-	// average number of particle-particle interactions
-	//ulong	meanNumInteractions;
-	// time taken to build the neiblist (latest)
-	//float   timeNeibsList;
-	// avg. time  to build the neiblist
-	//float   meanTimeNeibsList;
-	// time taken to compute interactions (latest)
-	//float   timeInteract;
-	// avg. time to compute interactions
-	//float   meanTimeInteract;
-	// time taken to integrate (latest)
-	//float   timeEuler;
-	// avg. time to integrate
-	//double  meanTimeEuler;
 
-	// number of iterations times number of particles
-
-	/* Note: this is computed by adding to it the current number of particles
-	 * after each iteration, to ensure the correct value even when the number of
-	 * particles changes during the simulation
-	 */
-	//ulong	iterTimesParts;
-
-	/*
-	TimingInfo(void) : t(0), dt(0), numParticles(0), maxNeibs(0),
-		iterations(0), numInteractions(0), meanNumInteractions(0),
-		timeNeibsList(0), meanTimeNeibsList(0),
-		timeInteract(0), meanTimeInteract(0),
-		timeEuler(0), meanTimeEuler(0),
-		startTime(0), iterTimesParts(0)
-	{}
-	*/
-
-	TimingInfo(void) : maxFluidBoundaryNeibs(0), maxVertexNeibs(0), numInteractions(0)
+	TimingInfo(void) : maxFluidBoundaryNeibs(0), maxVertexNeibs(0),
+		hasTooManyNeibs(-1),
+		hasTooManyParticles(-1), hasHowManyParticles(0),
+		numInteractions(0)
 	{ }
-
 } TimingInfo;
 
 

@@ -36,6 +36,9 @@
 #include "RepackingIntegrator.h"
 #include "PredictorCorrectorIntegrator.h"
 
+// Debug flags
+#include "debugflags.h"
+
 /*! \file
  * Integrator implementation. For the time being this implements the predictor/corrector integration scheme only,
  * it will be refactored later to include other as well.
@@ -71,7 +74,7 @@ Integrator::enter_phase(size_t phase_idx)
 		throw runtime_error("trying to enter non-existing phase #" + to_string(phase_idx));
 
 	m_phase_idx = phase_idx;
-	if (gdata->debug.print_step)
+	if (g_debug.print_step)
 		cout << "Entering phase " << current_phase()->name() << endl;
 	Phase *phase = current_phase();
 	phase->reset();
@@ -101,7 +104,10 @@ Integrator::buildNeibsPhase(flag_t import_buffers)
 	// Some buffers can be shared between the sorted and unsorted state, because
 	// they are not directly tied to the particles themselves, but the particle system
 	// as a whole. The buffers that need to get shared depend on a number of conditions:
-	static const flag_t has_forces_bodies = (sp->numforcesbodies > 0);
+	static const bool has_forces_bodies = (sp->numforcesbodies > 0);
+
+	// Determine if we're using planes, and thus need the BUFFER_NEIBPLANES buffer
+	static const bool has_planes = HAS_DEM_OR_PLANES(sp->simflags);
 
 	static const flag_t sorting_shared_buffers =
 	// The compact device map (when present) carries over to the other state, unchanged
@@ -219,7 +225,7 @@ Integrator::buildNeibsPhase(flag_t import_buffers)
 		neibs_phase->add_command(APPEND_EXTERNAL)
 			.updating("sorted", import_buffers);
 		// update the newNumParticles device counter
-		if (sp->simflags & ENABLE_INLET_OUTLET)
+		if (HAS_INLET_OUTLET(sp->simflags))
 			neibs_phase->add_command(UPLOAD_NEWNUMPARTS);
 	}
 
@@ -230,7 +236,9 @@ Integrator::buildNeibsPhase(flag_t import_buffers)
 			BUFFER_VERTICES | BUFFER_BOUNDELEMENTS |
 			BUFFER_CELLSTART | BUFFER_CELLEND)
 		.writing("sorted",
-			BUFFER_NEIBSLIST | BUFFER_VERTPOS);
+			BUFFER_NEIBSLIST | BUFFER_VERTPOS |
+			(has_planes ? BUFFER_NEIBPLANES : BUFFER_NONE)
+			);
 
 	// BUFFER_VERTPOS needs to be synchronized with the adjacent devices
 	if (MULTI_DEVICE && sp->boundarytype == SA_BOUNDARY)

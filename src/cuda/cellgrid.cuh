@@ -75,19 +75,6 @@ __constant__ char3	d_cell_to_offset[27];	///< Neighbor cell index to 3D offset (
  *  Contains all the device function needed for computing particles hash, relative positions, ...
  * 	and used in several namespaces (actually cuneibs and cuforces)
  *  @{ */
-/// Return the offset to a neighbor cell
-/*! Given the index (0 ... 26) of the neighbor of a cell C, returns the
- *  offset vector between the center of C and it's neighbor.
- *
- * \return offset vector
- */
-__device__ __forceinline__ float3
-cellOffset(	char neib_cellnum	///< [in] index of neighboring cell (0..26)
-			)
-{
-	return d_cell_to_offset[neib_cellnum]*d_cellSize;
-}
-
 /// Compute hash value from grid position
 /*! Compute the hash value from grid position according to the chosen
  * 	linearization (starting from x, y or z direction). The link
@@ -203,7 +190,7 @@ getNeibIndex(	float4 const&	pos,					///< [in] current particle cell relative po
 				const uint*		cellStart,				///< [in] cells first particle index
 				neibdata		neib_data,				///< [in] neighbor data
 				int3 const&		gridPos,				///< [in] current particle cell position
-				char&			neib_cellnum,			///< [in,out] current neighbor cell index (0...26)
+				uchar&			neib_cellnum,			///< [in,out] current neighbor cell index (0...26)
 				uint&			neib_cell_base_index	///< [in,out] neib_cell_base_index : index of first particle of the current cell
 				)
 {

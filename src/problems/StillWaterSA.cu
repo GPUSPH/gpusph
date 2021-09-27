@@ -30,7 +30,6 @@
 #include "StillWaterSA.h"
 #include "GlobalData.h"
 #include "cudasimframework.cu"
-#include "textures.cuh"
 #include "utils.h"
 #include <string>
 

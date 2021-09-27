@@ -119,15 +119,9 @@ struct common_shear_rate_pdata
 	common_shear_rate_pdata(int _index, KP const& params) :
 		index(_index),
 		gridPos( calcGridPosFromParticleHash(params.particleHash[index]) ),
-		pos(
-#if PREFER_L1
-			params.posArray[index]
-#else
-			tex1Dfetch(posTex, index)
-#endif
-		   ),
-		vel( tex1Dfetch(velTex, index) ),
-		info( tex1Dfetch(infoTex, index) ),
+		pos(params.fetchPos(index)),
+		vel(params.fetchVel(index)),
+		info( params.fetchInfo(index) ),
 		fluid( fluid_num(info) )
 	{}
 };
@@ -140,7 +134,7 @@ struct sa_shear_rate_pdata
 	template<typename KP>// kernel params
 	__device__ __forceinline__
 	sa_shear_rate_pdata(int index, KP const& params) :
-		gamma( params.gGam[index].w),
+		gamma( params.fetchGradGamma(index).w),
 		ref_volume0(params.deltap*params.deltap*params.deltap)
 	{}
 };
@@ -174,16 +168,10 @@ struct common_shear_rate_ndata
 	__device__ __forceinline__
 	common_shear_rate_ndata(NeibIter const& neib_iter, P_t const& pdata, KP const& params) :
 		index(neib_iter.neib_index()),
-		relPos(neib_iter.relPos(
-#if PREFER_L1
-			params.posArray[index]
-#else
-			tex1Dfetch(posTex, index)
-#endif
-			)),
-		info(tex1Dfetch(infoTex, index)),
+		relPos(neib_iter.relPos(params.fetchPos(index))),
+		relVel( make_float3(pdata.vel) - params.fetchVel(index) ),
+		info(params.fetchInfo(index)),
 		r(length3(relPos)),
-		relVel( make_float3(pdata.vel) - tex1Dfetch(velTex, index) ),
 		fluid(fluid_num(info)),
 		rho(physical_density(relVel.w, fluid))
 	{}
@@ -237,8 +225,8 @@ shear_rate_contrib(P_t const& pdata, N_t const& ndata, KP const& params)
 		const float weight = f*ndata.relPos.w/ndata.rho; // F_ij * V_j
 		return make_float3(ndata.relPos)*weight;
 	} else {
-		const float4 belem = tex1Dfetch(boundTex, ndata.index);
-		const float3 normal_s = as_float3(tex1Dfetch(boundTex, ndata.index));
+		const float4 belem = params.fetchBound(ndata.index);
+		const float3 normal_s = as_float3(belem);
 		const float3 q = as_float3(ndata.relPos)/params.slength;
 		float3 q_vb[3];
 		calcVertexRelPos(q_vb, belem,
@@ -267,14 +255,14 @@ sa_boundary_jacobi_build_vector(float &B, N_t const& ndata, KP const& params)
 	// Definition of delta_rho
 	const float delta_rho = cuphys::d_numfluids > 1 ? abs(d_rho0[0]-d_rho0[1]) : d_rho0[0];
 
-	const float4 belem = tex1Dfetch(boundTex, ndata.index);
-	const float3 normal_s = as_float3(tex1Dfetch(boundTex, ndata.index));
+	const float4 belem = params.fetchBound(ndata.index);
+	const float3 normal_s = as_float3(belem);
 	const float3 q = as_float3(ndata.relPos)/params.slength;
 	float3 q_vb[3];
 	calcVertexRelPos(q_vb, belem,
 		params.vertPos0[ndata.index], params.vertPos1[ndata.index], params.vertPos2[ndata.index], params.slength);
 	const float ggamAS = gradGamma<KP::kerneltype>(params.slength, q, q_vb, normal_s);
-	float r_as(fmax(fabs(dot(as_float3(ndata.relPos), normal_s)), params.deltap));
+	//float r_as(fmax(fabs(dot3(ndata.relPos, normal_s)), params.deltap));
 
 	// Contribution to the boundary elements to the right hand-side term
 	B += delta_rho*dot(d_gravity, normal_s)*ggamAS;
@@ -302,6 +290,35 @@ shear_rate_fixup(float3& dvx, float3& dvy, float3& dvz, P_t const& pdata, KP con
 	dvz *= multiplier;
 }
 
+//! Compute ∇v + (∇v)ᵀ or its doubled version
+template<
+	typename KP,
+	KernelType kerneltype = KP::kerneltype,
+	BoundaryType boundarytype = KP::boundarytype,
+	typename P_t = shear_rate_pdata<boundarytype>
+>
+__device__ __forceinline__
+void velocity_gradient(P_t const& pdata, KP const& params, float3& dvx, float3& dvy, float3& dvz)
+{
+	// Loop over all neighbors to compute their contribution to the velocity gradient
+	for_every_neib(boundarytype, pdata.index, pdata.pos, pdata.gridPos, params.cellStart, params.neibsList) {
+
+		shear_rate_ndata<boundarytype> ndata(neib_iter, pdata, params);
+
+		// skip inactive particles and particles outside of the kernel support
+		if (INACTIVE(ndata.relPos) || ndata.r >= params.influenceradius)
+			continue;
+
+		const float3 relVel_multiplier = shear_rate_contrib(pdata, ndata, params);
+		// Velocity Gradients
+		dvx -= ndata.relVel.x*relVel_multiplier;
+		dvy -= ndata.relVel.y*relVel_multiplier;
+		dvz -= ndata.relVel.z*relVel_multiplier;
+	} // end of loop through neighbors
+
+	shear_rate_fixup(dvx, dvy, dvz, pdata, params);
+}
+
 
 //! Compute ∇v + (∇v)ᵀ or its doubled version
 template<
@@ -321,23 +338,7 @@ symtensor3 shearRate(
 	float3 dvy = make_float3(0.0f);
 	float3 dvz = make_float3(0.0f);
 
-	// Loop over all neighbors to compute their contribution to the velocity gradient
-	for_every_neib(boundarytype, pdata.index, pdata.pos, pdata.gridPos, params.cellStart, params.neibsList) {
-
-		shear_rate_ndata<boundarytype> ndata(neib_iter, pdata, params);
-
-		// skip inactive particles and particles outside of the kernel support
-		if (INACTIVE(ndata.relPos) || ndata.r >= params.influenceradius)
-			continue;
-
-		const float3 relVel_multiplier = shear_rate_contrib(pdata, ndata, params);
-		// Velocity Gradients
-		dvx -= ndata.relVel.x*relVel_multiplier;
-		dvy -= ndata.relVel.y*relVel_multiplier;
-		dvz -= ndata.relVel.z*relVel_multiplier;
-	} // end of loop through neighbors
-
-	shear_rate_fixup(dvx, dvy, dvz, pdata, params);
+	velocity_gradient(pdata, params, dvx, dvy, dvz);
 
 	symtensor3 ret;
 	/* Start by storing the mixed version: non-doubled diagonal elements,
@@ -539,7 +540,7 @@ enable_if_t<KP::rheologytype == GRANULAR, float >
 viscShearTerm(P_t const& pdata, float shrate, KP const& params)
 {
 	// TODO use a pdata structure
-	const float effpres = tex1Dfetch(effpresTex, pdata.index);
+	const float effpres = params.fetchEffPres(pdata.index);
 
 	// for non-fluid particles we do not compute viscosity,
 	// we will use the central particle viscosity during interaction
@@ -585,8 +586,7 @@ clamp_visc(KP const& params, float effvisc, int fluid)
  */
 template<typename KP>
 __device__ __forceinline__
-enable_if_t< (KP::ViscSpec::compvisc == KINEMATIC) ||
-	(KP::simflags & ENABLE_DTADAPT)>
+enable_if_t< (KP::ViscSpec::compvisc == KINEMATIC) || HAS_DTADAPT(KP::simflags)>
 compute_kinvisc(KP const& params, float effvisc, float rhotilde, int fluid,
 	float &kinvisc)
 {
@@ -594,8 +594,7 @@ compute_kinvisc(KP const& params, float effvisc, float rhotilde, int fluid,
 }
 template<typename KP>
 __device__ __forceinline__
-enable_if_t< (KP::ViscSpec::compvisc != KINEMATIC) &&
-	not (KP::simflags & ENABLE_DTADAPT)>
+enable_if_t< (KP::ViscSpec::compvisc != KINEMATIC) && not HAS_DTADAPT(KP::simflags)>
 compute_kinvisc(KP const& params, float effvisc, float rhotilde, int fluid,
 	float &kinvisc)
 { /* do nothing */ }
@@ -623,7 +622,7 @@ store_effective_visc(KP const& params, int index, float /* effvisc */, float kin
 //! Reduce the kinematic viscosity, if ENABLE_DTADAPT
 template<typename KP>
 __device__ __forceinline__
-enable_if_t< KP::simflags & ENABLE_DTADAPT >
+enable_if_t< HAS_DTADAPT(KP::simflags) >
 reduce_kinvisc(KP const& params, float kinvisc)
 {
 	__shared__ float sm_max[BLOCK_SIZE_SPS];
@@ -633,7 +632,7 @@ reduce_kinvisc(KP const& params, float kinvisc)
 //! Do nothing to reduce the kinematic viscosity, if not ENABLE_DTADAPT
 template<typename KP>
 __device__ __forceinline__
-enable_if_t< not (KP::simflags & ENABLE_DTADAPT) >
+enable_if_t< not HAS_DTADAPT(KP::simflags) >
 reduce_kinvisc(KP const& params, float kinvisc)
 { /* do nothing */ }
 
@@ -721,7 +720,7 @@ write_sps_turbvisc(FP const& params, const uint index, const float turbvisc)
 
 template<typename FP>
 __device__ __forceinline__
-enable_if_t<(FP::sps_simflags & SPSK_STORE_TURBVISC)>
+enable_if_t<!!(FP::sps_simflags & SPSK_STORE_TURBVISC)>
 write_sps_turbvisc(FP const& params, const uint index, const float turbvisc)
 { params.turbvisc[index] = turbvisc; }
 
@@ -734,9 +733,9 @@ write_sps_tau(FP const& params, const uint index, symtensor3 const& tau)
 
 template<typename FP>
 __device__ __forceinline__
-enable_if_t<(FP::sps_simflags & SPSK_STORE_TAU)>
+enable_if_t<!!(FP::sps_simflags & SPSK_STORE_TAU)>
 write_sps_tau(FP const& params, const uint index, symtensor3 const& tau)
-{ storeTau(tau, index, params.tau0, params.tau1, params.tau2); }
+{ params.storeTau(tau, index); }
 
 /************************************************************************************************************/
 
@@ -813,7 +812,7 @@ SPSstressMatrixDevice(sps_params<kerneltype, boundarytype, sps_simflags> params)
 __global__ void
 __launch_bounds__(BLOCK_SIZE_SPS, MIN_BLOCKS_SPS)
 jacobiFSBoundaryConditionsDevice(
-	const float4 * __restrict__ posArray,
+	pos_info_wrapper params,
 	float * __restrict__ effpres,
 	uint numParticles,
 	float deltap)
@@ -824,21 +823,19 @@ jacobiFSBoundaryConditionsDevice(
 		return;
 
 	// read particle data from sorted arrays
-	#if PREFER_L1
-	const float4 pos = posArray[index];
-	#else
-	const float4 pos = tex1Dfetch(posTex, index);
-	#endif
+	const float4 pos = params.fetchPos(index);
 
-	const particleinfo info = tex1Dfetch(infoTex, index);
+	const particleinfo info = params.fetchInfo(index);
 	const ParticleType cptype = PART_TYPE(info);
 
 	// skip inactive particles
 	if (INACTIVE(pos))
 		return;
 
-	// Fluid number
-	const uint p_fluid_num = fluid_num(info);
+	// Fluid number TODO FIXME proper multifluid
+	// The code up to the definition of delta_rho inclusive currently works only on the assumption
+	// of at most two fluids.
+	//const uint p_fluid_num = fluid_num(info); // unused
 	const uint numFluids = cuphys::d_numfluids;
 
 	// Definition of delta_rho
@@ -847,7 +844,7 @@ jacobiFSBoundaryConditionsDevice(
 
 	// * for free-surface particles, the Dirichlet condition is enforced
 	if (cptype == PT_FLUID && SEDIMENT(info) && (SURFACE(info) || INTERFACE(info))) {
-		effpres[index] = deltap*delta_rho*length(d_gravity);
+		effpres[index] = deltap*delta_rho*length(d_gravity)/2.;
 	} else {
 		return;
 	}
@@ -857,7 +854,7 @@ template<KernelType kerneltype,
 	BoundaryType boundarytype>
 __global__ void
 __launch_bounds__(BLOCK_SIZE_SPS, MIN_BLOCKS_SPS)
-jacobiWallBoundaryConditionsDevice(effpres_params<kerneltype, boundarytype> params)
+jacobiWallBoundaryConditionsDevice(jacobi_wall_boundary_params<kerneltype, boundarytype> params)
 {
 	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
 
@@ -883,26 +880,24 @@ jacobiWallBoundaryConditionsDevice(effpres_params<kerneltype, boundarytype> para
 		float newEffPres = 0.f;
 
 		// read particle data from sorted arrays
-#if PREFER_L1
-		const float4 pos = params.posArray[index];
-#else
-		const float4 pos = tex1Dfetch(posTex, index);
-#endif
+		const float4 pos = params.fetchPos(index);
 
-		const particleinfo info = tex1Dfetch(infoTex, index);
+		const particleinfo info = params.fetchInfo(index);
 		const ParticleType cptype = PART_TYPE(info);
 
 		// skip inactive particles
 		if (INACTIVE(pos))
 			break;
 
-		const float4 vel = tex1Dfetch(velTex, index);
+		const float4 vel = params.fetchVel(index);
 
 		// Compute grid position of current particle
 		const int3 gridPos = calcGridPosFromParticleHash( params.particleHash[index] );
 
-		// Fluid number
-		const uint p_fluid_num = fluid_num(info);
+		// Fluid number TODO FIXME proper multifluid
+		// The code up to the definition of delta_rho inclusive currently works only on the assumption
+		// of at most two fluids.
+		//const uint p_fluid_num = fluid_num(info); // unused
 		const uint numFluids = cuphys::d_numfluids;
 
 		// Definition of delta_rho
@@ -918,16 +913,10 @@ jacobiWallBoundaryConditionsDevice(effpres_params<kerneltype, boundarytype> para
 
 				// Compute relative position vector and distance
 				// Now relPos is a float4 and neib mass is stored in relPos.w
-				const float4 relPos = neib_iter.relPos(
-#if PREFER_L1
-						params.posArray[neib_index]
-#else
-						tex1Dfetch(posTex, neib_index)
-#endif
-						);
+				const float4 relPos = neib_iter.relPos( params.fetchPos(neib_index) );
 
 				const float neib_oldEffPres = params.effpres[neib_index];
-				const particleinfo neib_info = tex1Dfetch(infoTex, neib_index);
+				const particleinfo neib_info = params.fetchInfo(neib_index);
 
 				// skip inactive particles
 				if (INACTIVE(relPos))
@@ -938,23 +927,23 @@ jacobiWallBoundaryConditionsDevice(effpres_params<kerneltype, boundarytype> para
 
 					// Compute relative velocity
 					// Now relVel is a float4 and neib density is stored in relVel.w
-					const float4 relVel = as_float3(vel) - tex1Dfetch(velTex, neib_index);
-					const ParticleType nptype = PART_TYPE(neib_info);
+					const float4 relVel = as_float3(vel) - params.fetchVel(neib_index);
+					//const ParticleType nptype = PART_TYPE(neib_info);
 
 					// Fluid numbers
 					const uint neib_fluid_num = fluid_num(neib_info);
 
 					// contribution of free particles
 					const float w = W<kerneltype>(r, params.slength);	// Wij	
-					const float neib_volume = relPos.w/physical_density(relVel.w, fluid_num(neib_info));
-					newEffPres += fmax(neib_volume*(neib_oldEffPres + delta_rho*dot(d_gravity, as_float3(relPos)))*w, 0.f);
+					const float neib_volume = relPos.w/physical_density(relVel.w, neib_fluid_num);
+					newEffPres += fmax(neib_volume*(neib_oldEffPres + delta_rho*dot3(d_gravity, relPos))*w, 0.f);
 					alpha += neib_volume*w;
 				}
 			} // end of loop through neighbors
 			if (alpha > 0.f) {
 				newEffPres /= alpha;
 				// Compute a ref pressure for the current case.
-				float refpres = delta_rho*(d_sscoeff[0]/10.)*(d_sscoeff[0]/10.);
+				float refpres = delta_rho*(d_sscoeff[0]/10.f)*(d_sscoeff[0]/10.f);
 				backErr = abs(newEffPres-oldEffPres)/refpres;
 			} else {
 				newEffPres = 0.f;
@@ -990,22 +979,13 @@ jacobiBuildVectorsDevice(KP params,
 	float B = 0;
 
 	// read particle data from sorted arrays
-	#if PREFER_L1
-	const float4 pos = params.posArray[index];
-	#else
-	const float4 pos = tex1Dfetch(posTex, index);
-	#endif
-	const particleinfo info = tex1Dfetch(infoTex, index);
+	const float4 pos = params.fetchPos(index);
+	const particleinfo info = params.fetchInfo(index);
 	const ParticleType cptype = PART_TYPE(info);
 
 	// skip inactive particles
 	if (INACTIVE(pos))
 		return;
-
-	const float4 vel = tex1Dfetch(velTex, index);
-
-	// Compute grid position of current particle
-	const int3 gridPos = calcGridPosFromParticleHash( params.particleHash[index] );
 
 	// Jacobi vectors are built for free particles of sediment that are not at
 	// the interface nor at the free-surface.
@@ -1016,7 +996,7 @@ jacobiBuildVectorsDevice(KP params,
 
 			const shear_rate_ndata<boundarytype> ndata(neib_iter, pdata, params);
 
-			const float neib_oldEffPres = tex1Dfetch(effpresTex, ndata.index);
+			const float neib_oldEffPres = params.fetchEffPres(ndata.index);
 
 			// skip inactive particles
 			if (INACTIVE(ndata.relPos) || ndata.r >= params.influenceradius)
@@ -1056,11 +1036,7 @@ jacobiBuildVectorsDevice(KP params,
 // Store the residual in cfl.
 __global__ void
 __launch_bounds__(BLOCK_SIZE_SPS, MIN_BLOCKS_SPS)
-jacobiUpdateEffPresDevice(
-	const float4 * __restrict__ jacobiBuffer,
-	float * __restrict__ effpres,
-	float * __restrict__ cfl,
-	uint numParticles)
+jacobiUpdateEffPresDevice(jacobi_update_params params)
 {
 	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
 	float residual = 0.f;
@@ -1068,12 +1044,12 @@ jacobiUpdateEffPresDevice(
 	// do { } while (0) around the main body so that we can bail out
 	// to the reduction
 	do {
-		if (index >= numParticles)
+		if (index >= params.numParticles)
 			break;
 
 		float newEffPres = 0.f;
 
-		const particleinfo info = tex1Dfetch(infoTex, index);
+		const particleinfo info = params.fetchInfo(index);
 		const ParticleType cptype = PART_TYPE(info);
 
 		// Reference pressure
@@ -1081,22 +1057,22 @@ jacobiUpdateEffPresDevice(
 		// effpres is updated for free particle of sediment that are not at the interface nor
 		// nor at the free-surface.
 		if (cptype == PT_FLUID && SEDIMENT(info) && !INTERFACE(info) && !SURFACE(info)) {
-			const float4 jB = jacobiBuffer[index];
+			const float4 jB = params.jacobiBuffer[index];
 			const float D = jB.x;
 			const float Rx = jB.y;
 			const float B = jB.z;
 			newEffPres = (B - Rx)/D;
 			// Prevent NaN values.
 			if (newEffPres == newEffPres) {
-				effpres[index] = newEffPres;
+				params.effpres[index] = newEffPres;
 			} else {
-				effpres[index] = 0;
+				params.effpres[index] = 0;
 			}
 			residual = (D*newEffPres + Rx - B)/refpres;
 		}
 	} while (0);
 
-	reduce_jacobi_error(cfl, residual);
+	reduce_jacobi_error(params.cfl, residual);
 
 }
 

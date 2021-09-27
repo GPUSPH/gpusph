@@ -224,63 +224,63 @@ getMassRepartitionFactor(
 	float3 p1  = vertexRelPos[1]-dot(vertexRelPos[1], normal)*normal;
 	float3 p2  = vertexRelPos[2]-dot(vertexRelPos[2], normal)*normal;
 
-	float refSurface = 0.5*dot(cross(v01, v02), normal);
+	float refSurface = 0.5f*dot(cross(v01, v02), normal);
 
 	float3 v21 = vertexRelPos[2]-vertexRelPos[1];
 
-	float surface0 = 0.5*dot(cross(p2, v21), normal);
-	float surface1 = 0.5*dot(cross(p0, v02), normal);
+	float surface0 = 0.5f*dot(cross(p2, v21), normal);
+	float surface1 = 0.5f*dot(cross(p0, v02), normal);
 	// Warning v10 = - v01
-	float surface2 = - 0.5*dot(cross(p1, v01), normal);
-	if (surface0 < 0. && surface2 < 0.) {
+	float surface2 = - 0.5f*dot(cross(p1, v01), normal);
+	if (surface0 < 0.0f && surface2 < 0.0f) {
 		// the projected point is clipped to v1
-		surface0 = 0.;
+		surface0 = 0.0f;
 		surface1 = refSurface;
-		surface2 = 0.;
-	} else if (surface0 < 0. && surface1 < 0.) {
+		surface2 = 0.0f;
+	} else if (surface0 < 0.0f && surface1 < 0.0f) {
 		// the projected point is clipped to v2
-		surface0 = 0.;
-		surface1 = 0.;
+		surface0 = 0.0f;
+		surface1 = 0.0f;
 		surface2 = refSurface;
-	} else if (surface1 < 0. && surface2 < 0.) {
+	} else if (surface1 < 0.0f && surface2 < 0.0f) {
 		// the projected point is clipped to v0
 		surface0 = refSurface;
-		surface1 = 0.;
-		surface2 = 0.;
-	} else if (surface0 < 0.) {
+		surface1 = 0.0f;
+		surface2 = 0.0f;
+	} else if (surface0 < 0.0f) {
 		// We project p2 into the v21 line, parallel to p0
 		// then surface0 is 0
 		// we also modify p0 an p1 accordingly
-		float coef = surface0/(0.5*dot(cross(p0, v21), normal));
+		float coef = surface0/(0.5f*dot(cross(p0, v21), normal));
 
 		p1 -= coef*p0;
-		p0 *= (1.-coef);
+		p0 *= (1.0f-coef);
 
-		surface0 = 0.;
-		surface1 = 0.5*dot(cross(p0, v02), normal);
-		surface2 = - 0.5*dot(cross(p1, v01), normal);
-	} else if (surface1 < 0.) {
+		surface0 = 0.0f;
+		surface1 = 0.5f*dot(cross(p0, v02), normal);
+		surface2 = - 0.5f*dot(cross(p1, v01), normal);
+	} else if (surface1 < 0.0f) {
 		// We project p0 into the v02 line, parallel to p1
 		// then surface1 is 0
 		// we also modify p1 an p2 accordingly
-		float coef = surface1/(0.5*dot(cross(p1, v02), normal));
+		float coef = surface1/(0.5f*dot(cross(p1, v02), normal));
 		p2 -= coef*p1;
-		p1 *= (1.-coef);
+		p1 *= (1.0f-coef);
 
-		surface0 = 0.5*dot(cross(p2, v21), normal);
-		surface1 = 0.;
-		surface2 = - 0.5*dot(cross(p1, v01), normal);
-	} else if (surface2 < 0.) {
+		surface0 = 0.5f*dot(cross(p2, v21), normal);
+		surface1 = 0.0f;
+		surface2 = - 0.5f*dot(cross(p1, v01), normal);
+	} else if (surface2 < 0.0f) {
 		// We project p1 into the v01 line, parallel to p2
 		// then surface2 is 0
 		// we also modify p0 an p2 accordingly
-		float coef = -surface2/(0.5*dot(cross(p2, v01), normal));
+		float coef = -surface2/(0.5f*dot(cross(p2, v01), normal));
 		p0 -= coef*p2;
-		p2 *= (1.-coef);
+		p2 *= (1.0f-coef);
 
-		surface0 = 0.5*dot(cross(p2, v21), normal);
-		surface1 = 0.5*dot(cross(p0, v02), normal);
-		surface2 = 0.;
+		surface0 = 0.5f*dot(cross(p2, v21), normal);
+		surface1 = 0.5f*dot(cross(p0, v02), normal);
+		surface2 = 0.0f;
 	}
 
 	beta.x = surface0/refSurface;
@@ -318,7 +318,7 @@ struct common_pdata
 	common_pdata(Params const& params, uint _index, particleinfo const& _info) :
 		index(_index),
 		info(_info),
-		pos(params.pos[index]),
+		pos(params.fetchPos(index)),
 		gridPos(calcGridPosFromParticleHash( params.particleHash[index] )),
 		sqC0(d_sqC0[fluid_num(info)])
 	{}
@@ -336,7 +336,7 @@ struct segment_pdata :
 	segment_pdata(Params const& params, uint _index, particleinfo const& _info) :
 		common_pdata(params, _index, _info),
 		verts(params.vertices[index]),
-		normal(tex1Dfetch(boundTex, index))
+		normal(params.fetchBound(index))
 	{}
 };
 
@@ -352,7 +352,7 @@ struct vertex_io_pdata
 	__device__ __forceinline__
 	vertex_io_pdata(Params const& params, uint _index, particleinfo const& _info) :
 		corner(CORNER(_info)),
-		normal(tex1Dfetch(boundTex, _index)),
+		normal(params.fetchBound(_index)),
 		refMass(params.deltap*params.deltap*params.deltap*d_rho0[fluid_num(_info)])
 	{}
 };
@@ -416,7 +416,7 @@ struct common_segment_pout
 		vel(make_float4(0)),
 		// Gamma always needs to be recomputed when moving bodies are enabled.
 		// If not, we only need to compute if we are at initialisation stage
-		calcGam((Params::simflags & ENABLE_MOVING_BODIES) || !isfinite(gGam.w)
+		calcGam(HAS_MOVING_BODIES(Params::simflags) || !isfinite(gGam.w)
 				|| Params::step == 0)
 	{
 		if (calcGam)
@@ -535,8 +535,8 @@ struct segment_keps_pout :
 		// For IO boundary with imposed velocity,
 		// fetch the data that was set in the problem-specific routine
 		if (IO_BOUNDARY(info) && VEL_IO(info)) {
-			tke = params.tke[index];
-			eps = params.eps[index];
+			tke = params.keps_tke[index];
+			eps = params.keps_eps[index];
 		}
 	}
 };
@@ -652,7 +652,7 @@ struct common_ndata
 	common_ndata(Params const& params, uint _index, float4 const& _relPos)
 	:
 		index(_index),
-		info(tex1Dfetch(infoTex, index)),
+		info(params.fetchInfo(index)),
 		relPos(_relPos),
 		vel(params.vel[index]),
 		r(length3(relPos)),
@@ -671,8 +671,8 @@ struct common_keps_ndata
 	__device__ __forceinline__
 	common_keps_ndata(Params const& params, uint neib_index)
 	:
-		tke(params.tke[neib_index]),
-		eps(params.eps[neib_index])
+		tke(params.keps_tke[neib_index]),
+		eps(params.keps_eps[neib_index])
 	{}
 };
 
@@ -740,9 +740,9 @@ struct vertex_boundary_ndata :
 	:
 		keps_struct(params, neib_index),
 		index(neib_index),
-		info(tex1Dfetch(infoTex, neib_index)),
+		info(params.fetchInfo(neib_index)),
 		vertices(params.vertices[neib_index]),
-		normal(tex1Dfetch(boundTex, neib_index))
+		normal(params.fetchBound(neib_index))
 	{}
 };
 
@@ -1029,7 +1029,7 @@ __device__ __forceinline__
 enable_if_t<!Params::has_io, float3>
 wall_normal(Params const& params, PData const& pdata, POut const& pout)
 {
-	return make_float3(tex1Dfetch(boundTex, pdata.index));
+	return make_float3(params.fetchBound(pdata.index));
 }
 template<typename Params, typename PData, typename POut>
 __device__ __forceinline__
@@ -1054,8 +1054,8 @@ __device__ __forceinline__
 enable_if_t<Params::has_keps>
 impose_vertex_keps_bc(Params const& params, PData const& pdata, POut &pout)
 {
-	params.tke[pdata.index] = fmax(pout.sumtke/pout.numseg, 1e-6f);
-	params.eps[pdata.index] = fmax(pout.sumeps/pout.numseg, 1e-6f);
+	params.keps_tke[pdata.index] = fmax(pout.sumtke/pout.numseg, 1e-6f);
+	params.keps_eps[pdata.index] = fmax(pout.sumeps/pout.numseg, 1e-6f);
 
 	// adjust Eulerian velocity so that it is tangential to the fixed wall
 	// This is only done for vertices that do NOT belong to an open boundary
@@ -1085,8 +1085,8 @@ __device__ __forceinline__
 enable_if_t<Params::has_keps>
 clone_vertex_keps(Params const& params, PData const& pdata, int clone_idx)
 {
-	params.tke[clone_idx] = params.tke[pdata.index];
-	params.eps[clone_idx] = params.eps[pdata.index];
+	params.keps_tke[clone_idx] = params.tke[pdata.index];
+	params.keps_eps[clone_idx] = params.eps[pdata.index];
 }
 
 //! generate new particles
@@ -1264,10 +1264,10 @@ enable_if_t<Params::has_keps && !Params::repacking>
 impose_solid_keps_bc(Params const& params, PData const& pdata, POut &pout)
 {
 	// k condition
-	params.tke[pdata.index] = pout.sumtke/pout.shepard_div;
+	params.keps_tke[pdata.index] = pout.sumtke/pout.shepard_div;
 	// epsilon condition
 	// for solid boundaries we have de/dn = 4 0.09^0.075 k^1.5/(0.41 r)
-	params.eps[pdata.index] =
+	params.keps_eps[pdata.index] =
 		fmaxf(pout.sumeps/pout.shepard_div,1e-5f); // eps should never be 0
 
 	// average eulerian velocity on the wall (from associated vertices)
@@ -1339,15 +1339,15 @@ impose_io_keps_bc(Params const& params, PData const& pdata, POut &pout)
 			// for velocity imposed boundaries we impose k and epsilon
 			// TODO my impression is that these are read, and then
 			// written back as-is
-			params.tke[pdata.index] = pout.tke;
-			params.eps[pdata.index] = pout.eps;
+			params.keps_tke[pdata.index] = pout.tke;
+			params.keps_eps[pdata.index] = pout.eps;
 		} else {
 			// for pressure imposed boundaries we take dk/dn = de/dn = 0
-			params.tke[pdata.index] = pout.sumtke/pout.shepard_div;
-			params.eps[pdata.index] = pout.sumeps/pout.shepard_div;
+			params.keps_tke[pdata.index] = pout.sumtke/pout.shepard_div;
+			params.keps_eps[pdata.index] = pout.sumeps/pout.shepard_div;
 		}
 	} else {
-		params.tke[pdata.index] = params.eps[pdata.index] = 1e-6f;
+		params.keps_tke[pdata.index] = params.keps_eps[pdata.index] = 1e-6f;
 	}
 }
 
@@ -1436,7 +1436,7 @@ saSegmentBoundaryConditionsDevice(Params params)
 		return;
 
 	// read particle data from sorted arrays
-	const particleinfo info = tex1Dfetch(infoTex, index);
+	const particleinfo info = params.fetchInfo(index);
 
 	if (!BOUNDARY(info))
 		return;
@@ -1456,13 +1456,13 @@ saSegmentBoundaryConditionsDevice(Params params)
 			const uint neib_index = neib_iter.neib_index();
 
 			// Compute relative position vector and distance
-			const float4 relPos = neib_iter.relPos(params.pos[neib_index]);
+			const float4 relPos = neib_iter.relPos(params.fetchPos(neib_index));
 
 			// skip inactive particles
 			if (INACTIVE(relPos))
 				continue;
 
-			const particleinfo neib_info = tex1Dfetch(infoTex, neib_index);
+			const particleinfo neib_info = params.fetchInfo(neib_index);
 
 			if (has_vertex(pdata.verts, id(neib_info))) {
 				moving_vertex_contrib(params, pdata, pout, neib_index);
@@ -1500,7 +1500,7 @@ saSegmentBoundaryConditionsDevice(Params params)
 
 		// Compute relative position vector and distance
 		// Now relPos is a float4 and neib mass is stored in relPos.w
-		const float4 relPos = neib_iter.relPos(params.pos[neib_index]);
+		const float4 relPos = neib_iter.relPos(params.fetchPos(neib_index));
 
 		// skip inactive particles
 		if (INACTIVE(relPos))
@@ -1555,7 +1555,7 @@ saSegmentBoundaryConditionsRepackDevice(Params params)
 		return;
 
 	// read particle data from sorted arrays
-	const particleinfo info = tex1Dfetch(infoTex, index);
+	const particleinfo info = params.fetchInfo(index);
 
 	if (!BOUNDARY(info))
 		return;
@@ -1575,13 +1575,13 @@ saSegmentBoundaryConditionsRepackDevice(Params params)
 			const uint neib_index = neib_iter.neib_index();
 
 			// Compute relative position vector and distance
-			const float4 relPos = neib_iter.relPos(params.pos[neib_index]);
+			const float4 relPos = neib_iter.relPos(params.fetchPos(neib_index));
 
 			// skip inactive particles
 			if (INACTIVE(relPos))
 				continue;
 
-			const particleinfo neib_info = tex1Dfetch(infoTex, neib_index);
+			const particleinfo neib_info = params.fetchInfo(neib_index);
 
 			if (has_vertex(pdata.verts, id(neib_info))) {
 
@@ -1610,7 +1610,7 @@ saSegmentBoundaryConditionsRepackDevice(Params params)
 
 		// Compute relative position vector and distance
 		// Now relPos is a float4 and neib mass is stored in relPos.w
-		const float4 relPos = neib_iter.relPos(params.pos[neib_index]);
+		const float4 relPos = neib_iter.relPos(params.fetchPos(neib_index));
 
 		// skip inactive particles
 		if (INACTIVE(relPos))
@@ -1634,6 +1634,7 @@ saSegmentBoundaryConditionsRepackDevice(Params params)
 	params.vel[index] = pout.vel;
 
 }
+
 /// Mark fluid particles that have crossed an open boundary
 /** For each fluid particle, detect if it has crossed an open boundary and
  * identify the boundary element that it moved through. The vertices of this element
@@ -1645,31 +1646,19 @@ saSegmentBoundaryConditionsRepackDevice(Params params)
  */
 template<KernelType kerneltype>
 __global__ void
-findOutgoingSegmentDevice(
-	const	float4		* __restrict__	posArray,
-	const	float4		* __restrict__	velArray,
-			vertexinfo	* __restrict__	vertices,
-			float4		* __restrict__	gGam,
-	const	float2		* __restrict__	vertPos0,
-	const	float2		* __restrict__	vertPos1,
-	const	float2		* __restrict__	vertPos2,
-	const	hashKey		* __restrict__	particleHash,
-	const	uint		* __restrict__	cellStart,
-	const	neibdata	* __restrict__	neibsList,
-			uint						numParticles,
-			float						influenceradius)
+findOutgoingSegmentDevice(sa_outgoing_bc_params params)
 {
 	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
 
-	if (index >= numParticles)
+	if (index >= params.numParticles)
 		return;
 
-	const particleinfo info = tex1Dfetch(infoTex, index);
+	const particleinfo info = params.fetchInfo(index);
 
 	if (!FLUID(info))
 		return;
 
-	const float4 pos = posArray[index];
+	const float4 pos = params.fetchPos(index);
 	if (INACTIVE(pos))
 		return;
 
@@ -1678,7 +1667,7 @@ findOutgoingSegmentDevice(
 		/* Check that we aren't re-processing a fluid particle that was
 		 * already processed. Note that this shouldn't happen!
 		 */
-		vertexinfo vert = vertices[index];
+		vertexinfo vert = params.vertices[index];
 		if (vert.x | vert.y) {
 			printf("%d (id %d, flags %d) already had vertices (%d, %d)\n",
 				index, id(info), PART_FLAGS(info), vert.x, vert.y);
@@ -1687,12 +1676,12 @@ findOutgoingSegmentDevice(
 	}
 #endif
 
-	const int3 gridPos = calcGridPosFromParticleHash( particleHash[index] );
-	const float4 vel = velArray[index];
+	const int3 gridPos = calcGridPosFromParticleHash( params.particleHash[index] );
+	const float4 vel = params.fetchVel(index);
 
 	// Data about closest “past” boundary element so far:
 	// squared distance to closest boundary so far
-	float r2_min = influenceradius*influenceradius;
+	float r2_min = params.influenceradius*params.influenceradius;
 	// index of the closest boundary so far
 	uint index_min = UINT_MAX;
 	// normal of the closest boundary so far
@@ -1700,15 +1689,15 @@ findOutgoingSegmentDevice(
 	// relPos to the closest boundary so far
 	float3 relPos_min = make_float3(0.0f);
 
-	for_each_neib(PT_BOUNDARY, index, pos, gridPos, cellStart, neibsList) {
+	for_each_neib(PT_BOUNDARY, index, pos, gridPos, params.cellStart, params.neibsList) {
 		const uint neib_index = neib_iter.neib_index();
-		const particleinfo neib_info = tex1Dfetch(infoTex, neib_index);
+		const particleinfo neib_info = params.fetchInfo(neib_index);
 		if (!IO_BOUNDARY(neib_info))
 			continue; // we only care about IO boundary elements
 
-		const float4 relPos = neib_iter.relPos(posArray[neib_index]);
-		const float4 normal = tex1Dfetch(boundTex, neib_index);
-		const float3 relVel = as_float3(vel - velArray[neib_index]);
+		const float4 relPos = neib_iter.relPos(params.fetchPos(neib_index));
+		const float4 normal = params.fetchBound(neib_index);
+		const float3 relVel = as_float3(vel - params.fetchVel(neib_index));
 		const float r2 = sqlength3(relPos);
 
 		if (	r2 < r2_min && // we are closer to this element than other elements
@@ -1730,7 +1719,7 @@ findOutgoingSegmentDevice(
 	// Vertex coordinates in the local system
 	float3 vx[3];
 	calcVertexRelPos(vx, normal_min,
-		vertPos0[index_min], vertPos1[index_min], vertPos2[index_min], 1);
+		params.vertPos0[index_min], params.vertPos1[index_min], params.vertPos2[index_min], 1);
 	// calcVertexRelPos computes the relative position to the barycenter,
 	// we want the one relative to the fluid particle. Fixup:
 	vx[0] = relPos_min - vx[0];
@@ -1745,11 +1734,11 @@ findOutgoingSegmentDevice(
 	// vertex is normally empty for fluid particles, use it to store
 	// the vertices of the boundary element (avoiding a neighbor-of-neighbor search
 	// later on)
-	vertices[index] = vertices[index_min];
+	params.vertices[index] = params.vertices[index_min];
 
 	// abuse gamma to store the vertexWeights: since the particle will be disabled,
 	// this should not affect computation
-	gGam[index] = vertexWeights;
+	params.gGam[index] = vertexWeights;
 }
 
 /// Normal computation for vertices in the initialization phase
@@ -1842,30 +1831,24 @@ struct InitGammaVars {
 	__device__
 	InitGammaVars(
 		NeibListIterator const& neib_iter,
-		const	float4*	oldPos,
-		const	float4*	boundElement,
-		const	float2*	vertPos0,
-		const	float2*	vertPos1,
-		const	float2*	vertPos2,
-		const	float	slength,
-		const	float	influenceradius,
-		const	float	deltap) :
+		sa_init_gamma_params const& params) :
 		skip(false)
 	{
 		const uint neib_index = neib_iter.neib_index();
 
-		const float3 relPos = as_float3(neib_iter.relPos(oldPos[neib_index]));
+		const float3 relPos = as_float3(neib_iter.relPos(params.fetchPos(neib_index)));
 
-		if (length(relPos) > influenceradius + deltap*0.5f) {
+		if (length(relPos) > params.influenceradius + params.deltap*0.5f) {
 			skip = true;
 			return;
 		}
 
-		normal = as_float3(boundElement[neib_index]);
-		q = relPos/slength;
+		normal = as_float3(params.fetchBound(neib_index));
+		q = relPos/params.slength;
 
 		calcVertexRelPos(q_vb, normal,
-			vertPos0[neib_index], vertPos1[neib_index], vertPos2[neib_index], slength);
+			params.vertPos0[neib_index], params.vertPos1[neib_index], params.vertPos2[neib_index],
+			params.slength);
 	}
 };
 
@@ -1891,36 +1874,20 @@ struct InitGammaVars {
  */
 template<KernelType kerneltype, ParticleType cptype>
 __global__ void
-initGammaDevice(
-						float4*			newGGam,
-				const	float4*			oldGGam,
-				const	float4*			oldPos,
-				const	float4*			boundElement,
-				const	float2*			vertPos0,
-				const	float2*			vertPos1,
-				const	float2*			vertPos2,
-				const	particleinfo*	pinfo,
-				const	hashKey*		particleHash,
-				const	uint*			cellStart,
-				const	neibdata*		neibsList,
-				const	float			slength,
-				const	float			influenceradius,
-				const	float			deltap,
-				const	float			epsilon,
-				const	uint			numParticles)
+initGammaDevice(sa_init_gamma_params params)
 {
 	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
 
-	if (index >= numParticles)
+	if (index >= params.numParticles)
 		return;
 
 	// read particle data from sorted arrays
 	// kernel is only run for vertex particles
-	const particleinfo info = pinfo[index];
+	const particleinfo info = params.fetchInfo(index);
 	if (PART_TYPE(info) != cptype)
 		return;
 
-	float4 pos = oldPos[index];
+	float4 pos = params.fetchPos(index);
 
 	// gamma that is to be computed
 	float gam = 1.0f;
@@ -1928,7 +1895,7 @@ initGammaDevice(
 	float3 gGam = make_float3(0.0f);
 
 	// Compute grid position of current particle
-	const int3 gridPos = calcGridPosFromParticleHash( particleHash[index] );
+	const int3 gridPos = calcGridPosFromParticleHash( params.particleHash[index] );
 
 	// We compute both Gamma and gradGamma, but Gamma needs the direction of gradGamma,
 	// so we need to first compute gradGamma fully, and then compute Gamma.
@@ -1942,37 +1909,33 @@ initGammaDevice(
 
 
 	// Iterate over all BOUNDARY neighbors to compute the gamma gradient
-	for_each_neib(PT_BOUNDARY, index, pos, gridPos, cellStart, neibsList) {
-		const InitGammaVars gVar(neib_iter, oldPos, boundElement,
-			vertPos0, vertPos1, vertPos2,
-			slength, influenceradius, deltap);
+	for_each_neib(PT_BOUNDARY, index, pos, gridPos, params.cellStart, params.neibsList) {
+		const InitGammaVars gVar(neib_iter, params);
 		if (gVar.skip)
 			continue;
 
-		const float ggamma_as = gradGamma<kerneltype>(slength, gVar.q, gVar.q_vb, gVar.normal);
+		const float ggamma_as = gradGamma<kerneltype>(params.slength, gVar.q, gVar.q_vb, gVar.normal);
 		gGam += ggamma_as*gVar.normal;
 	}
 
 	// Iterate over all BOUNDARY neighbors to compute gamma
-	for_each_neib(PT_BOUNDARY, index, pos, gridPos, cellStart, neibsList) {
-		const InitGammaVars gVar(neib_iter, oldPos, boundElement,
-			vertPos0, vertPos1, vertPos2,
-			slength, influenceradius, deltap);
+	for_each_neib(PT_BOUNDARY, index, pos, gridPos, params.cellStart, params.neibsList) {
+		const InitGammaVars gVar(neib_iter, params);
 		if (gVar.skip)
 			continue;
 
 		/* these need to be mutable for gamma */
 		float3 q_vb[3] = { gVar.q_vb[0], gVar.q_vb[1], gVar.q_vb[2] };
 
-		const float gamma_as = Gamma<kerneltype, cptype>(slength, gVar.q, q_vb, gVar.normal,
-					gGam, epsilon);
+		const float gamma_as = Gamma<kerneltype, cptype>(params.slength, gVar.q, q_vb, gVar.normal,
+					gGam, params.epsilon);
 		gam -= gamma_as;
 	}
 
 //	if (cptype == PT_FLUID && newGGam[index].w == newGGam[index].w)
 //		newGGam[index] = oldGGam[index];
 //	else
-	newGGam[index] = make_float4(gGam.x, gGam.y, gGam.z, gam);
+	params.newGGam[index] = make_float4(gGam.x, gGam.y, gGam.z, gam);
 }
 
 #define MAXNEIBVERTS 30
@@ -2206,7 +2169,7 @@ saVertexBoundaryConditionsDevice(Params params)
 
 	// read particle data from sorted arrays
 	// kernel is only run for vertex particles
-	const particleinfo info = tex1Dfetch(infoTex, index);
+	const particleinfo info = params.fetchInfo(index);
 	if (!VERTEX(info))
 		return;
 
@@ -2217,7 +2180,7 @@ saVertexBoundaryConditionsDevice(Params params)
 	for_each_neib(PT_FLUID, index, pdata.pos, pdata.gridPos, params.cellStart, params.neibsList) {
 		const uint neib_index = neib_iter.neib_index();
 
-		const float4 relPos = neib_iter.relPos(params.pos[neib_index]);
+		const float4 relPos = neib_iter.relPos(params.fetchPos(neib_index));
 
 		if (INACTIVE(relPos))
 			continue;
@@ -2280,7 +2243,7 @@ saVertexBoundaryConditionsRepackDevice(Params params)
 
 	// read particle data from sorted arrays
 	// kernel is only run for vertex particles
-	const particleinfo info = tex1Dfetch(infoTex, index);
+	const particleinfo info = params.fetchInfo(index);
 	if (!VERTEX(info))
 		return;
 
@@ -2291,7 +2254,7 @@ saVertexBoundaryConditionsRepackDevice(Params params)
 	for_each_neib(PT_FLUID, index, pdata.pos, pdata.gridPos, params.cellStart, params.neibsList) {
 		const uint neib_index = neib_iter.neib_index();
 
-		const float4 relPos = neib_iter.relPos(params.pos[neib_index]);
+		const float4 relPos = neib_iter.relPos(params.fetchPos(neib_index));
 
 		if (INACTIVE(relPos))
 			continue;
@@ -2372,14 +2335,16 @@ saIdentifyCornerVerticesDevice(
  is reset and the particle is disabled.
 */
 __global__ void
-disableOutgoingPartsDevice(			float4*		oldPos,
-									vertexinfo*	oldVertices,
-							const	uint		numParticles)
+disableOutgoingPartsDevice(
+	const	particleinfo*	__restrict__ infoArray,
+			float4*			__restrict__ oldPos,
+			vertexinfo*		__restrict__ oldVertices,
+	const	uint			numParticles)
 {
 	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
 
 	if(index < numParticles) {
-		const particleinfo info = tex1Dfetch(infoTex, index);
+		const particleinfo info = infoArray[index];
 		if (FLUID(info)) {
 			float4 pos = oldPos[index];
 			if (ACTIVE(pos)) {
@@ -2446,8 +2411,8 @@ ComputeDummyParticlesDevice(
 	float norm_factor = 0.0f;
 
 	// auxiliary variables for kahan summation
-	float4 c_vel = make_float4(0.0);
-	float c_norm_f = 0.0;
+	float4 c_vel = make_float4(0.0f);
+	float c_norm_f = 0.0f;
 
 	// Loop only over FLUID neighbors
 	for_each_neib(PT_FLUID, index, pos, gridPos, cellStart, neibsList) {
@@ -2478,14 +2443,19 @@ ComputeDummyParticlesDevice(
 		// the .xyz components are just the sum of the weighted velocities,
 		// the .w component is the smoothed pressure, which is computed as:
 		// (neib_pressure + neib_rho*dot(gravity, as_float3(relPos)))*w
-		// For convenience, we achieve this by multiply neib_vel.w by dot(g, relPos)
-		// and adding neib_pressure, so that the shep_vel_P can be obtained with a simple
-		// vectorized increment:
-		float grav_contr = physical_density(neib_vel.w, fluid_num(neib_info))*dot(accel_delta, as_float3(relPos));
-
 		float4 neib_contrib = make_float4(
 			neib_vel.x, neib_vel.y, neib_vel.z,
-			neib_pressure + fabs(grav_contr));
+			neib_pressure);
+
+		// the depth correction for the pressure is only added if it's positive
+		float rho_g_h = physical_density(neib_vel.w, fluid_num(neib_info))*dot3(accel_delta, relPos);
+#if REPULSIVE_DUMMY
+		neib_contrib.w += fabsf(rho_g_h);
+#else
+		neib_contrib.w += fmaxf(rho_g_h, 0.0f);
+#endif
+
+		// weight
 		neib_contrib *= w;
 
 		kahan_add(vel, neib_contrib, c_vel);
@@ -2499,7 +2469,7 @@ ComputeDummyParticlesDevice(
 		vel /= norm_factor;
 
 	// now vel.w has the pressure, but we actuall want the density there, so:
-	const float rho = RHO(vel.w, fluid_num(info)); // returns rho_tilde
+	float rho = RHO(vel.w, fluid_num(info)); // returns rho_tilde
 
 	// finally, the velocity of the particle should actually be 2*v_w - <v_f>
 	// where -<v_f> is the opposite of the smoothed velocity of the fluid, which we
@@ -2515,6 +2485,13 @@ ComputeDummyParticlesDevice(
 			2*wall_vel.y - vel.y,
 			2*wall_vel.z - vel.z,
 			vel.w);
+
+	// the walls should never exert a negative pressure
+	if (rho < 0) {
+		rho = 0;
+		new_vel.w = 0; // remember to add the background pressure here when we introduce support for it
+	}
+
 
 	dummyVelArray[index] = new_vel;
 	velArray[index].w = rho;

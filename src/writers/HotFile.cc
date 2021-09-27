@@ -54,7 +54,8 @@ There are ways around this, such as hacking directly the ODE internals or
 keeping a history of the motions of the objects, but this is currently deemed
 overkill.
 */
-typedef struct {
+struct encoded_body_common_t
+{
 	uint	index;
 	uint	id;
 	MovingBodyType type;
@@ -69,7 +70,25 @@ typedef struct {
 	double	initial_lvel[3];
 	double	initial_avel[3];
 	double	initial_orientation[4];
-	float	reserved[10];
+};
+
+struct encoded_body_v1_t :
+	encoded_body_common_t
+{
+	float reserved[10];
+};
+
+struct encoded_body_v2_t :
+	encoded_body_common_t
+{
+	/* lvel_dt and avel_dt were introduced with version 2,
+	 * which required a version bump because the 6 extra doubles
+	 * required more space than the remaining 10 extra floats */
+	double	lvel_dt[3];
+	double	avel_dt[3];
+	/* version 1 used to reserve room for 10 extra floats,
+	 * version 2 reserves room for 16 extra double */
+	double	reserved[16];
 } encoded_body_t;
 
 HotFile::HotFile(ofstream &fp, const GlobalData *gdata, uint numParts,
@@ -89,7 +108,7 @@ HotFile::HotFile(ifstream &fp, const GlobalData *gdata) {
 
 void HotFile::save() {
 	// write a header
-	writeHeader(_fp.out, VERSION_1);
+	writeHeader(_fp.out, VERSION_2);
 
 	// TODO instead of hardcoding this here, we might want to have save/load
 	// take a BufferList, so that the caller (GPUSPH) can manage which buffers
@@ -107,13 +126,13 @@ void HotFile::save() {
 		if (iter.first & skip_bufs)
 			continue;
 
-		writeBuffer(_fp.out, iter.second.get(), VERSION_1);
+		writeBuffer(_fp.out, iter.second.get(), VERSION_2);
 	}
 
 	for (uint id = 0; id < _header.body_count; ++id) {
 		MovingBodyData *mbdata = _gdata->problem->m_bodies[id];
 		const uint numparts = _gdata->problem->m_bodies[id]->object->GetNumParts();
-		writeBody(_fp.out, mbdata, numparts, VERSION_1);
+		writeBody(_fp.out, mbdata, numparts, VERSION_2);
 	}
 }
 
@@ -131,16 +150,48 @@ check_counts_match(const char* what, size_t hf_count, size_t sim_count)
 	throw runtime_error(os.str());
 }
 
+// auxiliary method that throws an exception about an unsupported
+// HotFile version
+static void
+unsupported_version(uint version)
+{
+	ostringstream os;
+	os << "unsupported HotFile version " << version;
+	throw out_of_range(os.str());
+}
+
+/* In version 1 we used to store the number of host buffers.
+ * However, we only actually (re)stored ephemeral buffers, so
+ * with the introduction of version 2 we changed the header to only store
+ * the actual number of stored buffers
+ */
+static size_t
+get_num_buffers(version_t version, const GlobalData *gdata)
+{
+	return
+		version == VERSION_1 ? gdata->s_hBuffers.size() :
+		version == VERSION_2 ? gdata->numResumeBuffers : 0;
+}
 
 void HotFile::load() {
-	// read header
+	// find verrsion —this was already checked during the readHeader called by GPUSPH,
+	// but we will do another check here anyway while converting the number to a version_t
+	version_t version;
+
+	switch (_header.version) {
+	case 1: version = VERSION_1; break;
+	case 2: version = VERSION_2; break;
+	default: unsupported_version(_header.version);
+	}
+
 
 	//// TODO FIXME multinode should take into account per-rank particles
 	//check_counts_match("particle", _particle_count, _gdata->totParticles);
 
 	// TODO FIXME would it be possible to restore from a situation with a
 	// different number of arrays?
-	check_counts_match("buffer", _header.buffer_count, _gdata->s_hBuffers.size());
+	const size_t num_buffers = get_num_buffers(version, _gdata);
+	check_counts_match("buffer", _header.buffer_count, num_buffers);
 
 	// NOTE: simulation with ODE bodies cannot be resumed identically due to
 	// the way ODE handles its internal state.
@@ -157,36 +208,30 @@ void HotFile::load() {
 			continue;
 
 		const auto& buf = iter.second;
-		readBuffer(_fp.in, buf.get(), VERSION_1);
+		readBuffer(_fp.in, buf.get(), version);
 		buf->set_state("resumed");
 		buf->mark_valid();
 	}
 
 	for (uint b = 0; b < _header.body_count; ++b) {
 		cout << "Restoring body #" << b << " ..." << endl;
-		readBody(_fp.in, VERSION_1);
+		readBody(_fp.in, version);
 	}
 }
 
 HotFile::~HotFile() {
 }
 
-// auxiliary method that throws an exception about an unsupported
-// HotFile version
-static void
-unsupported_version(uint version)
-{
-	ostringstream os;
-	os << "unsupported HotFile version " << version;
-	throw out_of_range(os.str());
-}
-
 void HotFile::writeHeader(ofstream *fp, version_t version) {
+	// The only difference between VERSION_1 and VERSION_2 is the buffer_count
+	// encoded in the header
+	const size_t num_buffers = get_num_buffers(version, _gdata);
 	switch (version) {
 	case VERSION_1:
+	case VERSION_2:
 		memset(&_header, 0, sizeof(_header));
-		_header.version = 1;
-		_header.buffer_count = _gdata->s_hBuffers.size();
+		_header.version = version;
+		_header.buffer_count = num_buffers;
 		_header.particle_count = _particle_count;
 		_header.body_count = _gdata->problem->simparams()->numbodies;
 		_header.numOpenBoundaries = _gdata->problem->simparams()->numOpenBoundaries;
@@ -206,7 +251,7 @@ void HotFile::readHeader(uint &part_count, uint &numOpenBoundaries) {
 	// read and check version
 	uint v;
 	_fp.in->read((char*)&v, sizeof(v));
-	if (v != 1)
+	if (v > 2)
 		unsupported_version(v);
 
 	_fp.in->seekg(0); // rewind
@@ -220,6 +265,7 @@ void HotFile::readHeader(uint &part_count, uint &numOpenBoundaries) {
 void HotFile::writeBuffer(ofstream *fp, const AbstractBuffer *buffer, version_t version) {
 	switch (version) {
 	case VERSION_1:
+	case VERSION_2:
 		encoded_buffer_t eb;
 		memset(&eb, 0, sizeof(eb));
 		eb.name_length = strlen(buffer->get_buffer_name());
@@ -269,6 +315,7 @@ void HotFile::readBuffer(ifstream *fp, AbstractBuffer *buffer, version_t version
 	size_t sz = buffer->get_element_size()*_particle_count;
 	switch (version) {
 	case VERSION_1:
+	case VERSION_2:
 		encoded_buffer_t eb;
 		memset(&eb, 0, sizeof(eb));
 		fp->read((char*)&eb, sizeof(eb));
@@ -285,8 +332,9 @@ void HotFile::readBuffer(ifstream *fp, AbstractBuffer *buffer, version_t version
 void HotFile::writeBody(ofstream *fp, const MovingBodyData *mbdata, uint numparts, version_t version)
 {
 	switch (version) {
-	case VERSION_1:
-		encoded_body_t eb;
+	/* Body writing changed from V1 to V2, and we don't support writing V1 anymore */
+	case VERSION_2:
+		encoded_body_v2_t eb;
 		memset(&eb, 0, sizeof(eb));
 
 		eb.index = mbdata->index;
@@ -338,6 +386,14 @@ void HotFile::writeBody(ofstream *fp, const MovingBodyData *mbdata, uint numpart
 		eb.initial_orientation[2] = mbdata->initial_kdata.orientation(2);
 		eb.initial_orientation[3] = mbdata->initial_kdata.orientation(3);
 
+		eb.lvel_dt[0] = mbdata->adata.lvel_dt.x;
+		eb.lvel_dt[1] = mbdata->adata.lvel_dt.y;
+		eb.lvel_dt[2] = mbdata->adata.lvel_dt.z;
+
+		eb.avel_dt[0] = mbdata->adata.avel_dt.x;
+		eb.avel_dt[1] = mbdata->adata.avel_dt.y;
+		eb.avel_dt[2] = mbdata->adata.avel_dt.z;
+
 		fp->write((const char *)&eb, sizeof(eb));
 		break;
 	default:
@@ -349,11 +405,16 @@ void HotFile::readBody(ifstream *fp, version_t version)
 {
 	switch (version) {
 	case VERSION_1:
+	case VERSION_2:
 			{
-			encoded_body_t eb;
+			encoded_body_v2_t eb;
 			memset(&eb, 0, sizeof(eb));
 
-			fp->read((char *)&eb, sizeof(eb));
+			if (version == VERSION_2) {
+				fp->read((char *)&eb, sizeof(eb));
+			} else {
+				fp->read((char *)&eb, sizeof(encoded_body_v1_t));
+			}
 
 			MovingBodyData mbdata;
 
@@ -394,6 +455,14 @@ void HotFile::readBody(ifstream *fp, version_t version)
 			mbdata.initial_kdata.orientation(1) = eb.orientation[1];
 			mbdata.initial_kdata.orientation(2) = eb.orientation[2];
 			mbdata.initial_kdata.orientation(3) = eb.orientation[3];
+
+			mbdata.adata.lvel_dt.x = eb.lvel_dt[0];
+			mbdata.adata.lvel_dt.y = eb.lvel_dt[1];
+			mbdata.adata.lvel_dt.z = eb.lvel_dt[2];
+
+			mbdata.adata.avel_dt.x = eb.avel_dt[0];
+			mbdata.adata.avel_dt.y = eb.avel_dt[1];
+			mbdata.adata.avel_dt.z = eb.avel_dt[2];
 
 			_gdata->problem->restore_moving_body(mbdata, eb.numparts, eb.firstindex, eb.lastindex);
 			}

@@ -36,7 +36,20 @@
 #define CUDA_SAFE_CALL_NOSYNC(err)	__cudaSafeCallNoSync(err, __FILE__, __LINE__, __func__)
 #define CUDA_SAFE_CALL(err)			__cudaSafeCall(err, __FILE__, __LINE__, __func__)
 #define CUT_CHECK_ERROR(err)		__cutilGetSyncError(err, __FILE__, __LINE__, __func__)
-#define KERNEL_CHECK_ERROR			CUT_CHECK_ERROR("kernel execution failed")
+
+//! Is this a multi-device run?
+//! On the host we use the MULTI_DEVICE macro that extracts the information from gdata,
+//! which is not available inside the framework, so we use this global boolean
+//! that will be initialized on host
+extern bool is_multi_device;
+
+/*! We should not sync after every kernel call, in order to improve host/device parallelism,
+ *  but we don't have proper locking mechanism for buffers.
+ *  This isn't a problem in single GPU, since we only use one command stream, but it might be
+ *  in multi-GPU. So by default we sync only if is_multi_device.
+ *
+ */
+#define KERNEL_CHECK_ERROR			if (is_multi_device || g_debug.sync_kernels) CUT_CHECK_ERROR("kernel execution failed")
 
 inline void __cudaSafeCallNoSync(cudaError err,
 	const char *file, const int line, const char *func,

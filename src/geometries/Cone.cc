@@ -178,7 +178,7 @@ Cone::FillBorder(PointVect& points, const double dx, const bool bottom, const bo
 	const int nz = (int) ceil(m_h/dx);
 	const double dz = m_h/nz;
 	for (int i = 0; i <= nz; i++)
-		FillDiskBorder(points, m_ep, m_origin, m_rb - i*dz*sin(m_halfaperture), i*dz, dx, 2.0*M_PI*rand()/RAND_MAX);
+		FillDiskBorder(points, m_ep, m_origin, m_rb - i*dz*tan(m_halfaperture), i*dz, dx, 2.0*M_PI*rand()/RAND_MAX);
 	if (bottom)
 		FillDisk(points, m_ep, m_origin, m_rb - dx, 0.0, dx);
 	if (top)
@@ -194,7 +194,7 @@ Cone::Fill(PointVect& points, const double dx, const bool fill)
 	const int nz = (int) ceil(m_h/dx);
 	const double dz = m_h/nz;
 	for (int i = 0; i <= nz; i++)
-		nparts += FillDisk(points, m_ep, m_origin, m_rb - i*dz*sin(m_halfaperture), i*dz, dx, fill);
+		nparts += FillDisk(points, m_ep, m_origin, m_rb - i*dz*tan(m_halfaperture), i*dz, dx, fill);
 
 	return nparts;
 }
@@ -208,7 +208,7 @@ Cone::IsInside(const Point& p, const double dx) const
 	bool inside = false;
 	const double z = lp(2);
 	if (z > -dx && z < h) {
-		const double r = m_rb - z*sin(m_halfaperture) + dx;
+		const double r = m_rb - z*tan(m_halfaperture) + dx;
 		if (lp(0)*lp(0) + lp(1)*lp(1) < r*r)
 			inside = true;
 	}

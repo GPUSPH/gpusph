@@ -33,6 +33,13 @@
 
 #include "particledefine.h"
 
+/*
+ * SFINAE helpers for particle data structure access
+ */
+
+#include "has_member.h"
+DECLARE_MEMBER_DETECTOR(relVel, has_relVel)
+
 namespace cuphys {
 __constant__ uint	d_numfluids;			///< number of different fluids
 
@@ -108,7 +115,7 @@ P(const float rho_tilde, const ushort i)
 __device__ __forceinline__ float
 RHO(const float p, const ushort i)
 {
-	return __powf(p/d_bcoeff[i] + 1.0f, 1.0f/d_gammacoeff[i]) - 1.0;
+	return __powf(p/d_bcoeff[i] + 1.0f, 1.0f/d_gammacoeff[i]) - 1.0f;
 }
 
 // Riemann celerity
@@ -123,14 +130,14 @@ R(const float rho_tilde, const ushort i)
 __device__ __forceinline__ float
 RHOR(const float r, const ushort i)
 {
-	return __powf((d_gammacoeff[i]-1.)*r/(2.*d_sscoeff[i]), 2./(d_gammacoeff[i]-1.)) -1.0;
+	return __powf((d_gammacoeff[i]-1.f)*r/(2.f*d_sscoeff[i]), 2.f/(d_gammacoeff[i]-1.f)) -1.0f;
 }
 
 // Sound speed computed from density
 __device__ __forceinline__ float
 soundSpeed(const float rho_tilde, const ushort i)
 {
-	const float rho_ratio = rho_tilde + 1.0; // rho/rho0
+	const float rho_ratio = rho_tilde + 1.0f; // rho/rho0
 	return d_sscoeff[i]*__powf(rho_ratio, d_sspowercoeff[i]);
 }
 
@@ -148,6 +155,45 @@ numerical_density(const float rho, const ushort i)
 {
 	return rho/d_rho0[i] - 1.0f;
 }
+
+/********************** Particle data structure management **********************************/
+/* Several kernels use a particle data structure to carry around particle information after
+ * it has been loaded. The members are named quite consistently, so we can provide some wrapper
+ * functions to access the desired property directly.
+ */
+
+/// Fetch the particle (numerical) density
+/*! This is either pdata.vel.w or ndata.relVel.w, depending on whether we're
+ * doing it for the central particle or the neighbor. The difference is handled
+ * by the specializations, whose SFINAE condition is the presence of a relVel member.
+ */
+template<typename N>
+__device__ __forceinline__
+enable_if_t<has_relVel<N>(), float>
+particle_density(N const& ndata)
+{
+	/* has relVel, so it's neighbor data */
+	return ndata.relVel.w;
+}
+
+template<typename P>
+__device__ __forceinline__
+enable_if_t<not has_relVel<P>(), float>
+particle_density(P const& pdata)
+{
+	/* no relVel, assume it's central particle data */
+	return pdata.vel.w;
+}
+
+/// Fetch the physical particle density
+template<typename N>
+__device__ __forceinline__
+float
+physical_density(N const& ndata)
+{
+	return cuphys::physical_density(particle_density(ndata), fluid_num(ndata.info));
+}
+
 
 }
 #endif

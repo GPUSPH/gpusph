@@ -33,7 +33,6 @@
 #define _FORCES_KERNEL_
 
 #include "particledefine.h"
-#include "textures.cuh"
 #include "vector_math.h"
 #include "multi_gpu_defines.h"
 #include "GlobalData.h"
@@ -44,6 +43,8 @@
 #include "device_core.cu"
 
 #include "visc_kernel.cu"
+
+#include "cspm_params.h"
 
 
 #if __COMPUTE__ < 20
@@ -87,6 +88,8 @@ __constant__ int2	d_feanodesstartindex[MAX_BODIES];
 __constant__ int2	d_feapartsstartindex[MAX_BODIES];
 __device__ float4 d_feapartsnatcoords[400000]; //FIXME use cudaMalloc
 __device__ uint4 d_feapartsownnodes[400000]; //FIXME use cudaMalloc
+
+__constant__ float	d_ccsph_min_det; ///< Minimum determinant for CCSPH corection
 
 /** \name Device functions
  *  @{ */
@@ -141,8 +144,22 @@ MKForce(const float r, const float slength,
 
 // TODO: check for the maximum timestep
 
+//! Returns true if planes/DEMs in the given boundarytype exerts Lennard-Jones-style repulsion
+//! This is true for LJ_BOUNDARY (obviously), but also for DYN_BOUNDARY and DUMMY_BOUNDARY.
+//! (Note that DYN and DUMMY will exert repulsive forces even when ghost particles will be implemented.)
+static constexpr bool boundary_has_LJ_repulsion(BoundaryType boundarytype)
+{
+	return boundarytype == LJ_BOUNDARY ||
+		boundarytype == DYN_BOUNDARY || boundarytype == DUMMY_BOUNDARY;
+}
+
 //! Computes normal and viscous force wrt to solid planar boundary
-__device__ __forceinline__ float
+//! This is only the LJ specialization, also used by DYN and DUMMY.
+//! For MK we should implement MK-style repulsion (TODO).
+//! Interaction with planes in SA has experimental code in an ancient branch (TODO).
+template<BoundaryType boundarytype>
+__device__ __forceinline__
+enable_if_t<boundary_has_LJ_repulsion(boundarytype), float>
 PlaneForce(	const int3&		gridPos,
 			const float3&	pos,
 			const float		mass,
@@ -161,7 +178,7 @@ PlaneForce(	const int3&		gridPos,
 		as_float3(force) += DvDt*relPos;
 
 		// tangential velocity component
-		const float3 v_t = vel - dot(vel, relPos)/r*relPos/r; //TODO: check
+		const float3 v_t = vel - dot(vel,plane.normal)*plane.normal; //TODO: check
 
 		// f = -µ u/∆n
 
@@ -174,7 +191,7 @@ PlaneForce(	const int3&		gridPos,
 		// coefficients are negative, so the smallest in absolute value is the biggest
 
 		/*
-		float fmag = length(as_float3(force));
+		float fmag = length3(force);
 		float coeff2 = -sqrt(fmag/slength)/(d_dtadaptfactor*d_dtadaptfactor);
 		if (coeff2 < -d_epsartvisc)
 			coeff = max(coeff, coeff2);
@@ -188,28 +205,11 @@ PlaneForce(	const int3&		gridPos,
 	return 0.0f;
 }
 
-//! DOC-TODO Describe function
+//! Apply a geometric force from the plane tangent to the DEM
+//! near the particle position
+template<BoundaryType boundarytype>
 __device__ __forceinline__ float
-GeometryForce(	const int3&		gridPos,
-				const float3&	pos,
-				const float		mass,
-				const float3&	vel,
-				const float		dynvisc,
-				float4&			force)
-{
-	float coeff_max = 0.0f;
-	for (uint i = 0; i < d_numplanes; ++i) {
-		float coeff = PlaneForce(gridPos, pos, mass, d_plane[i], vel, dynvisc, force);
-		if (coeff > coeff_max)
-			coeff_max = coeff;
-	}
-
-	return coeff_max;
-}
-
-//! DOC-TODO describe function
-__device__ __forceinline__ float
-DemLJForce(	const texture<float, 2, cudaReadModeElementType> texref,
+DemLJForce(	dem_params const& params,
 			const int3&	gridPos,
 			const float3&	pos,
 			const float		mass,
@@ -220,12 +220,12 @@ DemLJForce(	const texture<float, 2, cudaReadModeElementType> texref,
 	const float2 demPos = DemPos(gridPos, pos);
 
 	const float globalZ = d_worldOrigin.z + (gridPos.z + 0.5f)*d_cellSize.z + pos.z;
-	const float globalZ0 = DemInterpol(texref, demPos);
+	const float globalZ0 = DemInterpol(params, demPos);
 
 	if (globalZ - globalZ0 < d_demzmin) {
-		const plane_t demPlane(DemTangentPlane(texref, gridPos, pos, demPos, globalZ0));
+		const plane_t demPlane(DemTangentPlane(params, gridPos, pos, demPos, globalZ0));
 
-		return PlaneForce(gridPos, pos, mass, demPlane, vel, dynvisc, force);
+		return PlaneForce<boundarytype>(gridPos, pos, mass, demPlane, vel, dynvisc, force);
 	}
 	return 0;
 }
@@ -270,6 +270,281 @@ MlsCorrContrib(float4 const& B, float4 const& relPos, float w)
 /** \name Kernels
  *  @{ */
 
+__device__ __forceinline__ void
+fcoeff_add_neib_contrib(const float F, const float4 rp, const float vol,
+	symtensor3& fcoeff, symtensor3& fcoeff_kahan)
+{
+	float f_times_vol = F*vol;
+
+	fcoeff.xx = kbn_add(fcoeff.xx, -rp.x*rp.x*f_times_vol, fcoeff_kahan.xx);
+	fcoeff.xy = kbn_add(fcoeff.xy, -rp.x*rp.y*f_times_vol, fcoeff_kahan.xy);
+	fcoeff.xz = kbn_add(fcoeff.xz, -rp.x*rp.z*f_times_vol, fcoeff_kahan.xz);
+	fcoeff.yy = kbn_add(fcoeff.yy, -rp.y*rp.y*f_times_vol, fcoeff_kahan.yy);
+	fcoeff.yz = kbn_add(fcoeff.yz, -rp.y*rp.z*f_times_vol, fcoeff_kahan.yz);
+	fcoeff.zz = kbn_add(fcoeff.zz, -rp.z*rp.z*f_times_vol, fcoeff_kahan.zz);
+}
+
+/************************************************************************************************************/
+
+/************************************************************************************************************/
+/*	CSPM coefficients for CCSPH and delta-SPH      */
+/************************************************************************************************************/
+
+#define CCSPH_THRESHOLD 2
+/* 
+   - 0 : No threshold, boundary excluded
+   - 1 : Surface detection, boundary excluded
+   - 2 : Threshold on determinant, boundary excluded
+   - 3 : Threshold on neibs num, boundary excluded
+
+   NOTE: CCSPH should use THRESHOLD 2. The others are there only for experimental reasons.
+ */
+
+//#define CCSPH_HYDROSTATIC_THRESHOLD 99999999.0f
+/*
+ 	 define threshold for application of CCSPH dependent on the relative (hydrostatic) density. This is dependent
+ 	 on the equation of state for a certain problem. Therefore, this is only temporary for AiryWaves2D with H=1; c=20sqrt(2*g*H); xi=7.
+   - 99999999.0f : No threshold, cspm is applied in the entire domain
+   - 0.00018739f : depth = 0.15
+   - 0.00031221f : depth = 0.25
+   - 0.00062383f : depth = 0.5
+   - 0.00093487f : depth = 0.75
+
+*/
+
+__device__ __forceinline__ bool
+skip_cspm_early(particleinfo const& info, float4 const& vel)
+{
+	return BOUNDARY(info) // these always skip
+	// TODO FIXME these affect delta-SPH even though they probably shouldn't
+#if CCSPH_THRESHOLD == 1
+	    || SURFACE(info) // skip surface particles
+#elif defined(CCSPH_HYDROSTATIC_THRESHOLD)
+		|| (vel.w > CCSPH_HYDROSTATIC_THRESHOLD)
+#endif
+		;
+}
+
+//! Compute the renormalized density gradient for Antuono's density diffusion term in delta-SPH
+template<KernelType kerneltype, typename Params>
+__device__ __forceinline__
+enable_if_t<Params::densitydiffusiontype == ANTUONO>
+compute_renormalized_density(Params const&params, symtensor3 const& fcoeff, uint index,
+	particleinfo const& info, float4 const& pos, float4 const& vel, int3 const& gridPos)
+{
+	float3 renorm_dens_grad = make_float3(0.0f);
+
+	const int p_fluid = fluid_num(info);
+
+	// To leverage the relative density storage optimization, we compute
+	// the delta contribution divided by rho0[p_fluid]
+	// TODO FIXME we only operate on fluid neighbors with the same fluid
+	// as the central particle. Verify if this is the correct behavior in multi-fluid phases.
+	for_each_neib(PT_FLUID, index, pos, gridPos, params.cellStart, params.neibsList) {
+
+		const uint neib_index = neib_iter.neib_index();
+		const particleinfo neib_info = params.fetchInfo(neib_index);
+
+		const int n_fluid = fluid_num(neib_info);
+
+		// skip different-fluid neighbors
+		if (n_fluid != p_fluid)
+			continue;
+
+		// Compute relative position vector and distance
+		// Now relPos is a float4 and neib mass is stored in relPos.w
+		const float4 relPos = neib_iter.relPos(params.fetchPos(neib_index));
+
+		const float4 neib_vel = params.fetchVel(neib_index);
+		const float r = length3(relPos);
+
+#if 0
+		// if we assume different rho0:
+		const float rho_ratio = rho0[n_fluid]/rho0[p_fluid];
+		const float rhotilde_delta = (rho_ratio*neib_vel.w - vel.w + (rho_ratio - 1.0f));
+#else
+		const float rhotilde_delta = (neib_vel.w - vel.w);
+#endif
+
+		if (INACTIVE(relPos) || r >= params.influenceradius)
+			continue;
+
+		const float f = F<kerneltype>(r, params.slength);
+		const float volume = relPos.w/physical_density(neib_vel.w, n_fluid);
+
+		const float3 neib_contrib = rhotilde_delta*as_float3(relPos)*f*volume;
+		// TODO kbn
+		renorm_dens_grad += neib_contrib;
+	}
+
+	const float determinant = det(fcoeff);
+	if (determinant >= 0.01f) {
+		const symtensor3 invtens = inverse(fcoeff, determinant);
+		renorm_dens_grad = dot(invtens, renorm_dens_grad);
+	}
+
+	// Store into array: note that we are storing the <∇ρ>/rho0
+	params.renorm_dens_grad[index] = make_float4(renorm_dens_grad, NAN);
+}
+
+template<KernelType kerneltype, typename Params>
+__device__ __forceinline__
+enable_if_t<Params::densitydiffusiontype != ANTUONO>
+compute_renormalized_density(Params const&params, symtensor3 const& fcoeff, uint index,
+	particleinfo const& info, float4 const& pos, float4 const& vel, int3 const& gridPos)
+{ /* do nothing */ }
+
+
+//! Store the CSPM / CCSPH F-correction tensor coefficient.
+//! The tensor is reset to the identity matrix if any of the threshold conditions are satisfied.
+template<typename Params>
+__device__ __forceinline__
+enable_if_t<HAS_CCSPH(Params::simflags)>
+store_ccsph_fcoeff(Params const& params, symtensor3& fcoeff, uint index, uint num_neibs, bool close_to_boundary)
+{
+	bool reset_fcoeff = close_to_boundary;
+
+	if (!reset_fcoeff) {
+
+#if CCSPH_THRESHOLD == 2
+		const float D = kbn_det(fcoeff);
+
+		reset_fcoeff = (D < d_ccsph_min_det);
+
+#elif CCSPH_THRESHOLD == 3
+		reset_fcoeff = (num_neibs <= 42);
+#endif
+	}
+
+	if (reset_fcoeff)
+		set_identity(fcoeff);
+
+	//params.wcoeff[index] = wcoeff;
+	params.storeFcoeff(fcoeff, index);
+}
+
+//! If CSPM / CCSPH is disabled, nothing to do when storing the CSPM tensor
+template<typename Params>
+__device__ __forceinline__
+enable_if_t<not HAS_CCSPH(Params::simflags)>
+store_ccsph_fcoeff(Params const& params, symtensor3& fcoeff, uint index, uint num_neibs, bool close_to_boundary)
+{ /* do nothing */ }
+
+/* This kernel computes the CSPM tensor (see Chen & Beraun)
+ * that is used in several corretive schemes for SPH to improve the Taylor expansion consistency
+ * of the formulation.
+ * In the delta-SPH case, this is used immediately to compute the renormalized densities.
+ * In the CSPM / CCSPH case we store the per-particle tensor in FCOEFF, to be used
+ * in forces for the correction of the kernel gradient.
+ */
+template<KernelType kerneltype, BoundaryType boundarytype, DensityDiffusionType densitydiffusiontype, flag_t simflags>
+__global__ void
+cspmCoeffDevice(cspm_coeff_params<boundarytype, densitydiffusiontype, simflags> params)
+{
+	// If we are using delta-SPH, then we must compute the correction tensor also for particles
+	// near the boundary. Otherwise, those will be skipped
+	constexpr bool has_delta = densitydiffusiontype == ANTUONO;
+
+	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
+
+	if (index >= params.numParticles)
+		return;
+
+	const particleinfo info = params.fetchInfo(index);
+
+	const float4 pos = params.fetchPos(index);
+
+	if (INACTIVE(pos))
+		return;
+
+	const float4 vel = params.fetchVel(index);
+
+	const int3 gridPos = calcGridPosFromParticleHash( params.particleHash[index] );
+
+
+	// Kernel correction is just the Shepard normalization, that has a self-contribution
+	//float corr = W<kerneltype>(0, slength)*pos.w/physical_density(vel.w, fluid_num(info));
+	//float corr_kahan = 0;
+
+	// Gradient correction is a symmetric 3x3 tensor, with no self-contribution
+	symtensor3 fcoeff, fcoeff_kahan;
+	clear(fcoeff);
+	clear(fcoeff_kahan);
+
+	//bool has_neibs = false;
+	uint num_neibs = 0;
+	bool close_to_boundary = false;
+
+	do {
+		if (skip_cspm_early(info, vel))
+			break;
+
+		// TODO this should be done only if ENABLE_PLANES, and also for the DEM
+		for (int i = 0; i < d_numplanes; ++i)
+		{
+			const float pd = PlaneDistance(gridPos, make_float3(pos.x, pos.y, pos.z), d_plane[i]);
+			if (pd < params.influenceradius)
+			{
+				close_to_boundary = true;
+				break; // stop looping over planes
+			}
+		}
+
+		// close to plane boundaries: no correction unless using delta
+		if (!has_delta && close_to_boundary)
+			break;
+
+		// Loop over all FLUID neighbors and BOUNDARY neighbors
+		// TODO check what to do for SA
+		// TODO scale relPos by slength to gain resolution independence
+		for_each_neib2(PT_FLUID, PT_BOUNDARY, index, pos, gridPos, params.cellStart, params.neibsList) {
+
+			const uint neib_index = neib_iter.neib_index();
+			const particleinfo neib_info = params.fetchInfo(neib_index);
+
+			if (!FLUID(neib_info)) {
+				close_to_boundary = true;
+				if (!has_delta)
+					break;
+			}
+
+			// Compute relative position vector and distance
+			// Now relPos is a float4 and neib mass is stored in relPos.w
+			const float4 relPos = neib_iter.relPos( params.fetchPos(neib_index) );
+
+			const float4 neib_vel = params.fetchVel(neib_index);
+			const float r = length3(relPos);
+
+			if (INACTIVE(relPos) || r >= params.influenceradius)
+				continue;
+
+			const float volume = relPos.w/physical_density(neib_vel.w, fluid_num(neib_info));
+			//corr = kbn_add(corr, W<kerneltype>(r, slength)*volume, corr_kahan);
+
+			const float f = F<kerneltype>(r, params.slength);
+			fcoeff_add_neib_contrib(f, relPos, volume, fcoeff, fcoeff_kahan);
+
+			num_neibs ++;
+
+		}
+
+		// KBN needs a final addition of the remainder
+		//corr += corr_kahan;
+		fcoeff += fcoeff_kahan;
+
+	} while (0);
+
+	compute_renormalized_density<kerneltype>(params, fcoeff, index, info, pos, vel, gridPos);
+
+	store_ccsph_fcoeff(params, fcoeff, index, num_neibs, close_to_boundary);
+}
+
+
+/*  @} */
+
+/** \name Kernels
+ *  @{ */
+
 /************************************************************************************************************/
 
 /************************************************************************************************************/
@@ -289,24 +564,17 @@ MlsCorrContrib(float4 const& B, float4 const& relPos, float w)
 template<KernelType kerneltype, BoundaryType boundarytype>
 __global__ void
 densityGrenierDevice(
-			float* __restrict__		sigmaArray,
-	const	float4* __restrict__	posArray,
-			float4* __restrict__	velArray,
-	const	particleinfo* __restrict__	infoArray,
-	const	hashKey* __restrict__	particleHash,
+	neibs_list_params params,
 	const	float4* __restrict__	volArray,
-	const	uint* __restrict__		cellStart,
-	const	neibdata* __restrict__	neibsList,
-	const	uint	numParticles,
-	const	float	slength,
-	const	float	influenceradius)
+			float4* __restrict__	velArray,
+			float* __restrict__		sigmaArray)
 {
 	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
 
-	if (index >= numParticles)
+	if (index >= params.numParticles)
 		return;
 
-	const particleinfo info = infoArray[index];
+	const particleinfo info = params.fetchInfo(index);
 
 	/* We only process FLUID particles normally,
 	   except with DYN_BOUNDARY, where we also process boundary particles
@@ -314,7 +582,7 @@ densityGrenierDevice(
 	if (boundarytype != DYN_BOUNDARY && NOT_FLUID(info))
 		return;
 
-	const float4 pos = posArray[index];
+	const float4 pos = params.fetchPos(index);
 
 	if (INACTIVE(pos))
 		return;
@@ -324,11 +592,11 @@ densityGrenierDevice(
 	float4 vel = velArray[index];
 
 	// self contribution
-	float corr = W<kerneltype>(0, slength);
+	float corr = W<kerneltype>(0, params.slength);
 	float sigma = corr;
 	float mass_corr = pos.w*corr;
 
-	const int3 gridPos = calcGridPosFromParticleHash( particleHash[index] );
+	const int3 gridPos = calcGridPosFromParticleHash( params.particleHash[index] );
 
 	// For DYN_BOUNDARY particles, we compute sigma in the same way as fluid particles,
 	// except that if the boundary particle has no fluid neighbors we set its
@@ -340,22 +608,16 @@ densityGrenierDevice(
 	// DYN_BOUNDARY
 	// TODO: check with SA
 	for_each_neib2(PT_FLUID, (boundarytype == DYN_BOUNDARY ? PT_BOUNDARY : PT_NONE),
-			index, pos, gridPos, cellStart, neibsList) {
+			index, pos, gridPos, params.cellStart, params.neibsList) {
 
 		const uint neib_index = neib_iter.neib_index();
 
 		// Compute relative position vector and distance
 		// Now relPos is a float4 and neib mass is stored in relPos.w
-		const float4 relPos = neib_iter.relPos(
-		#if PREFER_L1
-			posArray[neib_index]
-		#else
-			tex1Dfetch(posTex, neib_index)
-		#endif
-			);
+		const float4 relPos = neib_iter.relPos(params.fetchPos(neib_index));
 
-		const particleinfo neib_info = infoArray[neib_index];
-		float r = length(as_float3(relPos));
+		const particleinfo neib_info = params.fetchInfo(neib_index);
+		float r = length3(relPos);
 
 		/* Contributions only come from active particles within the influence radius
 		   that are fluid particles (or also non-fluid in DYN_BOUNDARY case).
@@ -368,10 +630,10 @@ densityGrenierDevice(
 		   the sigma from the closest fluid particle, but that would require
 		   two runs, one for fluid and one for neighbor particles.
 		 */
-		if (INACTIVE(relPos) || r >= influenceradius)
+		if (INACTIVE(relPos) || r >= params.influenceradius)
 			continue;
 
-		const float w = W<kerneltype>(r, slength);
+		const float w = W<kerneltype>(r, params.slength);
 		sigma += w;
 		if (FLUID(neib_info))
 			has_fluid_neibs = true;
@@ -389,7 +651,7 @@ densityGrenierDevice(
 	if (boundarytype == DYN_BOUNDARY && NOT_FLUID(info) && !has_fluid_neibs) {
 		// TODO OPTIMIZE
 		const float typical_sigma = 3*(cuneibs::d_maxFluidBoundaryNeibs)/
-			(4*M_PIf*influenceradius*influenceradius*influenceradius);
+			(4*M_PIf*params.influenceradius*params.influenceradius*params.influenceradius);
 		sigma = typical_sigma;
 	}
 
@@ -424,33 +686,24 @@ template<KernelType kerneltype,
 	BoundaryType boundarytype>
 __global__ void
 __launch_bounds__(BLOCK_SIZE_SHEPARD, MIN_BLOCKS_SHEPARD)
-shepardDevice(	const float4*	posArray,
-				float4*			newVel,
-				const hashKey*		particleHash,
-				const uint*		cellStart,
-				const neibdata*	neibsList,
-				const uint		numParticles,
-				const float		slength,
-				const float		influenceradius)
+shepardDevice(
+	neibs_interaction_params<boundarytype>	params,
+				float4 * __restrict__		newVel)
 {
 	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
 
-	if (index >= numParticles)
+	if (index >= params.numParticles)
 		return;
 
-	const particleinfo info = tex1Dfetch(infoTex, index);
+	const particleinfo info = params.fetchInfo(index);
 
-	#if PREFER_L1
-	const float4 pos = posArray[index];
-	#else
-	const float4 pos = tex1Dfetch(posTex, index);
-	#endif
+	const float4 pos = params.fetchPos(index);
 
 	// If particle is inactive there is absolutely nothing to do
 	if (INACTIVE(pos))
 		return;
 
-	float4 vel = tex1Dfetch(velTex, index);
+	float4 vel = params.fetchVel(index);
 
 	// We apply Shepard normalization :
 	//	* with LJ or DYN boundary only on fluid particles
@@ -463,42 +716,36 @@ shepardDevice(	const float4*	posArray,
 
 
 	// Taking into account self contribution in summation
-	float temp1 = pos.w*W<kerneltype>(0, slength);
+	float temp1 = pos.w*W<kerneltype>(0, params.slength);
 	float temp2 = temp1/physical_density(vel.w,fluid_num(info)) ;
 
 	// Compute grid position of current particle
-	const int3 gridPos = calcGridPosFromParticleHash( particleHash[index] );
+	const int3 gridPos = calcGridPosFromParticleHash( params.particleHash[index] );
 
 	// Loop over all FLUID neighbors, and over BOUNDARY neighbors if using
 	// DYN_BOUNDARY
 	// TODO: check with SA
 	for_each_neib2(PT_FLUID, (boundarytype == DYN_BOUNDARY ? PT_BOUNDARY : PT_NONE),
-			index, pos, gridPos, cellStart, neibsList) {
+			index, pos, gridPos, params.cellStart, params.neibsList) {
 
 		const uint neib_index = neib_iter.neib_index();
 
 		// Compute relative position vector and distance
 		// Now relPos is a float4 and neib mass is stored in relPos.w
-		const float4 relPos = neib_iter.relPos(
-		#if PREFER_L1
-			posArray[neib_index]
-		#else
-			tex1Dfetch(posTex, neib_index)
-		#endif
-			);
+		const float4 relPos = neib_iter.relPos( params.fetchPos(neib_index) );
 
-		const particleinfo neib_info = tex1Dfetch(infoTex, neib_index);
+		const particleinfo neib_info = params.fetchInfo(neib_index);
 
 		// Skip inactive neighbors
 		if (INACTIVE(relPos))
 			continue;
 
-		const float r = length(as_float3(relPos));
+		const float r = length3(relPos);
 
-		const float neib_rho = physical_density(tex1Dfetch(velTex, neib_index).w,fluid_num(neib_info));
+		const float neib_rho = physical_density(params.fetchVel(neib_index).w,fluid_num(neib_info));
 
-		if (r < influenceradius ) {
-			const float w = W<kerneltype>(r, slength)*relPos.w;
+		if (r < params.influenceradius ) {
+			const float w = W<kerneltype>(r, params.slength)*relPos.w;
 			temp1 += w;
 			temp2 += w/neib_rho;
 		}
@@ -514,33 +761,24 @@ template<KernelType kerneltype,
 	BoundaryType boundarytype>
 __global__ void
 __launch_bounds__(BLOCK_SIZE_MLS, MIN_BLOCKS_MLS)
-MlsDevice(	const float4*	posArray,
-			float4*			newVel,
-			const hashKey*		particleHash,
-			const uint*		cellStart,
-			const neibdata*	neibsList,
-			const uint		numParticles,
-			const float		slength,
-			const float		influenceradius)
+MlsDevice(
+	neibs_interaction_params<boundarytype>	params,
+				float4 * __restrict__		newVel)
 {
 	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
 
-	if (index >= numParticles)
+	if (index >= params.numParticles)
 		return;
 
-	const particleinfo info = tex1Dfetch(infoTex, index);
+	const particleinfo info = params.fetchInfo(index);
 
-	#if PREFER_L1
-	const float4 pos = posArray[index];
-	#else
-	const float4 pos = tex1Dfetch(posTex, index);
-	#endif
+	const float4 pos = params.fetchPos(index);
 
 	// If particle is inactive there is absolutely nothing to do
 	if (INACTIVE(pos))
 		return;
 
-	float4 vel = tex1Dfetch(velTex, index);
+	float4 vel = params.fetchVel(index);
 
 	// We apply MLS normalization :
 	//	* with LJ or DYN boundary only on fluid particles
@@ -561,46 +799,40 @@ MlsDevice(	const float4*	posArray,
 	int neibs_num = 0;
 
 	// Taking into account self contribution in MLS matrix construction
-	mls.xx = W<kerneltype>(0, slength)*pos.w/physical_density(vel.w,fluid_num(info));
+	mls.xx = W<kerneltype>(0, params.slength)*pos.w/physical_density(vel.w,fluid_num(info));
 
 	// Compute grid position of current particle
-	const int3 gridPos = calcGridPosFromParticleHash( particleHash[index] );
+	const int3 gridPos = calcGridPosFromParticleHash( params.particleHash[index] );
 
 	// First loop over neighbors
 	// Loop over all FLUID neighbors, and over BOUNDARY neighbors if using
 	// DYN_BOUNDARY
 	// TODO: check with SA
 	for_each_neib2(PT_FLUID, (boundarytype == DYN_BOUNDARY ? PT_BOUNDARY : PT_NONE),
-			index, pos, gridPos, cellStart, neibsList) {
+			index, pos, gridPos, params.cellStart, params.neibsList) {
 
 		const uint neib_index = neib_iter.neib_index();
 
 		// Compute relative position vector and distance
 		// Now relPos is a float4 and neib mass is stored in relPos.w
-		const float4 relPos = neib_iter.relPos(
-		#if PREFER_L1
-			posArray[neib_index]
-		#else
-			tex1Dfetch(posTex, neib_index)
-		#endif
-			);
+		const float4 relPos = neib_iter.relPos( params.fetchPos(neib_index) );
 
 		// Skip inactive particles
 		if (INACTIVE(relPos))
 			continue;
 
-		const float r = length(as_float3(relPos));
-		const particleinfo neib_info = tex1Dfetch(infoTex, neib_index);
-		const float neib_rho = physical_density(tex1Dfetch(velTex, neib_index).w,fluid_num(neib_info));
- 
+		const float r = length3(relPos);
+		const particleinfo neib_info = params.fetchInfo(neib_index);
+		const float neib_rho = physical_density(params.fetchVel(neib_index).w,fluid_num(neib_info));
+
 
 		// Add neib contribution only if it's a fluid one
-		if (r < influenceradius) {
+		if (r < params.influenceradius) {
 			neibs_num ++;
-			const float w = W<kerneltype>(r, slength)*relPos.w/neib_rho;	// Wij*Vj
+			const float w = W<kerneltype>(r, params.slength)*relPos.w/neib_rho;	// Wij*Vj
 
 			/* Scale relPos by slength for stability and resolution independence */
-			MlsMatrixContrib(mls, relPos/slength, w);
+			MlsMatrixContrib(mls, relPos/params.slength, w);
 		}
 	} // end of first loop trough neighbors
 
@@ -659,43 +891,37 @@ MlsDevice(	const float4*	posArray,
 	}
 
 	/* Scale for resolution independence, again */
-	B.y /= slength;
-	B.z /= slength;
-	B.w /= slength;
+	B.y /= params.slength;
+	B.z /= params.slength;
+	B.w /= params.slength;
 
 	// Taking into account self contribution in density summation
-	vel.w = B.x*W<kerneltype>(0, slength)*pos.w;
+	vel.w = B.x*W<kerneltype>(0, params.slength)*pos.w;
 
 	// Second loop over neighbors
 	// Loop over all FLUID neighbors, and over BOUNDARY neighbors if using
 	// DYN_BOUNDARY
 	// TODO: check with SA
 	for_each_neib2(PT_FLUID, (boundarytype == DYN_BOUNDARY ? PT_BOUNDARY : PT_NONE),
-			index, pos, gridPos, cellStart, neibsList) {
+			index, pos, gridPos, params.cellStart, params.neibsList) {
 
 		const uint neib_index = neib_iter.neib_index();
 
 		// Compute relative position vector and distance
 		// Now relPos is a float4 and neib mass is stored in relPos.w
-		const float4 relPos = neib_iter.relPos(
-		#if PREFER_L1
-			posArray[neib_index]
-		#else
-			tex1Dfetch(posTex, neib_index)
-		#endif
-			);
+		const float4 relPos = neib_iter.relPos( params.fetchPos(neib_index) );
 
 		// Skip inactive particles
 		if (INACTIVE(relPos))
 			continue;
 
-		const float r = length(as_float3(relPos));
+		const float r = length3(relPos);
 
-		const particleinfo neib_info = tex1Dfetch(infoTex, neib_index);
+		const particleinfo neib_info = params.fetchInfo(neib_index);
 
 		// Interaction between two particles
-		if (r < influenceradius && (boundarytype == DYN_BOUNDARY || FLUID(neib_info))) {
-			const float w = W<kerneltype>(r, slength)*relPos.w;	 // ρj*Wij*Vj = mj*Wij
+		if (r < params.influenceradius && (boundarytype == DYN_BOUNDARY || FLUID(neib_info))) {
+			const float w = W<kerneltype>(r, params.slength)*relPos.w;	 // ρj*Wij*Vj = mj*Wij
 			vel.w += MlsCorrContrib(B, relPos, w);
 		}
 
@@ -712,7 +938,7 @@ MlsDevice(	const float4*	posArray,
 
 #ifdef DEBUG_PARTICLE
 	{
-		const float old = tex1Dfetch(velTex, index).w;
+		const float old = physical_density(params.fetchVel(index).w, fluid_num(info));
 		const float err = 1 - vel.w/old;
 		if (DEBUG_PARTICLE) {
 			printf("MLS %d %d %22.16g => %22.16g (%6.2e)\n",
@@ -721,7 +947,7 @@ MlsDevice(	const float4*	posArray,
 		}
 	}
 #endif
-        vel.w = numerical_density(vel.w,fluid_num(info));
+	vel.w = numerical_density(vel.w,fluid_num(info));
 	newVel[index] = vel;
 }
 /************************************************************************************************************/

@@ -37,7 +37,6 @@
 RTInstability::RTInstability(GlobalData *_gdata) : Problem(_gdata)
 {
 	const bool USE_PLANES = get_option("use_planes", false);
-	const uint NUM_TESTPOINTS = get_option("num_testpoints", 0);
 	// density diffusion terms: 0 none, 1 Ferrari, 2 Molteni & Colagrossi, 3 Brezzi
 	const DensityDiffusionType RHODIFF = get_option("density-diffusion", COLAGROSSI);
 
@@ -51,9 +50,6 @@ RTInstability::RTInstability(GlobalData *_gdata) : Problem(_gdata)
 		RHODIFF,
 		USE_PLANES, add_flags<ENABLE_PLANES>()
 	);
-
-	// will dump testpoints separately
-	addPostProcess(TESTPOINTS);
 
 	// Allow user to set the MLS frequency at runtime. Default to 0 if density
 	// diffusion is enabled, 10 otherwise
@@ -72,7 +68,6 @@ RTInstability::RTInstability(GlobalData *_gdata) : Problem(_gdata)
 	set_deltap(0.01f);
 	//set_timestep(0.00005);
 	set_gravity(-9.81);
-	const float g = get_gravity_magnitude();
 	setMaxFall(H);
 	set_interface_epsilon(0.08);
 
@@ -177,32 +172,34 @@ RTInstability::initializeParticles(BufferList &buffers, const uint numParticles)
 
 	// 3. iterate on the particles
 	for (uint i = 0; i < numParticles; i++) {
-		float rho;
-		double depth = H - pos_global[i].z;
 		// for boundary particles, we use the heavy density,
-		int fluid_idx = heavy;
-		if (FLUID(info[i])) {
-			fluid_idx = is_light(dimX, dimZ, pos_global[i]) ? light : heavy;
+		// for fluid particles, we choose light or heavy based on the
+		// global position and the initial surface separation defined
+		// by the is_light function
+		int fluid_idx = BOUNDARY(info[i]) ? heavy :
+			is_light(dimX, dimZ, pos_global[i]) ? light : heavy;
 
-			rho = hydrostatic_density(depth, fluid_idx);
-			if (fluid_idx == light) {
-				// interface: depth of center of the bubble corrected by
-				// R^2 - horizontal offset squared
-				// note: no correction by m_origin.z because we are only
-				// interested in deltas
-				float z_intf =  dimZ/2 + 0.05*sin(2*M_PI/dimX*pos_global[i].x );
-				// pressure at interface, from heavy fluid
-				float g = get_gravity_magnitude();
-				float P = physparams()->rho0[heavy]*(H - z_intf)*g;
-				// plus hydrostatic pressure from _our_ fluid
-				P += physparams()->rho0[light]*(z_intf - pos_global[i].z)*g;
-				rho = density_for_pressure(P, light);
-			}
-			info[i]= make_particleinfo(PT_FLUID, fluid_idx, i);
-		} else if (BOUNDARY(info[i])) {
-			rho = hydrostatic_density(depth, fluid_idx);
-			info[i]= make_particleinfo(PT_BOUNDARY, fluid_idx, i);
+		// hydrostatic initialization. For heavy particles (be them fluid or boundary)
+		// it's just the standard one. It will be overridden for the light fluid particles
+		// to take into account the overpressure from the heavy fluid on top
+		double depth = H - pos_global[i].z;
+		float rho = hydrostatic_density(depth, fluid_idx);
+
+		if (fluid_idx == light) {
+			// interface: depth of center of the bubble corrected by
+			// R^2 - horizontal offset squared
+			// note: no correction by m_origin.z because we are only
+			// interested in deltas
+			float z_intf =  dimZ/2 + 0.05*sin(2*M_PI/dimX*pos_global[i].x );
+			// pressure at interface, from heavy fluid
+			float g = get_gravity_magnitude();
+			float P = physparams()->rho0[heavy]*(H - z_intf)*g;
+			// plus hydrostatic pressure from _our_ fluid
+			P += physparams()->rho0[light]*(z_intf - pos_global[i].z)*g;
+			rho = density_for_pressure(P, light);
 		}
+		// update the particle info
+		set_fluid_num(info[i], fluid_idx);
 		// fix up the particle mass according to the actual density
 		pos[i].w *= physical_density(rho,fluid_idx);
 		vel[i].w = rho;

@@ -39,12 +39,11 @@
 #include "predcorr_alloc_policy.h"
 
 #include "simflags.h"
-#include "textures.cuh"
 
 #include "sph_core.cu"
 #include "phys_core.cu"
-#include "buildneibs.cu"
 #include "geom_core.cu"
+#include "buildneibs.cu"
 #include "boundary_conditions.cu"
 #include "forces.cu"
 #include "euler.cu"
@@ -52,7 +51,8 @@
 #include "post_process.cu"
 #include "option_range.h"
 
-using namespace std;
+// Implementation of the (thread-local) global dem_params object
+#include "dem_params.cu"
 
 using namespace std;
 
@@ -161,6 +161,7 @@ template<
 		// TODO extend to include all unsupported/untested combinations for other boundary conditions
 
 		(_legacyvisctype == KINEMATICVISC && IS_MULTIFLUID(_simflags)) || // kinematicvisc model only made sense for single-fluid
+		//(_densitydiffusiontype == ANTUONO && IS_MULTIFLUID(_simflags)) || // multi-fluid support for Antuono's density diffusion term in ð-SPH is experimental
 		(_turbmodel == KEPSILON && _boundarytype != SA_BOUNDARY) || // k-epsilon only supported in SA currently
 		(_boundarytype == SA_BOUNDARY && (
 			// viscosity
@@ -175,18 +176,19 @@ template<
 			// formulation
 			_sph_formulation == SPH_GRENIER	||	// multi-fluid is currently not implemented
 			// flags
-			_simflags & ENABLE_XSPH			||	// untested
-			_simflags & ENABLE_DEM			||	// not implemented (flat wall formulation is in an old branch)
-			(_simflags & ENABLE_INLET_OUTLET && !(_simflags & ENABLE_DENSITY_SUM)) ||
+			HAS_CCSPH(_simflags)			||	// TODO corrected ggamAS
+			HAS_XSPH(_simflags)				||	// untested
+			HAS_DEM_OR_PLANES(_simflags)	||	// not implemented (flat wall formulation is in an old branch)
+			(HAS_INLET_OUTLET(_simflags) && !HAS_DENSITY_SUM(_simflags)) ||
 												// inlet outlet works only with the summation density
-			(_simflags & ENABLE_DENSITY_SUM && _simflags & ENABLE_GAMMA_QUADRATURE)
+			(HAS_DENSITY_SUM(_simflags) && HAS_GAMMA_QUADRATURE(_simflags))
 												// enable density sum only works with the dynamic equation for gamma,
 												// so gamma quadrature must be disabled
 		)
 	) ||
-		(_boundarytype == DUMMY_BOUNDARY && (_simflags & ENABLE_MOVING_BODIES)) ||
+		(_boundarytype == DUMMY_BOUNDARY && HAS_MOVING_BODIES(_simflags)) ||
 	(
-	!(_boundarytype == SA_BOUNDARY) && _simflags & ENABLE_DENSITY_SUM
+	!(_boundarytype == SA_BOUNDARY) && HAS_DENSITY_SUM(_simflags)
 												// density sum is untested with boundary conditions other than SA
 	) || (
 	// For Español & Revenga, currently only support Newtonian fluids with
@@ -231,7 +233,7 @@ public:
 public:
 	CUDASimFrameworkImpl() : SimFramework()
 	{
-		m_neibsEngine = new CUDANeibsEngine<sph_formulation, ViscSpec, boundarytype, periodicbound, true>();
+		m_neibsEngine = new CUDANeibsEngine<sph_formulation, ViscSpec, boundarytype, periodicbound, simflags, true>();
 		m_integrationEngine = new CUDAPredCorrEngine<sph_formulation, boundarytype, kerneltype, ViscSpec, simflags>();
 		m_viscEngine = new CUDAViscEngine<ViscSpec, kerneltype, boundarytype, simflags>();
 		m_forcesEngine = new CUDAForcesEngine<kerneltype, sph_formulation, densitydiffusiontype, ViscSpec, boundarytype, simflags>();
@@ -242,6 +244,22 @@ public:
 
 		m_simparams = new SimParams(this);
 	}
+
+	void setDEM(const float *hDem, int width, int height) const
+	{
+		if (!HAS_DEM(simflags))
+			throw std::runtime_error("setDEM invoked, but ENABLE_DEM is not a framework simflag");
+		if (global_dem_params)
+			throw std::runtime_error("double setDEM");
+		global_dem_params = unique_ptr<internal_dem_params>(new internal_dem_params());
+		global_dem_params->setDEM(hDem, width, height);
+	}
+
+	void unsetDEM() const
+	{
+		global_dem_params.reset();
+	}
+
 
 protected:
 	AbstractFilterEngine* newFilterEngine(FilterType filtertype, int frequency)
@@ -261,17 +279,17 @@ protected:
 	{
 		switch (pptype) {
 		case VORTICITY:
-			return new CUDAPostProcessEngine<VORTICITY, kerneltype, boundarytype, simflags>(options);
+			return new CUDAPostProcessEngine<VORTICITY, kerneltype, boundarytype, ViscSpec, simflags>(options);
 		case TESTPOINTS:
-			return new CUDAPostProcessEngine<TESTPOINTS, kerneltype, boundarytype, simflags>(options);
+			return new CUDAPostProcessEngine<TESTPOINTS, kerneltype, boundarytype, ViscSpec, simflags>(options);
 		case SURFACE_DETECTION:
-			return new CUDAPostProcessEngine<SURFACE_DETECTION, kerneltype, boundarytype, simflags>(options);
+			return new CUDAPostProcessEngine<SURFACE_DETECTION, kerneltype, boundarytype, ViscSpec, simflags>(options);
 		case INTERFACE_DETECTION:
-			return new CUDAPostProcessEngine<INTERFACE_DETECTION, kerneltype, boundarytype, simflags>(options);
+			return new CUDAPostProcessEngine<INTERFACE_DETECTION, kerneltype, boundarytype, ViscSpec, simflags>(options);
 		case FLUX_COMPUTATION:
-			return new CUDAPostProcessEngine<FLUX_COMPUTATION, kerneltype, boundarytype, simflags>(options);
+			return new CUDAPostProcessEngine<FLUX_COMPUTATION, kerneltype, boundarytype, ViscSpec, simflags>(options);
 		case CALC_PRIVATE:
-			return new CUDAPostProcessEngine<CALC_PRIVATE, kerneltype, boundarytype, simflags>(options);
+			return new CUDAPostProcessEngine<CALC_PRIVATE, kerneltype, boundarytype, ViscSpec, simflags>(options);
 		case INVALID_POSTPROC:
 			throw runtime_error("Invalid filter type");
 		}

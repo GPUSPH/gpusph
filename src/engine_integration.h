@@ -119,9 +119,9 @@ public:
 		const	float	dt) = 0;
 
 	/// Single integration step
-	/// TODO will probably need to be made more generic for other
-	/// integration schemes
-	virtual void
+	/// Returns the number of NaNs found, if nancheck is enabled,
+	/// and 0 otherwise
+	virtual uint
 	basicstep(
 		const BufferList& bufread,	// this is the read only arrays
 		BufferList& bufwrite,

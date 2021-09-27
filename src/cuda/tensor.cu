@@ -48,6 +48,33 @@ clear(symtensor4& T)
 		T.zz = T.zw = T.ww = 0.0f;
 }
 
+__spec
+void
+set_identity(symtensor3& T)
+{
+	T.xx = T.yy = T.zz = 1.0f;
+	T.xy = T.xz = T.yz = 0.0f;
+}
+
+__spec
+symtensor3
+identity3(void)
+{
+	symtensor3 T;
+
+	T.xx = T.yy = T.zz = 1.0f;
+	T.xy = T.xz = T.yz = 0.0f;
+
+	return T;
+}
+
+__spec
+void
+set_identity(symtensor4& T)
+{
+	T.xx = T.yy = T.zz = T.ww = 1;
+	T.xy = T.xz = T.xw = T.yz = T.yw = T.zw = 0;
+}
 
 // determinant of a 3x3 symmetric tensor
 __spec
@@ -59,6 +86,17 @@ det(symtensor3 const& T)
 	ret -= T.xy*(T.xy*T.zz - T.xz*T.yz);
 	ret += T.xz*(T.xy*T.yz - T.xz*T.yy);
 	return ret;
+}
+
+__spec
+float
+kbn_det(symtensor3 const& T)
+{
+	float ret = 0, kahan = 0;
+	ret = kbn_add(ret,  T.xx*(T.yy*T.zz - T.yz*T.yz), kahan);
+	ret = kbn_add(ret, -T.xy*(T.xy*T.zz - T.xz*T.yz), kahan);
+	ret = kbn_add(ret,  T.xz*(T.xy*T.yz - T.xz*T.yy), kahan);
+	return ret + kahan;
 }
 
 // determinant of a 4x4 symmetric tensor
@@ -116,12 +154,12 @@ norm_inf(symtensor4 const& T)
 	return m;
 }
 
+// compute inverse of tensor when the determinant has been computed already
 __spec
 symtensor3
-inverse(symtensor3 const& T)
+inverse(symtensor3 const& T, const float D)
 {
 	symtensor3 R;
-	float D(det(T));
 	R.xx = (T.yy*T.zz - T.yz*T.yz)/D;
 	R.xy = (T.xz*T.yz - T.xy*T.zz)/D;
 	R.xz = (T.xy*T.yz - T.xz*T.yy)/D;
@@ -130,6 +168,14 @@ inverse(symtensor3 const& T)
 	R.zz = (T.xx*T.yy - T.xy*T.xy)/D;
 
 	return R;
+}
+
+// compute inverse of a tensor when the determinant has not been computed already
+__spec
+symtensor3
+inverse(symtensor3 const& T)
+{
+	return inverse(T, det(T));
 }
 
 __spec
@@ -188,6 +234,20 @@ operator +=(symtensor3 &T1, symtensor3 const& T2)
 
 __spec
 symtensor3
+operator *(symtensor3 const& T1, float f)
+{
+	symtensor3 R;
+	R.xx = T1.xx*f;
+	R.xy = T1.xy*f;
+	R.xz = T1.xz*f;
+	R.yy = T1.yy*f;
+	R.yz = T1.yz*f;
+	R.zz = T1.zz*f;
+	return R;
+}
+
+__spec
+symtensor3
 operator /(symtensor3 const& T1, float f)
 {
 	symtensor3 R;
@@ -214,29 +274,58 @@ operator /=(symtensor3 &T1, float f)
 	return T1;
 }
 
+// T.v for 3x3 symmetric tensors
+template<typename V> // V should be float3 or float4
 __spec
 float3
-dot(symtensor3 const& T, float3 const& v)
+dot(symtensor3 const& T, V const& v)
 {
 	return make_float3(
 			T.xx*v.x + T.xy*v.y + T.xz*v.z,
-			T.xy*v.y + T.yy*v.y + T.yz*v.z,
+			T.xy*v.x + T.yy*v.y + T.yz*v.z,
 			T.xz*v.x + T.yz*v.y + T.zz*v.z);
 
 }
 
+// T.v for 3x3 symmetric tensors, computed using KBN summation
+template<typename V>
 __spec
 float3
-dot(symtensor3 const& T, float4 const& v)
+kbn_dot(symtensor3 const& T, V const& v)
 {
 	return make_float3(
-			T.xx*v.x + T.xy*v.y + T.xz*v.z,
-			T.xy*v.y + T.yy*v.y + T.yz*v.z,
-			T.xz*v.x + T.yz*v.y + T.zz*v.z);
+			kbn_sum(T.xx*v.x, T.xy*v.y, T.xz*v.z),
+			kbn_sum(T.xy*v.x, T.yy*v.y, T.yz*v.z),
+			kbn_sum(T.xz*v.x, T.yz*v.y, T.zz*v.z));
 
 }
 
-// T.v
+// v.T.v
+template<typename V> // V should be float3 or float4
+__spec
+float
+ddot(symtensor3 const& T, V const& v)
+{
+	return T.xx*v.x*v.x + T.yy*v.y*v.y + T.zz*v.z*v.z +
+		2*(	T.xy*v.x*v.y +
+			T.yz*v.y*v.z +
+			T.xz*v.x*v.z);
+}
+
+// v.T.v computed with KBN
+template<typename V> // V should be float3 or float4
+__spec
+float
+kbn_ddot(symtensor3 const& T, V const& v)
+{
+	return kbn_sum(T.xx*v.x*v.x, T.yy*v.y*v.y, T.zz*v.z*v.z) +
+		2*kbn_sum(	T.xy*v.x*v.y,
+				T.yz*v.y*v.z,
+				T.xz*v.x*v.z);
+}
+
+
+// T.v for 4x4 symmetric tensots
 __spec
 float4
 dot(symtensor4 const& T, float4 const& v)
@@ -247,6 +336,34 @@ dot(symtensor4 const& T, float4 const& v)
 			T.xz*v.x + T.yz*v.y + T.zz*v.z + T.zw*v.w,
 			T.xw*v.x + T.yw*v.y + T.zw*v.z + T.ww*v.w);
 
+}
+
+__spec
+symtensor3
+point_product(symtensor3 const& T1, symtensor3 const& T2)
+{
+	symtensor3 R;
+	R.xx = T1.xx * T2.xx;
+	R.xy = T1.xy * T2.xy;
+	R.xz = T1.xz * T2.xz;
+	R.yy = T1.yy * T2.yy;
+	R.yz = T1.yz * T2.yz;
+	R.zz = T1.zz * T2.zz;
+	return R;
+}
+
+__spec
+symtensor3
+point_sqrt(symtensor3 const& T)
+{
+	symtensor3 R;
+	R.xx = sqrt(abs(T.xx));
+	R.xy = sqrt(abs(T.xy));
+	R.xz = sqrt(abs(T.xz));
+	R.yy = sqrt(abs(T.yy));
+	R.yz = sqrt(abs(T.yz));
+	R.zz = sqrt(abs(T.zz));
+	return R;
 }
 
 // v.T.w
@@ -282,68 +399,5 @@ adjugate_row1(symtensor4 const& T)
 }
 
 #undef __spec
-
-/**** Methods for loading/storing tensors from textures and array ****/
-
-#include "textures.cuh"
-
-//! Fetch tau tensor from texture
-/*!
- an auxiliary function that fetches the tau tensor
- for particle i from the textures where it's stored
-*/
-__device__
-symtensor3 fetchTau(uint i)
-{
-	symtensor3 tau;
-	float2 temp = tex1Dfetch(tau0Tex, i);
-	tau.xx = temp.x;
-	tau.xy = temp.y;
-	temp = tex1Dfetch(tau1Tex, i);
-	tau.xz = temp.x;
-	tau.yy = temp.y;
-	temp = tex1Dfetch(tau2Tex, i);
-	tau.yz = temp.x;
-	tau.zz = temp.y;
-	return tau;
-}
-
-//! Fetch tau tensor from split arrays
-/*!
- an auxiliary function that fetches the tau tensor
- for particle i from the arrays where it's stored
-*/
-__device__
-symtensor3 fetchTau(uint i,
-	const float2 *__restrict__ tau0,
-	const float2 *__restrict__ tau1,
-	const float2 *__restrict__ tau2)
-{
-	symtensor3 tau;
-	float2 temp = tau0[i];
-	tau.xx = temp.x;
-	tau.xy = temp.y;
-	temp = tau1[i];
-	tau.xz = temp.x;
-	tau.yy = temp.y;
-	temp = tau2[i];
-	tau.yz = temp.x;
-	tau.zz = temp.y;
-	return tau;
-}
-
-//! Store tau tensor to split arrays
-__device__
-void storeTau(symtensor3 const& tau, uint i,
-	float2 *__restrict__ tau0,
-	float2 *__restrict__ tau1,
-	float2 *__restrict__ tau2)
-{
-	tau0[i] = make_float2(tau.xx, tau.xy);
-	tau1[i] = make_float2(tau.xz, tau.yy);
-	tau2[i] = make_float2(tau.yz, tau.zz);
-}
-
-
 
 #endif

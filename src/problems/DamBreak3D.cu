@@ -39,6 +39,7 @@ DamBreak3D::DamBreak3D(GlobalData *_gdata) : Problem(_gdata)
 	// *** user parameters from command line
 	const bool WET = get_option("wet", false);
 	const bool USE_PLANES = get_option("use_planes", false);
+	const bool USE_CCSPH = get_option("use_ccsph", true);
 	const uint NUM_OBSTACLES = get_option("num_obstacles", 1);
 	const bool ROTATE_OBSTACLE = get_option("rotate_obstacle", true);
 	const uint NUM_TESTPOINTS = get_option("num_testpoints", 3);
@@ -57,7 +58,8 @@ DamBreak3D::DamBreak3D(GlobalData *_gdata) : Problem(_gdata)
 		add_flags<ENABLE_REPACKING>
 	).select_options(
 		RHODIFF,
-		USE_PLANES, add_flags<ENABLE_PLANES>()
+		USE_PLANES, add_flags<ENABLE_PLANES>(),
+		USE_CCSPH, add_flags<ENABLE_CCSPH>()
 	);
 
 	// will dump testpoints separately
@@ -80,7 +82,6 @@ DamBreak3D::DamBreak3D(GlobalData *_gdata) : Problem(_gdata)
 	set_deltap(0.015f);
 	//set_timestep(0.00005);
 	set_gravity(-9.81);
-	const float g = get_gravity_magnitude();
 	const double H = 0.4;
 	setMaxFall(H);
 	add_fluid(1000.0);
@@ -91,7 +92,7 @@ DamBreak3D::DamBreak3D(GlobalData *_gdata) : Problem(_gdata)
 	//set_dynamic_visc(0, 1.0e-4f);
 
 	// default tend 1.5s
-	simparams()->tend=1.5f;
+	//simparams()->tend=1.5f;
 	//simparams()->ferrariLengthScale = H;
 	simparams()->densityDiffCoeff = 0.1f;
 	set_artificial_visc(0.05f);

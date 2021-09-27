@@ -117,7 +117,6 @@ template<>
 void PredictorCorrector::initializeBoundaryConditionsSequence<DUMMY_BOUNDARY>
 	(Integrator::Phase *this_phase, StepInfo const& step)
 {
-	const SimParams *sp = gdata->problem->simparams();
 	const bool init_step = (step.number == 0);
 
 	/* Boundary conditions are applied to step n during initialization step,
@@ -157,7 +156,7 @@ void PredictorCorrector::initializeBoundaryConditionsSequence<SA_BOUNDARY>
 {
 	const bool init_step = (step.number == 0);
 	const SimParams *sp = gdata->problem->simparams();
-	const bool has_io = sp->simflags & ENABLE_INLET_OUTLET;
+	const bool has_io = HAS_INLET_OUTLET(sp->simflags);
 
 	const dt_operator_t dt_op = getDtOperatorForStep(step.number);
 
@@ -198,7 +197,7 @@ void PredictorCorrector::initializeBoundaryConditionsSequence<SA_BOUNDARY>
 		if (has_io) {
 
 			this_phase->add_command(IDENTIFY_CORNER_VERTICES)
-				.reading(state, BUFFER_VERTICES | BUFFER_BOUNDELEMENTS |
+				.reading(state, BUFFER_VERTICES |
 					BUFFER_POS | BUFFER_HASH | BUFFER_CELLSTART | BUFFER_NEIBSLIST)
 				.updating(state, BUFFER_INFO);
 			if (MULTI_DEVICE)
@@ -245,7 +244,7 @@ void PredictorCorrector::initializeBoundaryConditionsSequence<SA_BOUNDARY>
 	if (has_io) {
 		// reduce the water depth at pressure outlets if required
 		// if we have multiple devices then we need to run a global max on the different gpus / nodes
-		if (MULTI_DEVICE && sp->simflags & ENABLE_WATER_DEPTH) {
+		if (MULTI_DEVICE && HAS_WATER_DEPTH(sp->simflags)) {
 			// each device gets his waterdepth array from the gpu
 			this_phase->add_command(DOWNLOAD_IOWATERDEPTH);
 			// reduction across devices and if necessary across nodes
@@ -342,7 +341,7 @@ PredictorCorrector::initializeNextStepSequence(StepInfo const& step)
 {
 	const bool init_step = (step.number == 0);
 	const SimParams *sp = gdata->problem->simparams();
-	const bool has_io = sp->simflags & ENABLE_INLET_OUTLET;
+	const bool has_io = HAS_INLET_OUTLET(sp->simflags);
 	const bool has_bodies = (sp->numbodies > 0);
 
 	const dt_operator_t dt_op = getDtOperatorForStep(step.number);
@@ -354,7 +353,7 @@ PredictorCorrector::initializeNextStepSequence(StepInfo const& step)
 
 	// “resumed” condition applies to the initialization step sequence,
 	// if we resumed
-	const bool resumed = (init_step && !gdata->clOptions->resume_fname.empty());
+	const bool resumed = (init_step && gdata->resume);
 
 	Phase *this_phase = new Phase(this,
 		step.number == 0 ? "initialization preparations" :
@@ -449,7 +448,7 @@ PredictorCorrector::initializePredCorrSequence(StepInfo const& step)
 	 *   boundaries, otherwise is follows the behavior of the other buffers
 	 */
 
-	static const bool has_moving_bodies = (sp->simflags & ENABLE_MOVING_BODIES);
+	static const bool has_moving_bodies = HAS_MOVING_BODIES(sp->simflags);
 	static const flag_t shared_buffers =
 		BUFFER_INFO |
 		BUFFER_VERTICES |
@@ -462,8 +461,9 @@ PredictorCorrector::initializePredCorrSequence(StepInfo const& step)
 	static const bool needs_effective_visc = NEEDS_EFFECTIVE_VISC(sp->rheologytype);
 	static const bool has_granular_rheology = sp->rheologytype == GRANULAR;
 	static const bool has_sa = sp->boundarytype == SA_BOUNDARY;
-	static const bool dtadapt = !!(sp->simflags & ENABLE_DTADAPT);
-	static const bool has_fea = (sp->simflags & ENABLE_FEA);
+	static const bool has_planes_or_dem = HAS_DEM_OR_PLANES(sp->simflags);
+	static const bool dtadapt = HAS_DTADAPT(sp->simflags);
+	static const bool has_fea = HAS_FEA(sp->simflags);
 
 	// TODO get from integrator
 	// for both steps, the “starting point” for Euler and density summation is step n
@@ -480,6 +480,19 @@ PredictorCorrector::initializePredCorrSequence(StepInfo const& step)
 			.set_src("step n")
 			.set_dst("step n*")
 			.set_flags( EPHEMERAL_BUFFERS & ~(BUFFER_PARTINDEX | POST_PROCESS_BUFFERS | BUFFER_JACOBI) );
+
+	// compute the CSPM tensors for the CCSPH and the renormalized density gradient for
+	// ANTUONO's density diffusion term in delta-SPH
+	if (HAS_CCSPH(sp->simflags) || sp->densitydiffusiontype == ANTUONO) {
+		this_phase->add_command(CALC_CSPM_COEFF)
+			.set_step(step)
+			.reading(current_state,
+				BUFFER_VEL | BUFFER_POS | BUFFER_HASH | BUFFER_INFO | BUFFER_CELLSTART | BUFFER_NEIBSLIST)
+			.writing(current_state, BUFFER_WCOEFF | BUFFER_FCOEFF | BUFFER_RENORMDENS);
+		if (MULTI_DEVICE)
+			this_phase->add_command(UPDATE_EXTERNAL)
+				.updating(current_state, BUFFER_WCOEFF| BUFFER_FCOEFF | BUFFER_RENORMDENS);
+	}
 
 	// for Grenier formulation, compute sigma and smoothed density
 	// TODO with boundary models requiring kernels for boundary conditions,
@@ -520,7 +533,7 @@ PredictorCorrector::initializePredCorrSequence(StepInfo const& step)
 				.updating(current_state, BUFFER_TAU | BUFFER_EFFVISC);
 	}
 
-	if (gdata->debug.inspect_preforce)
+	if (g_debug.inspect_preforce)
 		this_phase->add_command(DEBUG_DUMP)
 			.set_step(step)
 			.set_src(current_state);
@@ -531,11 +544,14 @@ PredictorCorrector::initializePredCorrSequence(StepInfo const& step)
 		.set_dt(dt_op)
 		.reading(current_state,
 			BUFFER_POS | BUFFER_HASH | BUFFER_INFO | BUFFER_CELLSTART | BUFFER_NEIBSLIST | BUFFER_VEL |
+			BUFFER_TAU |
+			(has_planes_or_dem ? BUFFER_NEIBPLANES : BUFFER_NONE) |
 			BUFFER_DUMMY_VEL |
 			BUFFER_RB_KEYS |
 			BUFFER_VOLUME | BUFFER_SIGMA |
+			BUFFER_FCOEFF | BUFFER_WCOEFF |
 			BUFFER_VERTPOS | BUFFER_GRADGAMMA | BUFFER_BOUNDELEMENTS | BUFFER_EULERVEL |
-			BUFFER_TKE | BUFFER_EPSILON | BUFFER_TURBVISC | BUFFER_EFFVISC)
+			BUFFER_TKE | BUFFER_EPSILON | BUFFER_TURBVISC | BUFFER_EFFVISC | BUFFER_RENORMDENS)
 		.writing(current_state,
 			BUFFER_FORCES | BUFFER_CFL | BUFFER_CFL_TEMP |
 			BUFFER_CFL_GAMMA | BUFFER_CFL_KEPS |
@@ -671,12 +687,12 @@ PredictorCorrector::initializePredCorrSequence(StepInfo const& step)
 			.set_dst(next_state);
 	}
 
-	if (gdata->debug.inspect_preforce)
+	if (g_debug.inspect_preforce)
 		this_phase->add_command(DEBUG_DUMP)
 			.set_step(step)
 			.set_src(next_state);
 
-	if (sp->simflags & ENABLE_DENSITY_SUM) {
+	if (HAS_DENSITY_SUM(sp->simflags)) {
 		// the forces were computed in the base state for the predictor,
 		// on the next state for the corrector
 		// or as an alternative we could free BUFFER_FORCES from whatever state it's in
@@ -946,8 +962,6 @@ PredictorCorrector::PredictorCorrector(GlobalData const* _gdata) :
 	m_enabled_filters(_gdata->simframework->getFilterFreqList()),
 	m_current_filter(m_enabled_filters.cend())
 {
-	const SimParams *sp = gdata->problem->simparams();
-
 	// Preallocate room for all phases
 	m_phase.resize(NUM_PHASES);
 
@@ -956,10 +970,10 @@ PredictorCorrector::PredictorCorrector(GlobalData const* _gdata) :
 	initializePhase<NEIBS_LIST>();
 
 	initializePhase<INITIALIZATION>();
-
-	initializePhase<BEGIN_TIME_STEP>();
 	initializePhase<INIT_EFFPRES_PREP>();
 	initializePhase<INIT_EFFPRES>();
+
+	initializePhase<BEGIN_TIME_STEP>();
 
 	initializePhase<PREDICTOR>();
 	initializePhase<PREDICTOR_END>();
@@ -993,7 +1007,7 @@ PredictorCorrector::next_phase()
 
 	// the phase is empty: let the user know in debug mode, and
 	// tail-call ourselves
-	if (gdata->debug.print_step) {
+	if (g_debug.print_step) {
 		cout << "\t(phase is empty)" << endl;
 	}
 	return next_phase();
@@ -1005,8 +1019,8 @@ PredictorCorrector::phase_after(PredictorCorrector::PhaseCode cur)
 	switch (cur) {
 	case POST_UPLOAD:
 		return NEIBS_LIST;
-	case INITIALIZATION:
-		return BEGIN_TIME_STEP;
+	case BEGIN_TIME_STEP:
+		return NEIBS_LIST;
 	case INIT_EFFPRES_PREP:
 		return INIT_EFFPRES;
 	case PREDICTOR:
@@ -1027,9 +1041,9 @@ PredictorCorrector::phase_after(PredictorCorrector::PhaseCode cur)
 	static const bool has_granular_rheology = sp->rheologytype == GRANULAR;
 	const unsigned long iterations = gdata->iterations;
 	static const FilterFreqList::const_iterator filters_end = m_enabled_filters.cend();
-	if (cur == BEGIN_TIME_STEP) {
+	if (cur == INITIALIZATION) {
 		if (!has_granular_rheology) {
-			return NEIBS_LIST;
+			return BEGIN_TIME_STEP;
 		} else {
 			return INIT_EFFPRES_PREP;
 		}
@@ -1050,7 +1064,7 @@ PredictorCorrector::phase_after(PredictorCorrector::PhaseCode cur)
 	}
 	if (cur == INIT_EFFPRES) {
 		if (gdata->h_jacobiStop) {
-			return NEIBS_LIST;
+			return BEGIN_TIME_STEP;
 		} else {
 			return INIT_EFFPRES;
 		}

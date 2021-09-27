@@ -32,6 +32,11 @@
 #include "common_types.h"
 #include "buffer.h"
 #include "define_buffers.h"
+#include "cudabuffer.h"
+
+#include "tensor.h"
+
+#include "cache_preference.h"
 
 /* \file
  *
@@ -44,6 +49,100 @@
  */
 
 #include "cond_params.h"
+#include "buffer_wrapper.h"
+
+//! An auxiliary type to add const to a type if the array should not be writable
+template<bool B, typename T>
+using writable_type = typename std::conditional<B, T, const T>::type;
+
+/*! Wrapper for posArray access
+ * Kernels with a read-only access to the particle positions may opt to access it as a linear array
+ * (posArray) or through the texture cache, based on the PREFER_L1 preprocessor macro (which in turn
+ * is based on the compute capability, according to our knowledge about texture vs L1 cache support).
+ * This is somewhat cumbersome, so we provide a unified interface that hides the details about the access
+ * behind a fetchPos() call that maps to the correct type
+ */
+#if PREFER_L1
+DEFINE_BUFFER_WRAPPER_ARRAY(pos_wrapper, BUFFER_POS, pos, Pos);
+#else
+DEFINE_BUFFER_WRAPPER(pos_wrapper, BUFFER_POS, pos, Pos);
+#endif
+
+
+/*! Wrapper for const acces to BUFFER_INFO
+ *  Access is provided by the fetchInfo(index) method, without revealing details about
+ *  the storage form (texture or linear array)
+ */
+DEFINE_BUFFER_WRAPPER(info_wrapper, BUFFER_INFO, info, Info);
+
+struct pos_info_wrapper : pos_wrapper, info_wrapper
+{
+	pos_info_wrapper(BufferList const& bufread) :
+		pos_wrapper(bufread),
+		info_wrapper(bufread)
+	{}
+};
+
+/*! Wrapper for const acces to BUFFER_VEL
+ *  Access is provided by the fetchVel(index) method, without revealing details about
+ *  the storage form (texture or linear array)
+ */
+DEFINE_BUFFER_WRAPPER(vel_wrapper, BUFFER_VEL, vel, Vel);
+
+/*! Wrapper for const acces to BUFFER_BOUNDELEMENTS
+ *  Access is provided by the fetchBound(index) method, without revealing details about
+ *  the storage form (texture or linear array)
+ */
+DEFINE_BUFFER_WRAPPER(boundelements_wrapper, BUFFER_BOUNDELEMENTS, bound, Bound);
+
+template<bool writable = true>
+struct vertPos_params
+{
+	using type = writable_type<writable, float2>;
+	using src_ptr_type = typename std::conditional<writable,
+		float2 **, const float2 * const *>::type;
+	using src_buf_type = writable_type<writable, BufferList>;
+
+	type* __restrict__ vertPos0;
+	type* __restrict__ vertPos1;
+	type* __restrict__ vertPos2;
+
+	vertPos_params(src_ptr_type vertPos_ptr) :
+		vertPos0(vertPos_ptr[0]),
+		vertPos1(vertPos_ptr[1]),
+		vertPos2(vertPos_ptr[2])
+	{}
+
+	vertPos_params(src_buf_type& bufread) :
+		vertPos_params(bufread.template getRawPtr<BUFFER_VERTPOS>())
+	{}
+
+	vertPos_params(vertPos_params const&) = default;
+};
+
+
+//! Additional parameters passed only (and nearly always) with SA_BOUNDARY
+struct sa_boundary_params :
+	boundelements_wrapper,
+	vertPos_params<false>
+{
+private:
+	// Some kernels used to access gGam via gamTex, others via array.
+	// We're going to wrap this in a function to provide a unified interface.
+	// TODO consider using a PREFER_L1 switch for this too
+	const	float4	* __restrict__	gGam;
+public:
+	sa_boundary_params(BufferList const& bufread) :
+		boundelements_wrapper(bufread),
+		vertPos_params<false>(bufread),
+		gGam(bufread.getData<BUFFER_GRADGAMMA>())
+	{}
+
+	__device__ __forceinline__
+	float4 fetchGradGamma(const uint index) const
+	{ return gGam[index]; }
+};
+
 
 /*! \ingroup Common integration structures
  *
@@ -51,9 +150,6 @@
  * to always be constant, whereas the second can be const or not, depending on a boolean template parameter.
  * @{
  */
-
-template<bool B, typename T>
-using writable_type = typename std::conditional<B, T, const T>::type;
 
 /* Since they all have the same structure, we use a macro to define them */
 
@@ -100,30 +196,17 @@ DEFINE_PAIR_PARAM(float, TKE, BUFFER_TKE);
 DEFINE_PAIR_PARAM(float, Energy, BUFFER_INTERNAL_ENERGY);
 /*! @} */
 
-template<bool writable = true>
-struct vertPos_params
+__device__ __forceinline__
+void storeTensor(symtensor3 const& tau, const uint i,
+	float2 * __restrict__ tau0,
+	float2 * __restrict__ tau1,
+	float2 * __restrict__ tau2)
 {
-	using type = writable_type<writable, float2>;
-	using src_ptr_type = typename std::conditional<writable,
-		float2 **, const float2 * const *>::type;
-	using src_buf_type = writable_type<writable, BufferList>;
+	tau0[i] = make_float2(tau.xx, tau.xy);
+	tau1[i] = make_float2(tau.xz, tau.yy);
+	tau2[i] = make_float2(tau.yz, tau.zz);
+}
 
-	type* __restrict__ vertPos0;
-	type* __restrict__ vertPos1;
-	type* __restrict__ vertPos2;
-
-	vertPos_params(src_ptr_type vertPos_ptr) :
-		vertPos0(vertPos_ptr[0]),
-		vertPos1(vertPos_ptr[1]),
-		vertPos2(vertPos_ptr[2])
-	{}
-
-	vertPos_params(src_buf_type& bufread) :
-		vertPos_params(bufread.template getRawPtr<BUFFER_VERTPOS>())
-	{}
-
-	vertPos_params(vertPos_params const&) = default;
-};
 
 template<bool writable = true>
 struct tau_params
@@ -147,7 +230,121 @@ struct tau_params
 		tau_params(bufread.template getRawPtr<BUFFER_TAU>())
 	{}
 
+	__device__ __forceinline__
+	enable_if_t<writable> storeTau(symtensor3 const& tau, const uint i) const
+	{
+		storeTensor(tau, i, tau0, tau1, tau2);
+	}
+
+	__device__ __forceinline__
+	symtensor3 fetchTau(const uint i) const
+	{
+		symtensor3 tau;
+		float2 temp = tau0[i];
+		tau.xx = temp.x;
+		tau.xy = temp.y;
+		temp = tau1[i];
+		tau.xz = temp.x;
+		tau.yy = temp.y;
+		temp = tau2[i];
+		tau.yz = temp.x;
+		tau.zz = temp.y;
+		return tau;
+	}
+
 	tau_params(tau_params const&) = default;
+};
+
+//! Constant access to BUFFER_TAU as textures
+DEFINE_TENSOR_WRAPPER(tau_tex_params, BUFFER_TAU, tau, Tau);
+
+template<bool writable = true>
+struct keps_params
+{
+	using type = writable_type<writable, float>;
+	using src_buf_type = writable_type<writable, BufferList>;
+
+	type* __restrict__ keps_tke; //! Turbulent Kinetic Energy
+	type* __restrict__ keps_eps; //! Turbulent dissipation
+
+	keps_params(src_buf_type& bufread) :
+		keps_tke(bufread.template getData<BUFFER_TKE>()),
+		keps_eps(bufread.template getData<BUFFER_EPSILON>())
+	{}
+
+	keps_params(keps_params const&) = default;
+};
+
+
+//! KEPSILON-related texture parameters
+DEFINE_BUFFER_WRAPPER(keps_k_wrapper, BUFFER_TKE, keps_k, Tke);
+DEFINE_BUFFER_WRAPPER(keps_e_wrapper, BUFFER_EPSILON, keps_e, Epsilon);
+
+struct keps_tex_params : keps_k_wrapper, keps_e_wrapper
+{
+	keps_tex_params(BufferList const& bufread) :
+		keps_k_wrapper(bufread),
+		keps_e_wrapper(bufread)
+	{}
+};
+
+template<bool writable = true>
+struct cspm_params
+{
+	using tensor_element_type = writable_type<writable, float2>;
+	using scalar_element_type = writable_type<writable, float>;
+	using tensor_src_ptr_type = typename std::conditional<writable,
+		float2 **, const float2 * const *>::type;
+	using tensor_src_buf_type = writable_type<writable, BufferList>;
+
+	tensor_element_type* __restrict__ fcoeff0;
+	tensor_element_type* __restrict__ fcoeff1;
+	tensor_element_type* __restrict__ fcoeff2;
+	scalar_element_type* __restrict__ wcoeff;
+
+	cspm_params(tensor_src_ptr_type fcoeff_ptr,
+		scalar_element_type* __restrict__ wcoeff_)
+	:
+		fcoeff0(fcoeff_ptr[0]),
+		fcoeff1(fcoeff_ptr[1]),
+		fcoeff2(fcoeff_ptr[2]),
+		wcoeff(wcoeff_)
+	{}
+
+	cspm_params(tensor_src_buf_type& bufread) :
+		cspm_params(
+			bufread.template getRawPtr<BUFFER_FCOEFF>(),
+			bufread.template getData<BUFFER_WCOEFF>())
+	{}
+
+	// Implementation note: this is a function template because the enable_if
+	// cannot work on the value of writable itself (since it's not in immediate context).
+	// The solution is to make the function a template whose argument defaults to
+	// the class template argument
+	template<bool can_write = writable>
+	__device__ __forceinline__
+	enable_if_t<can_write> storeFcoeff(symtensor3 const& fcoeff, const uint i) const
+	{
+		storeTensor(fcoeff, i, fcoeff0, fcoeff1, fcoeff2);
+	}
+
+	__device__ __forceinline__
+	symtensor3 fetchFcoeff(const uint i) const
+	{
+		symtensor3 fcoeff;
+		float2 temp = fcoeff0[i];
+		fcoeff.xx = temp.x;
+		fcoeff.xy = temp.y;
+		temp = fcoeff1[i];
+		fcoeff.xz = temp.x;
+		fcoeff.yy = temp.y;
+		temp = fcoeff2[i];
+		fcoeff.yz = temp.x;
+		fcoeff.zz = temp.y;
+		return fcoeff;
+	}
+
+	cspm_params(cspm_params const&) = default;
 };
 
 #endif

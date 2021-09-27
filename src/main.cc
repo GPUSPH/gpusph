@@ -40,19 +40,32 @@
 #include "GlobalData.h"
 #include "NetworkManager.h"
 
+#include "debugflags.h"
+
 #include "problem_spec.h"
 
 /* Include all other opt file for show_version */
+#include "clang_select.opt"
 #include "chrono_select.opt"
 #include "compute_select.opt"
 #include "dbg_select.opt"
 #include "fastmath_select.opt"
+#include "fastdem_select.opt"
 #include "gpusph_version.opt"
 #include "hdf5_select.opt"
 #include "mpi_select.opt"
 #include "catalyst_select.opt"
 
+/* include cuda/cache_preference.h, to show the cache preference */
+#include "cuda/cache_preference.h"
+
 using namespace std;
+
+// this global bool is used by the simulation framework (which cannot access gdata)
+// to know if the simulation is single- or multi-device
+// (the information currently is only used to determine if the kernel launches should be
+// synchronous or not)
+bool is_multi_device;
 
 void show_version()
 {
@@ -64,10 +77,15 @@ void show_version()
 #endif
 
 	printf("GPUSPH version %s\n", GPUSPH_VERSION);
-	printf("%s version %s fastmath for compute capability %u.%u\n",
+	printf("%s version %s fastmath for compute capability %u.%u (cache preference: %s cache)\n",
 		dbg_or_rel,
 		FASTMATH ? "with" : "without",
-		COMPUTE/10, COMPUTE%10);
+		COMPUTE/10, COMPUTE%10,
+		PREFER_L1 ? "L1" : "texture");
+	printf("\tbuilt with %s, major version %d\n",
+		(CLANG_CUDA ? "clang" : "nvcc"),
+		(CLANG_CUDA ? CLANG_CUDA_VERSION : CUDA_MAJOR));
+	printf("DEM    : %s\n", FASTDEM ? "fast" : "symmetrized");
 	printf("Chrono : %s\n", USE_CHRONO ? "enabled" : "disabled");
 	printf("HDF5   : %s\n", USE_HDF5 ? "enabled" : "disabled");
 	printf("MPI    : %s\n", USE_MPI ? "enabled" : "disabled");
@@ -80,7 +98,7 @@ void show_version()
 void print_usage() {
 	show_version();
 	cout << "Syntax: " << endl;
-	cout << "\tGPUSPH [--device n[,n...]] [--dem dem_file] [--deltap VAL] [--tend VAL] [--dt VAL]\n";
+	cout << "\tGPUSPH [--device n[,n...]] [--dem dem_file] [--deltap VAL] [--tend VAL] [--dt VAL] [--ccsph-min-det VAL]\n";
 	cout << "\t       [--resume fname] [--checkpoint-every VAL] [--checkpoints VAL]\n";
 	cout << "\t       [--dir directory] [--nosave] [--striping] [--gpudirect [--asyncmpi]]\n";
 	cout << "\t       [--num-hosts VAL [--byslot-scheduling]]\n";
@@ -96,6 +114,7 @@ void print_usage() {
 	cout << " --deltap : Use given deltap (VAL is cast to float)\n";
 	cout << " --tend : Break at given time (VAL is cast to float)\n";
 	cout << " --dt : Use the provided fixed time-step (VAL is cast to float)\n";
+	cout << " --csph-min-det : Use given minimum determnant for CCSPH (VAL is cast to float)\n";
 	cout << " --maxiter : Break after this many iterations (integer VAL)\n";
 	cout << " --dir : Use given directory for dumps instead of date-based one\n";
 	cout << " --nosave : Disable all file dumps but the last\n";
@@ -143,6 +162,7 @@ int parse_options(int argc, char **argv, GlobalData *gdata)
 		argc--;
 		if (!strcmp(arg, "--resume")) {
 			_clOptions->resume_fname = string(*argv);
+			gdata->resume = true;
 			argv++;
 			argc--;
 		} else if (!strcmp(arg, "--checkpoint-every")) {
@@ -176,6 +196,11 @@ int parse_options(int argc, char **argv, GlobalData *gdata)
 		} else if (!strcmp(arg, "--dt")) {
 			/* read the next arg as a float */
 			sscanf(*argv, "%f", &(_clOptions->dt));
+			argv++;
+			argc--;
+		} else if (!strcmp(arg, "--ccsph-min-det")) {
+			/* read the next arg as a float */
+			sscanf(*argv, "%f", &(_clOptions->ccsph_min_det));
 			argv++;
 			argc--;
 		} else if (!strcmp(arg, "--maxiter")) {
@@ -232,7 +257,7 @@ int parse_options(int argc, char **argv, GlobalData *gdata)
 			argv++;
 			argc--;
 		} else if (!strcmp(arg, "--debug")) {
-			gdata->debug = parse_debug_flags(*argv);
+			parse_debug_flags(*argv);
 			argv++;
 			argc--;
 		} else if (!strcmp(arg, "--repack")) {
@@ -246,6 +271,7 @@ int parse_options(int argc, char **argv, GlobalData *gdata)
 			argc--;
 		} else if (!strcmp(arg, "--from-repack")) {
 			_clOptions->resume_fname = string(*argv);
+			gdata->resume = true;
 			argv++;
 			argc--;
 		} else if (!strcmp(arg, "--help")) {
@@ -354,7 +380,7 @@ void simulate(GlobalData *gdata, RunMode repack_or_run)
 		throw invalid_argument("no simulation framework defined in the problem!");
 	gdata->allocPolicy = gdata->simframework->getAllocPolicy();
 
-	if (gdata->run_mode == REPACK && !(gdata->problem->simparams()->simflags & ENABLE_REPACKING))
+	if (gdata->run_mode == REPACK && !HAS_REPACKING(gdata->problem->simparams()->simflags))
 		throw invalid_argument("Repacking is not enabled in the " + gdata->clOptions->problem + " problem");
 
 
@@ -453,6 +479,8 @@ int main(int argc, char** argv) {
 	printf(" tot devs = %u (%u * %u)\n",gdata.totDevices, gdata.mpi_nodes, gdata.devices );
 	if (gdata.clOptions->num_hosts > 0)
 		printf(" num-hosts was specified: %u; shifting device numbers with offset %u\n", gdata.clOptions->num_hosts, devIndexOffset);
+
+	is_multi_device = (gdata.totDevices > 1);
 
 	// the Problem could (should?) be initialized inside GPUSPH::initialize()
 	try {

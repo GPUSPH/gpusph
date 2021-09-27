@@ -29,6 +29,7 @@
 #include <cstdlib>
 #include <cfloat>
 #include <iostream>
+#include <climits>
 
 // for smart pointers
 #include <memory>

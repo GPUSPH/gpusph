@@ -44,12 +44,11 @@
 
 #define DEBUG_BUFFER_ACCESS 1
 
+#include "debugflags.h"
 #if DEBUG_BUFFER_ACCESS
 #include <iostream>
-extern bool debug_inspect_buffer;
-extern bool debug_clobber_invalid_buffers;
-#define DEBUG_INSPECT_BUFFER(...) if (debug_inspect_buffer) std::cout << __VA_ARGS__
-#define CLOBBER_INVALID if (debug_clobber_invalid_buffers) clobber()
+#define DEBUG_INSPECT_BUFFER(...) if (g_debug.inspect_buffer_access) std::cout << __VA_ARGS__
+#define CLOBBER_INVALID if (g_debug.clobber_invalid_buffers) clobber()
 #else
 #define DEBUG_INSPECT_BUFFER(...) do {} while (0)
 #define CLOBBER_INVALID do {} while (0)
@@ -632,7 +631,9 @@ public:
 		map_type::iterator exists = m_map.find(Key);
 		if (exists == m_map.end()) {
 			if (m_validate_access)
-				throw std::runtime_error(std::to_string(Key) + " not found");
+				throw std::runtime_error("Requested buffer " +
+					std::string(BufferTraits<Key>::name) +
+					" (" + std::to_string(Key) + ") not found");
 			return NULL;
 		}
 
@@ -680,7 +681,9 @@ public:
 		map_type::const_iterator exists = m_map.find(Key);
 		if (exists == m_map.end()) {
 			if (m_validate_access)
-				throw std::runtime_error(std::to_string(Key) + " not found");
+				throw std::runtime_error("Requested buffer " +
+					std::string(BufferTraits<Key>::name) +
+					" (" + std::to_string(Key) + ") not found");
 			return NULL;
 		}
 
@@ -713,7 +716,9 @@ public:
 		buffer_ptr_type<Key> buf = this->get<Key>();
 		if (!buf) {
 			if (m_validate_access)
-				throw std::runtime_error(std::to_string(Key) + " not found");
+				throw std::runtime_error("Requested buffer " +
+					std::string(BufferTraits<Key>::name) +
+					" (" + std::to_string(Key) + ") not found");
 			return NULL;
 		}
 
@@ -750,7 +755,9 @@ public:
 		const_buffer_ptr_type<Key> buf = this->get<Key>();
 		if (!buf) {
 			if (m_validate_access)
-				throw std::runtime_error(std::to_string(Key) + " not found");
+				throw std::runtime_error("Requested buffer " +
+					std::string(BufferTraits<Key>::name) +
+					" (" + std::to_string(Key) + ") not found");
 			return NULL;
 		}
 

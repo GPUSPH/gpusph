@@ -33,7 +33,6 @@
 #define _DENSITY_SUM_KERNEL_
 
 #include "particledefine.h"
-#include "textures.cuh"
 #include "multi_gpu_defines.h"
 
 namespace cudensity_sum {
@@ -83,12 +82,12 @@ common_density_sum_particle_data(const uint _index, common_density_sum_params co
 
 struct open_boundary_particle_data
 {
-const	float4	eulerVel;
+	const	float4	eulerVel;
 
-__device__ __forceinline__
-open_boundary_particle_data(const uint index, EulerVel_params<false> const& params) :
-	eulerVel(params.oldEulerVel[index])
-{}
+	__device__ __forceinline__
+	open_boundary_particle_data(const uint index, EulerVel_params<false> const& params) :
+		eulerVel(params.oldEulerVel[index])
+	{}
 };
 
 /// The actual density_sum_particle_data struct, which concatenates all of the above, as appropriate.
@@ -96,46 +95,43 @@ template<KernelType _kerneltype,
 ParticleType _ntype,
 flag_t _simflags>
 struct density_sum_particle_data :
-common_density_sum_particle_data,
-COND_STRUCT((_simflags & ENABLE_INLET_OUTLET),
-			open_boundary_particle_data)
+	common_density_sum_particle_data,
+	COND_STRUCT(HAS_INLET_OUTLET(_simflags), open_boundary_particle_data)
 {
-static const KernelType kerneltype = _kerneltype;
-static const ParticleType ntype = _ntype;
-static const flag_t simflags = _simflags;
+	static const KernelType kerneltype = _kerneltype;
+	static const ParticleType ntype = _ntype;
+	static const flag_t simflags = _simflags;
 
-// shorthand for the type of the density_sum params
-typedef density_sum_params<kerneltype, ntype, simflags> params_t;
+	// shorthand for the type of the density_sum params
+	typedef density_sum_params<kerneltype, ntype, simflags> params_t;
 
-// determine specialization automatically based on info and params
-__device__ __forceinline__
-density_sum_particle_data(const uint _index, params_t const& params) :
-	common_density_sum_particle_data(_index, params),
-	COND_STRUCT((_simflags & ENABLE_INLET_OUTLET),
-				open_boundary_particle_data)(_index, params)
-{}
+	// determine specialization automatically based on info and params
+	__device__ __forceinline__
+	density_sum_particle_data(const uint _index, params_t const& params) :
+		common_density_sum_particle_data(_index, params),
+		COND_STRUCT(HAS_INLET_OUTLET(_simflags), open_boundary_particle_data)(_index, params)
+	{}
 };
 
 template<SPHFormulation sph_formulation, class Params, class ParticleData, KernelType kerneltype=ParticleData::kerneltype>
 __device__ __forceinline__
-enable_if_t<	(Params::simflags & ENABLE_INLET_OUTLET) &&
-	sph_formulation != SPH_HA>
+enable_if_t<HAS_INLET_OUTLET(Params::simflags) && sph_formulation != SPH_HA>
 densitySumOpenBoundaryContribution(
-Params			const&	params,
-ParticleData	const&	pdata,
-const	float	dt,
-const	uint	neib_index,
-const	particleinfo neib_info,
-const	float4&	relPosN,
-float&	sumVmwDelta)
+	Params			const&	params,
+	ParticleData	const&	pdata,
+	const	float	dt,
+	const	uint	neib_index,
+	const	particleinfo neib_info,
+	const	float4&	relPosN,
+	float&	sumVmwDelta)
 {
-if (IO_BOUNDARY(neib_info)) {
-	// compute - sum_{V^{io}} m^n w(r + delta r)
-	const float4 deltaR = dt*(params.oldEulerVel[neib_index] - params.oldVel[neib_index]);
-	const float newDist = length3(relPosN + deltaR);
-	if (newDist < params.influenceradius)
-		sumVmwDelta -= relPosN.w*W<kerneltype>(newDist, params.slength);
-}
+	if (IO_BOUNDARY(neib_info)) {
+		// compute - sum_{V^{io}} m^n w(r + delta r)
+		const float4 deltaR = dt*(params.oldEulerVel[neib_index] - params.oldVel[neib_index]);
+		const float newDist = length3(relPosN + deltaR);
+		if (newDist < params.influenceradius)
+			sumVmwDelta -= relPosN.w*W<kerneltype>(newDist, params.slength);
+	}
 }
 
 // Partial specialization for SPH_HA:
@@ -144,56 +140,53 @@ if (IO_BOUNDARY(neib_info)) {
 // rho_i = mi ∑ wij   instead of    rho_i = ∑ mj.wij
 template<SPHFormulation sph_formulation, class Params, class ParticleData, KernelType kerneltype=ParticleData::kerneltype>
 __device__ __forceinline__
-enable_if_t<	(Params::simflags & ENABLE_INLET_OUTLET) &&
-	sph_formulation == SPH_HA>
+enable_if_t<HAS_INLET_OUTLET(Params::simflags) && sph_formulation == SPH_HA>
 densitySumOpenBoundaryContribution
 (
-Params			const&	params,
-ParticleData	const&	pdata,
-const	float	dt,
-const	uint	neib_index,
-const	particleinfo neib_info,
-const	float4&	relPosN,
-float&	sumVmwDelta,
-const	float	thetaRatio_times_pmass)
+	Params			const&	params,
+	ParticleData	const&	pdata,
+	const	float	dt,
+	const	uint	neib_index,
+	const	particleinfo neib_info,
+	const	float4&	relPosN,
+	float&	sumVmwDelta,
+	const	float	thetaRatio_times_pmass)
 {
-// TODO: IO were implemented but not tested with Hu & Adams formulation
-if (IO_BOUNDARY(neib_info)) {
-	// compute - sum_{V^{io}} m^n w(r + delta r)
-	const float4 deltaR = dt*(params.oldEulerVel[neib_index] - params.oldVel[neib_index]);
-	const float newDist = length3(relPosN + deltaR);
-	if (newDist < params.influenceradius)
-		sumVmwDelta -= thetaRatio_times_pmass*W<kerneltype>(newDist, params.slength);
-}
+	// TODO: IO were implemented but not tested with Hu & Adams formulation
+	if (IO_BOUNDARY(neib_info)) {
+		// compute - sum_{V^{io}} m^n w(r + delta r)
+		const float4 deltaR = dt*(params.oldEulerVel[neib_index] - params.oldVel[neib_index]);
+		const float newDist = length3(relPosN + deltaR);
+		if (newDist < params.influenceradius)
+			sumVmwDelta -= thetaRatio_times_pmass*W<kerneltype>(newDist, params.slength);
+	}
 }
 
 template<SPHFormulation sph_formulation, class Params, class ParticleData, KernelType kerneltype=ParticleData::kerneltype>
 __device__ __forceinline__
-enable_if_t<	!(Params::simflags & ENABLE_INLET_OUTLET) &&
-	sph_formulation != SPH_HA>
+enable_if_t<!HAS_INLET_OUTLET(Params::simflags) && sph_formulation != SPH_HA>
 densitySumOpenBoundaryContribution(
-Params			const&	params,
-ParticleData	const&	pdata,
-const	float	dt,
-const	uint	neib_index,
-const	particleinfo neib_info,
-const	float4&	relPosN,
-float&	sumVmwDelta)
+	Params			const&	params,
+	ParticleData	const&	pdata,
+	const	float	dt,
+	const	uint	neib_index,
+	const	particleinfo neib_info,
+	const	float4&	relPosN,
+	float&	sumVmwDelta)
 { /* do nothing */ }
 
 template<SPHFormulation sph_formulation, class Params, class ParticleData, KernelType kerneltype=ParticleData::kerneltype>
 __device__ __forceinline__
-enable_if_t<	!(Params::simflags & ENABLE_INLET_OUTLET) &&
-	sph_formulation == SPH_HA>
+enable_if_t<!HAS_INLET_OUTLET(Params::simflags) && sph_formulation == SPH_HA>
 densitySumOpenBoundaryContribution(
-Params			const&	params,
-ParticleData	const&	pdata,
-const	float	dt,
-const	uint	neib_index,
-const	particleinfo neib_info,
-const	float4&	relPosN,
-float&	sumVmwDelta,
-float	thetaRatio_times_pmass)
+	Params			const&	params,
+	ParticleData	const&	pdata,
+	const	float	dt,
+	const	uint	neib_index,
+	const	particleinfo neib_info,
+	const	float4&	relPosN,
+	float&	sumVmwDelta,
+	float	thetaRatio_times_pmass)
 { /* do nothing */ }
 
 
@@ -209,40 +202,40 @@ const	float			dt,
 		float			&sumPmwNp1,
 		float			&sumVmwDelta)
 {
-// Compute grid position of current particle
-const int3 gridPos = calcGridPosFromParticleHash( params.particleHash[ pdata.index] );
+	// Compute grid position of current particle
+	const int3 gridPos = calcGridPosFromParticleHash( params.particleHash[ pdata.index] );
 
-// (r_b^{N+1} - r_b^N)
-const float4 posDelta = pdata.posNp1 - pdata.posN;
+	// (r_b^{N+1} - r_b^N)
+	const float4 posDelta = pdata.posNp1 - pdata.posN;
 
-// Loop over fluid and vertex neighbors
-for_each_neib2(PT_FLUID, PT_VERTEX, pdata.index, pdata.posN, gridPos, params.cellStart, params.neibsList) {
-	const uint neib_index = neib_iter.neib_index();
-	const particleinfo neib_info = params.info[neib_index];
+	// Loop over fluid and vertex neighbors
+	for_each_neib2(PT_FLUID, PT_VERTEX, pdata.index, pdata.posN, gridPos, params.cellStart, params.neibsList) {
+		const uint neib_index = neib_iter.neib_index();
+		const particleinfo neib_info = params.info[neib_index];
 
-	const float4 posN_neib = params.oldPos[neib_index];
+		const float4 posN_neib = params.oldPos[neib_index];
 
-	if (INACTIVE(posN_neib)) continue;
+		if (INACTIVE(posN_neib)) continue;
 
-	/* TODO FIXME splitneibs merge: the MOVING object support here was dropped in the splitneibs branch */
+		/* TODO FIXME splitneibs merge: the MOVING object support here was dropped in the splitneibs branch */
 
-	const float4 posNp1_neib = params.newPos[neib_index];
+		const float4 posNp1_neib = params.newPos[neib_index];
 
-	// vector r_{ab} at time N
-	const float4 relPosN = neib_iter.relPos(posN_neib);
-	// vector r_{ab} at time N+1 = r_{ab}^N + (r_a^{N+1} - r_a^{N}) - (r_b^{N+1} - r_b^N)
-	const float4 relPosNp1 = neib_iter.relPos(posNp1_neib) + posDelta;
+		// vector r_{ab} at time N
+		const float4 relPosN = neib_iter.relPos(posN_neib);
+		// vector r_{ab} at time N+1 = r_{ab}^N + (r_a^{N+1} - r_a^{N}) - (r_b^{N+1} - r_b^N)
+		const float4 relPosNp1 = neib_iter.relPos(posNp1_neib) + posDelta;
 
-	// -sum_{P\V_{io}} m^n w^n
-	if (!IO_BOUNDARY(neib_info)) {
-		const float rN = length3(relPosN);
-		sumPmwN -= relPosN.w*W<kerneltype>(rN, params.slength);
-	}
+		// -sum_{P\V_{io}} m^n w^n
+		if (!IO_BOUNDARY(neib_info)) {
+			const float rN = length3(relPosN);
+			sumPmwN -= relPosN.w*W<kerneltype>(rN, params.slength);
+		}
 
-	// sum_{P} m^n w^{n+1}
-	const float rNp1 = length3(relPosNp1);
-	if (rNp1 < params.influenceradius)
-		sumPmwNp1 += relPosN.w*W<kerneltype>(rNp1, params.slength);
+		// sum_{P} m^n w^{n+1}
+		const float rNp1 = length3(relPosNp1);
+		if (rNp1 < params.influenceradius)
+			sumPmwNp1 += relPosN.w*W<kerneltype>(rNp1, params.slength);
 
 		if (!params.repacking)
 			densitySumOpenBoundaryContribution<sph_formulation>(params, pdata, dt,
@@ -351,7 +344,7 @@ struct io_gamma_sum_terms {
 
 template<KernelType _kerneltype,
 	flag_t simflags,
-	bool _has_io = !!(simflags & ENABLE_INLET_OUTLET)>
+	bool _has_io = HAS_INLET_OUTLET(simflags)>
 struct gamma_sum_terms :
 	common_gamma_sum_terms,
 	COND_STRUCT(_has_io, io_gamma_sum_terms)
@@ -464,7 +457,7 @@ computeDensitySumBoundaryTerms(
 		const float3 nsNp1 = make_float3(params.newBoundElement[neib_index]);
 		/* We only need to recompute calcVertexRelPos wrt to the new normal if there are moving bodies,
 		 * since otherwise the new normal is the same as the old normal */
-		if (simflags & ENABLE_MOVING_BODIES)
+		if (HAS_MOVING_BODIES(simflags))
 			calcVertexRelPos(vertexRelPos, nsNp1,
 				params.vertPos0[neib_index], params.vertPos1[neib_index], params.vertPos2[neib_index],
 				params.slength);
@@ -472,7 +465,7 @@ computeDensitySumBoundaryTerms(
 		const float3 gGamNp1 = gradGamma<kerneltype>(params.slength, as_float3(qNp1), vertexRelPos, nsNp1)*nsNp1;
 
 		// sum_S 1/2*(gradGam^n + gradGam^{n+1})*relVel
-		sumGam.gGamDotR += 0.5f*dot(gGamN + gGamNp1, as_float3(qNp1 - qN));
+		sumGam.gGamDotR += 0.5f*dot3(gGamN + gGamNp1, qNp1 - qN);
 		sumGam.gGam += gGamNp1;
 
 		/* TODO check if we need the old or the new normal here, in case of

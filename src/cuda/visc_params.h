@@ -37,24 +37,12 @@
 
 #include "simflags.h"
 
-/// Parameters passed to the SPS kernel only if simflag SPS_STORE_TAU is set
-struct tau_sps_params
-{
-	float2* __restrict__		tau0;
-	float2* __restrict__		tau1;
-	float2* __restrict__		tau2;
-
-	tau_sps_params(float2 * __restrict__ _tau0, float2 * __restrict__ _tau1, float2 * __restrict__ _tau2) :
-		tau0(_tau0), tau1(_tau1), tau2(_tau2)
-	{}
-};
-
 /// Parameters passed to the SPS kernel only if simflag SPS_STORE_TURBVISC is set
 struct turbvisc_sps_params
 {
 	float	* __restrict__ turbvisc;
-	turbvisc_sps_params(float * __restrict__ _turbvisc) :
-		turbvisc(_turbvisc)
+	turbvisc_sps_params(BufferList& bufwrite) :
+		turbvisc(bufwrite.getData<BUFFER_SPS_TURBVISC>())
 	{}
 };
 
@@ -62,10 +50,11 @@ struct turbvisc_sps_params
 /// The actual sps_params struct, which concatenates all of the above, as appropriate.
 template<KernelType _kerneltype,
 	BoundaryType _boundarytype,
-	uint _sps_simflags>
+	uint _sps_simflags,
+	typename neibs_params = neibs_interaction_params<_boundarytype>>
 struct sps_params :
-	neibs_list_params,
-	COND_STRUCT(_sps_simflags & SPSK_STORE_TAU, tau_sps_params),
+	neibs_params,
+	COND_STRUCT(_sps_simflags & SPSK_STORE_TAU, tau_params<true>),
 	COND_STRUCT(_sps_simflags & SPSK_STORE_TURBVISC, turbvisc_sps_params)
 {
 	static constexpr KernelType kerneltype = _kerneltype;
@@ -78,24 +67,14 @@ struct sps_params :
 	// structs it derives from, in the correct order
 	sps_params(
 		// common
-			const	float4* __restrict__	_posArray,
-			const	hashKey* __restrict__	_particleHash,
-			const	uint* __restrict__		_cellStart,
-			const	neibdata* __restrict__	_neibsList,
+		BufferList	const&	bufread,
+		BufferList	&		bufwrite,
 			const	uint		_numParticles,
 			const	float		_slength,
-			const	float		_influenceradius,
-		// tau
-					float2* __restrict__		_tau0,
-					float2* __restrict__		_tau1,
-					float2* __restrict__		_tau2,
-		// turbvisc
-					float* __restrict__		_turbvisc
-		) :
-		neibs_list_params(_posArray, _particleHash, _cellStart,
-			_neibsList, _numParticles, _slength, _influenceradius),
-		COND_STRUCT(sps_simflags & SPSK_STORE_TAU, tau_sps_params)(_tau0, _tau1, _tau2),
-		COND_STRUCT(sps_simflags & SPSK_STORE_TURBVISC, turbvisc_sps_params)(_turbvisc)
+			const	float		_influenceradius) :
+		neibs_params(bufread, _numParticles, _slength, _influenceradius),
+		COND_STRUCT(sps_simflags & SPSK_STORE_TAU, tau_params<true>)(bufwrite),
+		COND_STRUCT(sps_simflags & SPSK_STORE_TURBVISC, turbvisc_sps_params)(bufwrite)
 	{}
 };
 
@@ -103,28 +82,25 @@ struct sps_params :
 struct visc_reduce_params
 {
 	float * __restrict__	cfl;
-	visc_reduce_params(float* __restrict__ _cfl) :
-		cfl(_cfl)
-	{}
-};
-
-//! Additional parameters passed only with SA_BOUNDARY
-struct sa_boundary_rheology_params
-{
-	const	float4	* __restrict__ gGam;
-	const	float2	* __restrict__ vertPos0;
-	const	float2	* __restrict__ vertPos1;
-	const	float2	* __restrict__ vertPos2;
-	sa_boundary_rheology_params(const float4 * __restrict__ const _gGam, const   float2  * __restrict__  const _vertPos[])
+	visc_reduce_params(BufferList& bufwrite)
 	{
-		if (!_gGam) throw std::invalid_argument("no gGam for sa_boundary_visc_params");
-		if (!_vertPos) throw std::invalid_argument("no vertPos for sa_boundary_visc_params");
-		gGam = _gGam;
-		vertPos0 = _vertPos[0];
-		vertPos1 = _vertPos[1];
-		vertPos2 = _vertPos[2];
+		// We clobber both CFL buffers, even though
+		// we only use the main one here: the other
+		// will be used by a call to cflmax following the kernel call
+		auto cfl_buf = bufwrite.get<BUFFER_CFL>();
+		auto tempCfl_buf = bufwrite.get<BUFFER_CFL_TEMP>();
+		cfl_buf->clobber();
+		tempCfl_buf->clobber();
+
+		cfl = cfl_buf->get();
 	}
 };
+
+/*! Wrapper for const acces to BUFFER_EFFPRES
+ *  Access is provided by the fetchEffPres(index) method, without revealing details about
+ *  the storage form (texture or linear array)
+ */
+DEFINE_BUFFER_WRAPPER(effpres_texture_params, BUFFER_EFFPRES, effPres, EffPres);
 
 //! Effective viscosity kernel parameters
 /** in addition to the standard neibs_list_params, it only includes
@@ -134,15 +110,16 @@ template<KernelType _kerneltype,
 	BoundaryType _boundarytype,
 	typename _ViscSpec,
 	flag_t _simflags,
+	typename neibs_params = neibs_interaction_params<_boundarytype>,
 	typename reduce_params =
-		typename COND_STRUCT(_simflags & ENABLE_DTADAPT, visc_reduce_params),
-	typename sa_params =
-		typename COND_STRUCT(_boundarytype == SA_BOUNDARY, sa_boundary_rheology_params)
+		typename COND_STRUCT(HAS_DTADAPT(_simflags), visc_reduce_params),
+	typename granular_params =
+		typename COND_STRUCT(_ViscSpec::rheologytype == GRANULAR, effpres_texture_params)
 	>
 struct effvisc_params :
-	neibs_list_params,
+	neibs_params,
 	reduce_params,
-	sa_params
+	granular_params
 {
 	float * __restrict__	effvisc;
 	const float				deltap;
@@ -154,28 +131,55 @@ struct effvisc_params :
 	static constexpr RheologyType rheologytype = ViscSpec::rheologytype;
 	static constexpr flag_t simflags = _simflags;
 
+	// TODO switch everything to BufferList
 	effvisc_params(
 		// common
-			const	float4* __restrict__	_posArray,
-			const	hashKey* __restrict__	_particleHash,
-			const	uint* __restrict__		_cellStart,
-			const	neibdata* __restrict__	_neibsList,
+		BufferList const&	bufread,
+		BufferList		bufwrite,
 			const	uint		_numParticles,
 			const	float		_slength,
 			const	float		_influenceradius,
-			const	float		_deltap,
-		// SA_BOUNDARY params
-			const	float4* __restrict__	_gGam,
-			const	float2* const *_vertPos,
-		// effective viscosity
-					float*	__restrict__	_effvisc,
-					float*	__restrict__	_cfl) :
-	neibs_list_params(_posArray, _particleHash, _cellStart, _neibsList, _numParticles,
-		_slength, _influenceradius),
-	deltap(_deltap),
-	reduce_params(_cfl),
-	sa_params(_gGam, _vertPos),
-	effvisc(_effvisc)
+			const	float		_deltap) :
+	neibs_params(bufread, _numParticles, _slength, _influenceradius),
+	reduce_params(bufwrite),
+	granular_params(bufread),
+	effvisc(bufwrite.getData<BUFFER_EFFVISC>()),
+	deltap(_deltap)
+	{}
+};
+
+//! Common parameters for the kernels that solve for the effective pressure
+/** This is essentially the standard neibs_list_params, plus optionally
+ * the old effective pressure as a texture object
+ * the array where the effective pressure is written
+ */
+template<KernelType _kerneltype,
+	BoundaryType _boundarytype,
+	// a boolean that determines if the old effective pressure should be made available
+	// separately from the writeable effpres array
+	bool has_old_effpres = true,
+	typename neibs_params = neibs_interaction_params<_boundarytype>,
+	typename old_effpres = typename COND_STRUCT(has_old_effpres, effpres_texture_params)
+	>
+struct common_effpres_params :
+	neibs_params,
+	old_effpres
+{
+	const float				deltap;
+
+	static constexpr KernelType kerneltype = _kerneltype;
+	static constexpr BoundaryType boundarytype = _boundarytype;
+
+	common_effpres_params(
+		// common
+		BufferList const&	bufread,
+			const	uint		_numParticles,
+			const	float		_slength,
+			const	float		_influenceradius,
+			const	float		_deltap) :
+	neibs_params(bufread, _numParticles, _slength, _influenceradius),
+	old_effpres(bufread),
+	deltap(_deltap)
 	{}
 };
 
@@ -183,46 +187,63 @@ struct effvisc_params :
 /** in addition to the standard neibs_list_params, it only includes
  * the array where the effective pressure is written
  */
-template<KernelType _kerneltype,
-	BoundaryType _boundarytype,
-	typename sa_params =
-		typename COND_STRUCT(_boundarytype == SA_BOUNDARY, sa_boundary_rheology_params)
-	>
-struct effpres_params :
-	neibs_list_params,
-	visc_reduce_params,
-	sa_params
+template<KernelType _kerneltype, BoundaryType _boundarytype>
+struct jacobi_wall_boundary_params :
+	common_effpres_params<_kerneltype, _boundarytype, false>,
+	visc_reduce_params
 {
 	float * __restrict__	effpres;
-	const float				deltap;
 
 	static constexpr KernelType kerneltype = _kerneltype;
 	static constexpr BoundaryType boundarytype = _boundarytype;
 
-	effpres_params(
+	jacobi_wall_boundary_params(
 		// common
-			const	float4* __restrict__	_posArray,
-			const	hashKey* __restrict__	_particleHash,
-			const	uint* __restrict__		_cellStart,
-			const	neibdata* __restrict__	_neibsList,
+		BufferList const&	bufread,
+		BufferList		bufwrite,
 			const	uint		_numParticles,
 			const	float		_slength,
 			const	float		_influenceradius,
-			const	float		_deltap,
-		// SA_BOUNDARY params
-			const	float4* __restrict__	_gGam,
-			const	float2* const *_vertPos,
-		// effective viscosity
-					float*	__restrict__	_effpres,
-					float*	__restrict__	_cfl) :
-	neibs_list_params(_posArray, _particleHash, _cellStart, _neibsList, _numParticles,
-		_slength, _influenceradius),
-	deltap(_deltap),
-	visc_reduce_params(_cfl),
-	sa_params(_gGam, _vertPos),
-	effpres(_effpres)
+			const	float		_deltap) :
+	common_effpres_params<_kerneltype, _boundarytype, false>(bufread, _numParticles,
+		_slength, _influenceradius, _deltap),
+	visc_reduce_params(bufwrite),
+	effpres(bufwrite.getData<BUFFER_EFFPRES>())
 	{}
 };
 
+template<KernelType _kerneltype, BoundaryType _boundarytype>
+using jacobi_build_vectors_params = common_effpres_params<_kerneltype, _boundarytype, true>;
+
+struct jacobi_update_params : info_wrapper
+{
+	const	float4 * __restrict__	jacobiBuffer;
+		float  * __restrict__	effpres;
+		float  * __restrict__	cfl;
+		uint			numParticles;
+
+	jacobi_update_params(
+		BufferList const& bufread,
+		BufferList	bufwrite,
+		uint		numParticles_)
+	:
+		info_wrapper(bufread),
+		jacobiBuffer(bufread.getData<BUFFER_JACOBI>()),
+		effpres(bufwrite.getData<BUFFER_EFFPRES>()),
+		numParticles(numParticles_)
+	{
+		// Clobber the residual CFL buffers (recycled to compute the residual)
+		// before use
+		auto cfl_buf = bufwrite.get<BUFFER_CFL>();
+		auto tempCfl_buf = bufwrite.get<BUFFER_CFL_TEMP>();
+
+		cfl_buf->clobber();
+		tempCfl_buf->clobber();
+
+		// get the (typed) pointers
+		cfl = cfl_buf->get();
+	}
+
+};
 
 #endif // _VISC_PARAMS_H

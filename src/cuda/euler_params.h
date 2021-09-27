@@ -173,25 +173,25 @@ template<KernelType _kerneltype,
 	bool _repacking = (_run_mode == REPACK),
 	bool _has_keps = _ViscSpec::turbmodel == KEPSILON && !_repacking,
 	bool _has_eulerVel =
-		(_has_keps || (_boundarytype == SA_BOUNDARY && (_simflags & ENABLE_INLET_OUTLET)))
+		(_has_keps || (_boundarytype == SA_BOUNDARY && HAS_INLET_OUTLET(_simflags)))
 		&& !_repacking,
 	typename eulerVel_params = typename
 		COND_STRUCT(_has_eulerVel, EulerVel_params<>),
 	typename sa_boundary_moving_params = typename
-		COND_STRUCT(_boundarytype == SA_BOUNDARY && (_simflags & ENABLE_MOVING_BODIES) &&
+		COND_STRUCT(_boundarytype == SA_BOUNDARY && HAS_MOVING_BODIES(_simflags) &&
 				!_repacking, BoundElement_params<>),
 	typename grenier_params = typename
 		COND_STRUCT(_sph_formulation == SPH_GRENIER && !_repacking, Vol_params<>)
 	>
 struct euler_params :
 	common_euler_params,
-	COND_STRUCT((_simflags & ENABLE_XSPH) && !_repacking, xsph_euler_params),
+	COND_STRUCT(HAS_XSPH(_simflags) && !_repacking, xsph_euler_params),
 	eulerVel_params,
 	sa_boundary_moving_params,
 	COND_STRUCT(_has_keps, keps_euler_params),
 	grenier_params,
-	COND_STRUCT(_simflags & ENABLE_INTERNAL_ENERGY, energy_euler_params),
-	COND_STRUCT(_simflags & ENABLE_FEA, fea_euler_params),
+	COND_STRUCT(HAS_INTERNAL_ENERGY(_simflags), energy_euler_params),
+	COND_STRUCT(HAS_FEA(_simflags), fea_euler_params),
 	COND_STRUCT(_boundarytype == DUMMY_BOUNDARY, dummy_euler_params)
 {
 	static constexpr KernelType kerneltype = _kerneltype;
@@ -217,13 +217,13 @@ struct euler_params :
 		const	float		_t)
 	:
 		common_euler_params(bufread, bufwrite, _numParticles, _dt, _t),
-		COND_STRUCT((simflags & ENABLE_XSPH) && !_repacking, xsph_euler_params)(bufread),
+		COND_STRUCT(HAS_XSPH(simflags) && !_repacking, xsph_euler_params)(bufread),
 		eulerVel_params(bufread, bufwrite),
 		sa_boundary_moving_params(bufread, bufwrite),
 		COND_STRUCT(has_keps, keps_euler_params)(bufread, bufwrite),
 		grenier_params(bufread, bufwrite),
-		COND_STRUCT(simflags & ENABLE_INTERNAL_ENERGY, energy_euler_params)(bufread, bufwrite),
-		COND_STRUCT(simflags & ENABLE_FEA, fea_euler_params)(bufread),
+		COND_STRUCT(HAS_INTERNAL_ENERGY(simflags), energy_euler_params)(bufread, bufwrite),
+		COND_STRUCT(HAS_FEA(simflags), fea_euler_params)(bufread),
 		COND_STRUCT(boundarytype == DUMMY_BOUNDARY, dummy_euler_params)(bufread, bufwrite)
 	{}
 };

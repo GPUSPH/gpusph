@@ -70,6 +70,28 @@ typedef struct KinematicData {
 	};
 } KinematicData;
 
+typedef struct AccelerateData {
+	double3			lvel_dt; ///< Linear velocity
+	double3			avel_dt; ///< Angular velocity
+
+	AccelerateData():
+		lvel_dt(make_double3(0.0)),
+		avel_dt(make_double3(0.0))
+	{};
+
+	AccelerateData(const AccelerateData& adata) {
+		lvel_dt = adata.lvel_dt;
+		avel_dt = adata.avel_dt;
+	};
+
+	AccelerateData& operator = (const AccelerateData& source) {
+		lvel_dt = source.lvel_dt;
+		avel_dt = source.avel_dt;
+		return *this;
+	};
+} AccelerateData;
+
+
 typedef struct MovingBodyData {
 	uint				index;	///< Sequential insertion index (NOTE: NOT index in the array)
 	uint				id;		///< index in the moving bodies list
@@ -77,8 +99,9 @@ typedef struct MovingBodyData {
 	Object				*object;
 	KinematicData		kdata;
 	KinematicData		initial_kdata;
+	AccelerateData		adata;
 
-	MovingBodyData(): index(0), id(0), type(MB_MOVING), object(NULL), kdata(KinematicData()), initial_kdata(KinematicData()) {};
+	MovingBodyData(): index(0), id(0), type(MB_MOVING), object(NULL), kdata(KinematicData()), initial_kdata(KinematicData()), adata(AccelerateData()) {};
 
 	MovingBodyData(const MovingBodyData& mbdata) {
 		index = mbdata.index;

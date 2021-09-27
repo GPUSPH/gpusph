@@ -94,6 +94,28 @@ void throw_if_out_of_range(Option const& value)
 			+ " " + std::to_string(option_range<Option>::max) + "]");
 }
 
+static inline
+bool match_option_name(const char *str, const char *candidate, size_t sz)
+{
+	// if it matches the prefix of the string, it's a match
+	if (!strncasecmp(str, candidate, sz)) return true;
+
+	// if it doesn't, check again by replacing every instance of ', ' and ' and '
+	// with _ and nothing (e.g. hu_adams, xy)
+	static const char * replacements[] = { "", "_" };
+
+	for (auto rep : replacements) {
+		std::string newform(candidate);
+		auto found = newform.find(", ");
+		if (found != newform.npos) newform.replace(found, 2, rep);
+		found = newform.find(" and ");
+		if (found != newform.npos) newform.replace(found, 5, rep);
+		if (!strncasecmp(str, newform.c_str(), sz)) return true;
+	}
+
+	return false;
+}
+
 //! Parse a string as an option value
 /*! This does a case-insenstive prefix comparison with the names for the
  * allowed values for the option, and throws if no match is found.
@@ -111,7 +133,7 @@ Option parse_option_string(std::string const& val)
 	const auto from = names + option_range<Option>::min;
 	const auto to = names + option_range<Option>::max + 1;
 	const auto found = std::find_if(from, to, [&](const char* candidate) {
-		return !strncasecmp(str, candidate, sz);
+		return match_option_name(str, candidate, sz);
 	});
 	if (found < to)
 		return Option(found - from);

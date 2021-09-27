@@ -71,6 +71,7 @@ public:
 	double	deltap; ///< deltap
 	float	tend; ///< simulation end
 	float	dt; ///< fixed time-step
+	float	ccsph_min_det; ///< minimum determinant for CCSPH
 	unsigned long maxiter; ///< maximum number of iterations to run
 	unsigned int repack_maxiter; ///< maximum number of iterations for repacking
 	float	checkpoint_freq; ///< frequency of hotstart checkpoints (in simulated seconds)
@@ -100,6 +101,7 @@ public:
 		deltap(NAN),
 		tend(NAN),
 		dt(NAN),
+		ccsph_min_det(NAN),
 		maxiter(0),
 		repack_maxiter(0),
 		checkpoint_freq(NAN),

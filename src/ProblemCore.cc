@@ -36,12 +36,18 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 
+// perror
+#include <cstdio>
+
 // For the automatic name determination
 #include <typeinfo>
 #include <cxxabi.h>
 
 // shared_ptr
 #include <memory>
+
+// max_element
+#include <algorithm>
 
 #include "ProblemCore.h"
 #include "vector_math.h"
@@ -81,9 +87,10 @@ ProblemCore::ProblemCore(GlobalData *_gdata) :
 	m_simframework(NULL),
 	m_size(make_double3(NAN, NAN, NAN)),
 	m_origin(make_double3(NAN, NAN, NAN)),
+	m_out_of_bounds_count(0),
 	m_deltap(NAN),
-	m_hydrostaticFilling(true),
 	m_waterLevel(NAN),
+	m_hydrostaticFilling(true),
 	gdata(_gdata),
 	m_options(_gdata->clOptions),
 	m_bodies_storage(NULL)
@@ -176,6 +183,36 @@ ProblemCore::initialize()
 
 	printf("Problem calling set grid params\n");
 	set_grid_params();
+
+	/* We compute the expected upper limit to the distance a particle will travel
+	 * between two neighbors list constructions, based on the maximum speed
+	 * (computed as 1/10th of the highest sound speed), pre-computed CFL time-step
+	 * and neighbors list construction frequency.
+	 * The relation of this “maximum travel distance” to the cell side length
+	 * and to the inter-particle spacing ∆p can help us determine
+	 * if we're updating frequently enough or not. In general, we expect these ratios
+	 * to be (significantly) smaller than 1. Since it's always true that m_deltap < min_cell_s,
+	 * we set as warning condition that max_travel must not be larger than m_deltap
+	 * (although a stricter condition would probably be better).
+	 */
+	double min_cell_s = min(m_cellsize.x, min(m_cellsize.y, m_cellsize.z));
+	double max_speed = *max_element(m_physparams->sscoeff.begin(), m_physparams->sscoeff.end());
+	max_speed /= 10;
+	uint nlfreq = simparams()->buildneibsfreq;
+	double dt = simparams()->dt;
+	double max_travel = max_speed*dt*nlfreq;
+	printf("Expected max travel distance between neighbors list constructions: %g (%g ∆p or %g cells)",
+		max_travel, max_travel/m_deltap, max_travel/min_cell_s);
+	if (max_travel > m_deltap) {
+		if (nlfreq == 1) {
+			printf(" (are things moving too fast?)"); // this shouldn't happen, really
+		} else {
+			uint recommend = floor(m_deltap/(max_speed*dt));
+			printf(", consider lowering the neighbors list frequency to %d",
+				max(recommend, 1));
+		}
+	}
+	puts("");
 
 	return true;
 }
@@ -418,6 +455,10 @@ ProblemCore::add_moving_body(Object* object, const MovingBodyType mbtype)
 			mbdata->kdata.lvel = make_double3(vec.x(), vec.y(), vec.z());
 			vec = body->GetWvel_par();
 			mbdata->kdata.avel = make_double3(vec.x(), vec.y(), vec.z());
+			vec = body->GetPos_dtdt();
+			mbdata->adata.lvel_dt = make_double3(vec.x(), vec.y(), vec.z());
+			vec = body->GetWacc_par();
+			mbdata->adata.avel_dt = make_double3(vec.x(), vec.y(), vec.z());
 			::chrono::ChQuaternion<> quat = body->GetRot();
 			m_bodies.insert(m_bodies.begin() + simparams()->numODEbodies, mbdata);
 			simparams()->numODEbodies++;
@@ -513,12 +554,45 @@ ProblemCore::groundFeaNodes(std::shared_ptr<::chrono::fea::ChMesh> fea_mesh)
 }
 #endif
 
+//- debug
+void
+ProblemCore::printBody(const uint bid)
+{
+#if USE_CHRONO == 1
+	std::shared_ptr< ::chrono::ChBody> body = m_bodies[bid]->object->GetBody();
+	printf("******************************************************\n");
+	printf("iterations %lu, Body %d\n", gdata->iterations, bid);
+	//- Coord
+	::chrono::ChCoordsys<> sys = body->GetCoord();
+	printf("Coord Pos[%.8lf, %.8lf, %.8lf], Rot[%.8lf, %.8lf, %.8lf, %.8lf]\n", sys.pos.x(),sys.pos.y(),sys.pos.z(),sys.rot.e0(),sys.rot.e1(),sys.rot.e2(),sys.rot.e3());
+
+	//- Coord_dt
+	sys = body->GetCoord_dt();
+	printf("Coord_dt Pos[%.8lf, %.8lf, %.8lf], Rot[%.8lf, %.8lf, %.8lf, %.8lf]\n", sys.pos.x(),sys.pos.y(),sys.pos.z(),sys.rot.e0(),sys.rot.e1(),sys.rot.e2(),sys.rot.e3());
+
+	//- Coord_dtdt
+	sys = body->GetCoord_dtdt();
+	printf("Coord_dtdt Pos[%.8lf, %.8lf, %.8lf], Rot[%.8lf, %.8lf, %.8lf, %.8lf]\n", sys.pos.x(),sys.pos.y(),sys.pos.z(),sys.rot.e0(),sys.rot.e1(),sys.rot.e2(),sys.rot.e3());
+
+	//- kdata.
+	/*KinematicData _kdata = m_bodies[bid]->kdata;
+	printf("_kdata ep[%.8lf, %.8lf, %.8lf, %.8lf]\n", _kdata.orientation.m_ep[0],kdata.orientation.m_ep[1],kdata.orientation.m_ep[2],kdata.orientation.m_ep[3]);
+	printf("_kdata rotx[%.8lf, %.8lf, %.8lf]\n", _kdata.orientation.m_rot[0],kdata.orientation.m_rot[1],kdata.orientation.m_rot[2]);
+	printf("_kdata roty[%.8lf, %.8lf, %.8lf]\n", _kdata.orientation.m_rot[3],kdata.orientation.m_rot[4],kdata.orientation.m_rot[5]);
+	printf("_kdata rotz[%.8lf, %.8lf, %.8lf]\n", _kdata.orientation.m_rot[6],kdata.orientation.m_rot[7],kdata.orientation.m_rot[8]);*/	
+
+	printf("******************************************************\n");
+#endif
+}
+//- debug
+
 void
 ProblemCore::restore_moving_body(const MovingBodyData & saved_mbdata, const uint numparts, const int firstindex, const int lastindex)
 {
 	const uint id = saved_mbdata.id;
 	MovingBodyData *mbdata = m_bodies[id];
 	mbdata->object->SetNumParts(numparts);
+	mbdata->adata = saved_mbdata.adata;
 	mbdata->initial_kdata = saved_mbdata.initial_kdata;
 	mbdata->kdata = saved_mbdata.kdata;
 	if (mbdata->type == MB_FORCES_MOVING || mbdata->type == MB_FLOATING) {
@@ -530,9 +604,12 @@ ProblemCore::restore_moving_body(const MovingBodyData & saved_mbdata, const uint
 #if USE_CHRONO == 1
 		std::shared_ptr< ::chrono::ChBody > body = mbdata->object->GetBody();
 		body->SetPos(::chrono::ChVector<>(mbdata->kdata.crot.x, mbdata->kdata.crot.y, mbdata->kdata.crot.z));
-		body->SetPos_dt(::chrono::ChVector<>(mbdata->kdata.lvel.x, mbdata->kdata.lvel.y, mbdata->kdata.lvel.z));
-		body->SetWvel_par(::chrono::ChVector<>(mbdata->kdata.avel.x, mbdata->kdata.avel.y, mbdata->kdata.avel.z));
 		body->SetRot(mbdata->kdata.orientation.ToChQuaternion());
+		body->SetPos_dt(::chrono::ChVector<>(mbdata->kdata.lvel.x, mbdata->kdata.lvel.y, mbdata->kdata.lvel.z));
+		body->SetPos_dtdt(::chrono::ChVector<>(mbdata->adata.lvel_dt.x, mbdata->adata.lvel_dt.y, mbdata->adata.lvel_dt.z));
+		body->SetWvel_par(::chrono::ChVector<>(mbdata->kdata.avel.x, mbdata->kdata.avel.y, mbdata->kdata.avel.z));
+		::chrono::ChVector<> vec(mbdata->adata.avel_dt.x, mbdata->adata.avel_dt.y, mbdata->adata.avel_dt.z);
+		body->SetWacc_par(vec);
 #else
 		throw runtime_error ("ProblemCore::restore_moving_body Cannot restore a floating body without CHRONO\n");
 #endif
@@ -985,8 +1062,10 @@ ProblemCore::bodies_timestep(const float3 *forces, const float3 *torques, const 
 	double t1 = t + dt1;
 
 	//#define _DEBUG_OBJ_FORCES_
+#if USE_CHRONO == 1
 	bool there_is_at_least_one_chrono_body = false;
-	bool fea_is_enabled = simparams()->simflags & ENABLE_FEA;
+	bool fea_is_enabled = HAS_FEA(simparams()->simflags);
+#endif
 	// For Chrono bodies apply forces and torques
 	for (size_t i = 0; i < m_bodies.size(); i++) {
 		// Shortcut to body data
@@ -1015,7 +1094,6 @@ ProblemCore::bodies_timestep(const float3 *forces, const float3 *torques, const 
 			body->Empty_forces_accumulators();
 			body->Accumulate_force(::chrono::ChVector<>(forces[i].x, forces[i].y, forces[i].z), body->GetPos(), false);
 			body->Accumulate_torque(::chrono::ChVector<>(torques[i].x, torques[i].y, torques[i].z), false);
-
 
 			if (false) {
 				cout << "Before dWorldStep, object " << i << "\tt = " << t << "\tdt = " << dt <<"\n";
@@ -1055,6 +1133,10 @@ ProblemCore::bodies_timestep(const float3 *forces, const float3 *torques, const 
 			mbdata->kdata.lvel = make_double3(vec.x(), vec.y(), vec.z());
 			vec = body->GetWvel_par();
 			mbdata->kdata.avel = make_double3(vec.x(), vec.y(), vec.z());
+			vec = body->GetPos_dtdt();
+			mbdata->adata.lvel_dt = make_double3(vec.x(), vec.y(), vec.z());
+			vec = body->GetWacc_par();
+			mbdata->adata.avel_dt = make_double3(vec.x(), vec.y(), vec.z());
 			::chrono::ChQuaternion<> quat = body->GetRot();
 			const EulerParameters new_orientation = EulerParameters(quat.e0(), quat.e1(), quat.e2(), quat.e3());
 			dr = new_orientation*mbdata->kdata.orientation.Inverse();
@@ -1239,7 +1321,7 @@ void
 ProblemCore::check_dt(void)
 {
 	// warn if dt was set by the user but adaptive dt is enable
-	if (simparams()->dt && simparams()->simflags & ENABLE_DTADAPT)
+	if (simparams()->dt && HAS_DTADAPT(simparams()->simflags))
 	{
 		fprintf(stderr, "WARNING: dt %g will be used only for the first iteration because adaptive dt is enabled\n",
 			simparams()->dt);
@@ -1464,6 +1546,31 @@ ProblemCore::make_plane(Point const& pt, Vector const& normal)
 	return plane;
 }
 
+// recursive mkdir path, returns errno on failure or if the last component exists
+static int mkdir_p(string const& path, mode_t mode)
+{
+	// mkdir each component
+	size_t slash = 0;
+	int err;
+	while ((slash = path.find('/', slash)) != string::npos) {
+		++slash;
+		err = mkdir(path.substr(0, slash).c_str(), mode);
+		if (err == -1 && errno != EEXIST) return errno;
+	}
+	err = mkdir(path.c_str(), mode);
+	return err == 0 ? 0 : errno;
+}
+
+static string canonical_path(string const& path)
+{
+	char *canonical_c = realpath(path.c_str(), NULL);
+	string canonical(canonical_c);
+	free(canonical_c);
+	return canonical;
+}
+
+constexpr mode_t problem_dir_mode = S_IRWXU | S_IRWXG | S_IRWXO;
+
 string const&
 ProblemCore::create_problem_dir(void)
 {
@@ -1476,16 +1583,74 @@ ProblemCore::create_problem_dir(void)
 		time(&rawtime);
 		strftime(time_str, 18, "_%Y-%m-%dT%Hh%M", localtime(&rawtime));
 		time_str[17] = '\0';
-		// if "./tests/" doesn't exist yet...
-		mkdir("./tests/", S_IRWXU | S_IRWXG | S_IRWXO);
 		m_problem_dir = "./tests/" + m_name + string(time_str);
 	}
+
+	// ensure the problem dir does _not_ have a / at the end
+	while (m_problem_dir.back() == '/')
+		m_problem_dir = m_problem_dir.substr(0, m_problem_dir.length() - 1);
+	cout << "Using problem dir " << m_problem_dir << endl;
 
 	// TODO it should be possible to specify a directory with %-like
 	// replaceable strings, such as %{problem} => problem name,
 	// %{time} => launch time, etc.
 
-	mkdir(m_problem_dir.c_str(), S_IRWXU | S_IRWXG | S_IRWXO);
+	int err = mkdir_p(m_problem_dir.c_str(), problem_dir_mode);
+
+	// If the directory exists, and we are resuming, then
+	// 1. we only continue if we're resuming into the same directory we're resuming from
+	// 2. we resume into a subdirectory, to avoid overwriting the original data files
+	if (err == EEXIST && gdata->resume) {
+		// we want to check that the canonical form of the problem is the
+		// initial substring of the canonical form of the resume file, including the path
+		// separator (i.e. don't mess if we are resuming into tests/something from
+		// tests/something-else/data/hotfile). The canonical path doesn't have a terminating /,
+		// so we add one.
+		const string& resume_file = gdata->clOptions->resume_fname;
+		string canonical_problem_dir( canonical_path(m_problem_dir) + "/");
+		string canonical_resume_file( canonical_path(resume_file) );
+		if (canonical_resume_file.substr(0, canonical_problem_dir.length()) != canonical_problem_dir) {
+			throw runtime_error("refusing to resume from " +
+				resume_file + " (" + canonical_resume_file + ") into unrelated, existing " +
+				m_problem_dir + " (" + canonical_problem_dir + ")");
+		}
+
+		// OK, we're now in the ’resume in the same directory’ case. To avoid overwriting the previous
+		// simulation data, and since we cannot (currently) correctly recover the index and restart,
+		// we actually shift our problem dir into problemdir/resumeN, where N is the first available index
+		// (so that e.g. the third time we resume, our effective problem dir becomes
+		// problemdir/resume003/
+		// TODO FIXME of course it would actually be preferrable to resume correctly instead
+		unsigned resume_count = 0;
+		char new_dir[] = { '/', 'r', 'e', 's', 'u', 'm', 'e', '0', '0', '0', 0 };
+		string candidate;
+		cout << "Resuming into same directory, looking for next candidate" << endl;
+#define MAX_RESUMES 1000
+		for ( ; resume_count < MAX_RESUMES; ++resume_count) {
+			snprintf(new_dir + 7, 4, "%03u", resume_count);
+			candidate = m_problem_dir + new_dir;
+			err = mkdir_p(candidate.c_str(), problem_dir_mode);
+			if (err != EEXIST) break;
+			cout << "\t" << candidate << " exists" << endl;
+		}
+		if (resume_count == MAX_RESUMES) {
+			throw runtime_error("Tried to resume too much (1,000 attempts made), please look into this");
+		}
+		m_problem_dir = candidate;
+		if (err == 0)
+			cout << "OK, resuming into " + candidate << endl;
+		// if err != 0, this will be caught by the next switch, shared with the non-resume case
+	}
+
+	switch (err) {
+		case EEXIST:
+			cerr << "WARNING: problem directory " << m_problem_dir << " exists already, overwriting." << endl;
+		/* fallthrough */
+		case 0: /* nothing to do */
+			break;
+		default:
+			throw runtime_error("Error creating " + m_problem_dir + ": " + strerror(err));
+	}
 
 	return m_problem_dir;
 }
@@ -1782,6 +1947,15 @@ void ProblemCore::fillDeviceMapByAxisBalanced(SplitAxis preferred_split_axis)
 
 void ProblemCore::fillDeviceMapByEquation()
 {
+	// These are a couple of examples on how to implement a splitting based on some
+	// equation taking the cell x, y, z coordinates as parameters.
+	// TODO FIXME this should be done by letting the user pass an equation, e.g.
+	// void fillDeviceMap() override {
+	// 	fillDeviceMapByEquation([](uint cx, uint cy, uint cz) { ... })
+	// }
+	// and this function simply applying the function to determine the device for each cell,
+	// plus boundary checks.
+#if 0
 	// 1st equation: diagonal plane. (x+y+z)=coeff
 	//uint longest_grid_size = max ( max( gdata->gridSize.x, gdata->gridSize.y), gdata->gridSize.z );
 	uint coeff = (gdata->gridSize.x + gdata->gridSize.y + gdata->gridSize.z) / gdata->totDevices;
@@ -1809,6 +1983,9 @@ void ProblemCore::fillDeviceMapByEquation()
 				// assign it
 				gdata->s_hDeviceMap[cellLinearHash] = (uchar)dstDevice;
 			}
+#else
+	throw std::runtime_error("fillDeviceMapByEquation should only used as an example for the time being");
+#endif
 }
 
 // Partition by performing the splitting the domain in the specified number of slices for each axis.
@@ -1906,7 +2083,7 @@ void ProblemCore::fillDeviceMapByRegularGrid()
 uint
 ProblemCore::max_parts(uint numParts)
 {
-	if (!(simparams()->simflags & ENABLE_INLET_OUTLET))
+	if (!HAS_INLET_OUTLET(simparams()->simflags))
 		return numParts;
 
 	// we assume that we can't have more particles than by filling the whole domain:
@@ -1961,6 +2138,7 @@ ProblemCore::calculateDensityDiffusionCoefficient()
 		printf("Brezzi diffusion coefficient = %e\n", simparams()->densityDiffCoeff);
 		break;
 	case COLAGROSSI:
+	case ANTUONO:
 		if (isnan(simparams()->densityDiffCoeff)) {
 			simparams()->densityDiffCoeff = 0.1f;
 			printf("Colagrossi diffusion coefficient: %e (default value)\n", simparams()->densityDiffCoeff);
@@ -2112,20 +2290,23 @@ ProblemCore::calc_localpos_and_hash(const Point& pos, const particleinfo& info, 
 {
 	static bool warned_out_of_bounds = false;
 	// check if the particle is actually inside the domain
-	if (!warned_out_of_bounds &&
+	if (
 		(pos(0) < m_origin.x || pos(0) > m_origin.x + m_size.x ||
 		 pos(1) < m_origin.y || pos(1) > m_origin.y + m_size.y ||
 		 pos(2) < m_origin.z || pos(2) > m_origin.z + m_size.z))
 	{
-		const uint pid = id(info);
-		stringstream errmsg;
-		errmsg << "Particle " << pid << " position " << make_double4(pos)
-			<< " is outside of the domain " << m_origin << "--" << (m_origin+m_size) ;
-		warned_out_of_bounds = true;
-		if (gdata->debug.validate_init_positions)
-			throw std::out_of_range(errmsg.str());
-		else
-			cerr << errmsg.str() << endl;
+		++m_out_of_bounds_count;
+		if (!warned_out_of_bounds) {
+			const uint pid = id(info);
+			stringstream errmsg;
+			errmsg << "Particle " << pid << " position " << make_double4(pos)
+				<< " is outside of the domain " << m_origin << "--" << (m_origin+m_size) ;
+			warned_out_of_bounds = true;
+			if (g_debug.validate_init_positions)
+				throw std::out_of_range(errmsg.str());
+			else
+				cerr << errmsg.str() << endl;
+		}
 	}
 
 	int3 gridPos = calc_grid_pos(pos);
@@ -2137,6 +2318,18 @@ ProblemCore::calc_localpos_and_hash(const Point& pos, const particleinfo& info, 
 	localpos.y = float(pos(1) - m_origin.y - (gridPos.y + 0.5)*m_cellsize.y);
 	localpos.z = float(pos(2) - m_origin.z - (gridPos.z + 0.5)*m_cellsize.z);
 	localpos.w = float(pos(3));
+}
+
+void
+ProblemCore::show_out_of_bounds() const
+{
+	if (m_out_of_bounds_count > 0) {
+		cerr << m_out_of_bounds_count << " particles were placed out of bounds during init" << endl;
+		if (m_out_of_bounds_count > NEIBINDEX_MASK/2) {
+			g_debug.check_cell_overflow = 1;
+			cerr << "will check for cell overflow" << endl;
+		}
+	}
 }
 
 /* Initialize the particle volumes from their masses and densities. */

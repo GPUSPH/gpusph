@@ -44,15 +44,23 @@ DEMExample::DEMExample(GlobalData *gdata) : Problem(gdata)
 
 	const string dem_file = get_option("dem", "half_wave0.1m.txt");
 
+	// Use geometrical descriptions or implement walls and DEM with particles?
+	const bool use_geometries = get_option("use-geometries", true);
+
 	SETUP_FRAMEWORK(
 		viscosity<ARTVISC>,
-		boundary<LJ_BOUNDARY>,
-		add_flags<ENABLE_DEM | ENABLE_PLANES>
-	).select_options(rhodiff);
+		boundary<LJ_BOUNDARY>
+	).select_options(
+		rhodiff,
+		use_geometries, add_flags<ENABLE_DEM | ENABLE_PLANES>()
+	);
+
+	if (mlsIters > 0)
+		addFilter(MLS_FILTER, mlsIters);
 
 	/* Simulation parameters */
-	set_deltap(0.05);
-	double water_height = 0.8;
+	const double water_height = 0.8;
+	set_deltap(water_height/ppH);
 
 	/* Physical parameters */
 	setMaxFall(2.0);
@@ -61,9 +69,20 @@ DEMExample::DEMExample(GlobalData *gdata) : Problem(gdata)
 	set_equation_of_state(water, 7.0f, NAN /* autocompute from max fall */);
 
 	/* Geometries */
-	GeometryID dem = addDEM(dem_file);
-	GeometryID fluid_box = addDEMFluidBox(water_height);
-	vector<GeometryID> planes = addDEMPlanes();
+	addDEM(dem_file, DEM_FMT_ASCII, use_geometries ? FT_NOFILL : FT_BORDER);
+	addDEMFluidBox(water_height);
+
+	if (HAS_PLANES(simparams()->simflags)) {
+		// Add geometric planes around the DEM boundary. Individual planes can be
+		// manipulated by assigning the resulting vector<GeometryID>
+		// to a variable and then extracting the planes we are interested in
+		addDEMPlanes();
+	} else if (simparams()->boundary_is_multilayer()) {
+		// DEM boundaries start one layer out, so we need an extra deltap of margin
+		// TODO FIXME this should be handled automatically
+		addExtraWorldMargin(m_deltap);
+	}
+
 
 	add_writer(VTKWRITER, 0.1);
 }

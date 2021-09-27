@@ -57,8 +57,13 @@ typedef struct {
 } header_t;
 
 /** HotFile version. */
+/** We haven't been too careful about backwards-compatibility with v1, actually.
+ *  Version 2 was introduced during the GPUSPH v6 release cycle, with a patch that
+ *  aimed at improving the roundtrip for moving bodies.
+ */
 typedef enum {
-	VERSION_1,
+	VERSION_1 = 1,
+	VERSION_2 = 2,
 } version_t;
 
 class HotFile {

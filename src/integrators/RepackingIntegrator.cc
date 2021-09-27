@@ -85,12 +85,10 @@ template<>
 void RepackingIntegrator::initializeBoundaryConditionsSequence<SA_BOUNDARY>
 	(Integrator::Phase *this_phase, StepInfo const& step)
 {
-	// repacking initialization step?
-	const bool init_step = (step.number == 0);
 	// end-of-repacking, prepare simulation step?
 	const bool reinit_step = (step.number == -1);
 	const SimParams *sp = gdata->problem->simparams();
-	const bool has_io = sp->simflags & ENABLE_INLET_OUTLET;
+	const bool has_io = HAS_INLET_OUTLET(sp->simflags);
 
 	const dt_operator_t dt_op = full_timestep;
 
@@ -171,7 +169,7 @@ void RepackingIntegrator::initializeBoundaryConditionsSequence<SA_BOUNDARY>
 
 		// reduce the water depth at pressure outlets if required
 		// if we have multiple devices then we need to run a global max on the different gpus / nodes
-		if (MULTI_DEVICE && sp->simflags & ENABLE_WATER_DEPTH) {
+		if (MULTI_DEVICE && HAS_WATER_DEPTH(sp->simflags)) {
 			// each device gets his waterdepth array from the gpu
 			this_phase->add_command(DOWNLOAD_IOWATERDEPTH);
 			// reduction across devices and if necessary across nodes
@@ -209,7 +207,7 @@ void RepackingIntegrator::initializeBoundaryConditionsSequence<SA_BOUNDARY>
 	// TODO FIXME considering splitting new particle creation/particle property reset
 	// into its own kernel, in order to provide cleaner interfaces and finer-grained
 	// buffer handling
-	CommandStruct& vertex_bc_cmd = this_phase->add_command(SA_CALC_VERTEX_BOUNDARY_CONDITIONS)
+	this_phase->add_command(SA_CALC_VERTEX_BOUNDARY_CONDITIONS)
 		.set_step(step)
 		.set_dt(dt_op)
 		.reading(state,
@@ -241,7 +239,7 @@ RepackingIntegrator::initializeInitializationSequence(StepInfo const& step)
 	const SimParams *sp = gdata->problem->simparams();
 
 	// did we resume? (to skip applying boundary conditions)
-	const bool resumed = !gdata->clOptions->resume_fname.empty();
+	const bool resumed = gdata->resume;
 
 	Phase *this_phase = new Phase(this, "initialization preparations");
 
@@ -304,12 +302,10 @@ RepackingIntegrator::initializeRepackingSequence(StepInfo const& step)
 
 	static const bool striping = gdata->clOptions->striping && MULTI_DEVICE;
 
-	static const bool dtadapt = !!(sp->simflags & ENABLE_DTADAPT);
-
 	const string current_state = getCurrentStateForStep(step.number);
 	const string next_state = getNextStateForStep(step.number);
 
-	if (gdata->debug.inspect_preforce)
+	if (g_debug.inspect_preforce)
 		this_phase->add_command(DEBUG_DUMP)
 			.set_step(step)
 			.set_src(current_state);
@@ -368,7 +364,7 @@ RepackingIntegrator::initializeRepackingSequence(StepInfo const& step)
 		.set_dst(next_state)
 		.set_flags(shared_buffers | SUPPORT_BUFFERS);
 
-	CommandStruct& euler_cmd = this_phase->add_command(EULER)
+	this_phase->add_command(EULER)
 		.set_step(step)
 		.set_dt(dt_op)
 		.reading(current_state,
@@ -378,7 +374,7 @@ RepackingIntegrator::initializeRepackingSequence(StepInfo const& step)
 			BUFFER_DKDE)
 		.writing(next_state, REPACKING_PROPS_BUFFERS);
 
-	if (gdata->debug.inspect_preforce)
+	if (g_debug.inspect_preforce)
 		this_phase->add_command(DEBUG_DUMP)
 			.set_step(step)
 			.set_src(next_state);
@@ -499,8 +495,6 @@ RepackingIntegrator::RepackingIntegrator(GlobalData const* _gdata) :
 	m_entered_main_cycle(false),
 	m_finished_main_cycle(false)
 {
-	const SimParams *sp = gdata->problem->simparams();
-
 	// Preallocate room for all phases
 	m_phase.resize(NUM_PHASES);
 
@@ -536,7 +530,7 @@ RepackingIntegrator::next_phase()
 
 	// the phase is empty: let the user know in debug mode, and
 	// tail-call ourselves
-	if (gdata->debug.print_step) {
+	if (g_debug.print_step) {
 		cout << "\t(phase is empty)" << endl;
 	}
 	return next_phase();

@@ -185,6 +185,34 @@ EXTRA_PROBLEM_FILES += half_wave0.1m.txt
 
 # --------------- Locate and set up compilers and flags
 
+# option: clang — controls usage of clang instead of nvcc to compile the device code. Supported values:
+#                 0 (default): device code is compiled with nvcc
+#                 1:           device code is compiled with the default clang version
+#                 else:        device code is compiled with the specified clang version
+#                              (e.g. clang=12 to compile with clang 12)
+CLANG_CUDA ?= 0
+CLANG_CUDA_VERSION ?=
+CLANG_SELECT_OPTFILE=$(OPTSDIR)/clang_select.opt
+ifdef clang
+	OLD_CLANG_CUDA:=$(CLANG_CUDA)
+	OLD_CLANG_CUDA_VERSION:=$(CLANG_CUDA_VERSION)
+	ifeq ($(clang),0)
+		CLANG_CUDA=0
+		CLANG_CUDA_VERSION=
+	else ifeq ($(clang),1)
+		CLANG_CUDA=1
+		CLANG_CUDA_VERSION=$(shell echo __clang_major__ | clang++ -E - | grep -v \#)
+		TMP:=$(info Autodetected Clang version '$(CLANG_CUDA_VERSION)')
+	else
+		CLANG_CUDA=1
+		CLANG_CUDA_VERSION=$(clang)
+	endif
+	ifneq ($(CLANG_CUDA)/$(CLANG_CUDA_VERSION),$(OLD_CLANG_CUDA)/$(OLD_CLANG_CUDA_VERSION))
+		# force regeneration of CLANG_SELECT_OPTFILE
+		TMP:=$(shell rm -f $(CLANG_SELECT_OPTFILE))
+	endif
+endif
+
 # override: CUDA_INSTALL_PATH - where CUDA is installed
 # override:                     defaults /usr/local/cuda,
 # override:                     validity is checked by looking for bin/nvcc under it,
@@ -199,7 +227,15 @@ ifeq ($(wildcard $(CUDA_INSTALL_PATH)/bin/nvcc),)
 	ifeq ($(wildcard $(CUDA_INSTALL_PATH)/bin/nvcc),)
 $(error Could not find CUDA, please set CUDA_INSTALL_PATH)
 	endif
+
+# At least on Debian, when CUDA is installed via distro packages, Clang
+# needs to be directed at /usr/lib/cuda instead
+	ifeq ($(CLANG_CUDA),1)
+		CLANG_CUDA_PATH = /usr/lib/cuda
+	endif
 endif
+
+CLANG_CUDA_PATH ?= $(CUDA_INSTALL_PATH)
 
 # Here follow experimental CUDA installation detection. These work if CUDA binaries are in
 # the current PATH (i.e. when using Netbeans without system PATH set, don't work).
@@ -210,6 +246,9 @@ endif
 #CUDA_INSTALL_PATH=$(shell \
 #	dirname `ldconfig -p | grep libcudart | a$4}' | head -n 1` | head -c -5)
 
+# We keep track of the nvcc major version, which is stored in clang_select
+OLD_CUDA_MAJOR:=$(CUDA_MAJOR)
+
 # nvcc info
 NVCC=$(CUDA_INSTALL_PATH)/bin/nvcc
 NVCC_VER=$(shell $(NVCC) --version | grep release | cut -f2 -d, | cut -f3 -d' ')
@@ -217,26 +256,52 @@ versions_tmp  := $(subst ., ,$(NVCC_VER))
 CUDA_MAJOR := $(firstword  $(versions_tmp))
 CUDA_MINOR := $(lastword  $(versions_tmp))
 
-# We only support CUDA 7 onwards, error out if this is an earlier version
-# NOTE: the test is reversed because test returns 0 for true (shell-like)
-OLD_CUDA=$(shell test $(CUDA_MAJOR) -ge 7; echo $$?)
-
-ifeq ($(OLD_CUDA),1)
-$(error CUDA version too old)
+ifneq ($(CUDA_MAJOR),$(OLD_CUDA_MAJOR))
+	# force regeneration of CLANG_SELECT_OPTFILE
+	TMP:=$(shell rm -f $(CLANG_SELECT_OPTFILE))
 endif
 
-# Make sure nvcc uses the same host compile that we use for the host
-# code.
-# Note that this requires the compiler to be supported by nvcc.
-NVCC += -ccbin=$(CXX)
+# CUXX will be our compiler for .cu files
+ifeq ($(CLANG_CUDA),1)
+	CXX=clang++-$(CLANG_CUDA_VERSION)
+	CUXX=$(CXX) --cuda-path=$(CLANG_CUDA_PATH)
+
+	NO_CUDA_ARCH_VERSION_CHECK=--no-cuda-version-check
+else
+	# We only support CUDA 7 onwards, error out if this is an earlier version
+	# NOTE: the test is reversed because test returns 0 for true (shell-like)
+	OLD_CUDA=$(shell test $(CUDA_MAJOR) -ge 7; echo $$?)
+
+	# Some libraries shipped CUDA 11 require C++14, so we want to know if
+	# the CUDA version is at least 11
+	# NOTE: the test is reversed because test returns 0 for true (shell-like)
+	CUDA_11=$(shell test $(CUDA_MAJOR) -lt 11 ; echo $$?)
+
+	ifeq ($(OLD_CUDA),1)
+	$(error CUDA version too old)
+	endif
+
+	# Make sure nvcc uses the same host compile that we use for the host
+	# code.
+	# Note that this requires the compiler to be supported by nvcc.
+	CUXX=$(NVCC) -ccbin=$(CXX)
+
+	NO_CUDA_ARCH_VERSION_CHECK=-Wno-deprecated-gpu-targets
+endif
+
+# --- Compiler END
+
+# --- Option management
 
 # Get the include path(s) used by default by our compiler
 CXX_SYSTEM_INCLUDE_PATH=$(abspath $(shell echo | $(CXX) -x c++ -E -Wp,-v - 2>&1 | grep '^ ' | grep -v ' (framework directory)'))
 
 # files to store last compile options: dbg, compute, fastmath, MPI usage, Chrono, linearization preference, Catalyst
+# (note: CLANG_SELECT_OPTFILE was defined ahead-of-time because it's needed early at compiler-definition time
 DBG_SELECT_OPTFILE=$(OPTSDIR)/dbg_select.opt
 COMPUTE_SELECT_OPTFILE=$(OPTSDIR)/compute_select.opt
 FASTMATH_SELECT_OPTFILE=$(OPTSDIR)/fastmath_select.opt
+FASTDEM_SELECT_OPTFILE=$(OPTSDIR)/fastdem_select.opt
 MPI_SELECT_OPTFILE=$(OPTSDIR)/mpi_select.opt
 HDF5_SELECT_OPTFILE=$(OPTSDIR)/hdf5_select.opt
 CHRONO_SELECT_OPTFILE=$(OPTSDIR)/chrono_select.opt
@@ -255,9 +320,11 @@ GIT_INFO_OPTFILE=$(OPTSDIR)/git_info.opt
 
 # Optfile that influence the device code
 DEVCODE_OPTFILES = \
+	  $(CLANG_SELECT_OPTFILE) \
 	  $(DBG_SELECT_OPTFILE) \
 	  $(COMPUTE_SELECT_OPTFILE) \
 	  $(FASTMATH_SELECT_OPTFILE) \
+	  $(FASTDEM_SELECT_OPTFILE) \
 	  $(LINEARIZATION_SELECT_OPTFILE) \
 
 # Actual optfiles, that define specific options
@@ -356,6 +423,19 @@ else
 	FASTMATH ?= 0
 endif
 
+# option: fastdem - Enable or disable fastdem. Default: 0 (disabled)
+ifdef fastdem
+	# does it differ from last?
+	ifneq ($(FASTDEM),$(fastdem))
+		TMP:=$(shell test -e $(FASTDEM_SELECT_OPTFILE) && \
+			$(SED_COMMAND) 's/FASTDEM $(FASTDEM)/FASTDEM $(fastdem)/' $(FASTDEM_SELECT_OPTFILE) )
+		# user choice
+		FASTDEM=$(fastdem)
+	endif
+else
+	FASTDEM ?= 0
+endif
+
 # option: mpi - 0 do not use MPI (no multi-node support), 1 use MPI (enable multi-node support). Default: autodetect
 ifdef mpi
 	# does it differ from last?
@@ -381,7 +461,7 @@ ifeq ($(MPICXX),)
 	endif
 else
 	# autodetect the MPI version
-	MPI_VERSION = $(shell printf '\#include <mpi.h>\nstandard/MPI_VERSION/MPI_SUBVERSION' | $(MPICXX) -E -x c - 2> /dev/null | grep '^standard/' | cut -d/ -f2- | tr '/' '.')
+	MPI_VERSION := $(shell printf '\043include <mpi.h>\nstandard/MPI_VERSION/MPI_SUBVERSION' | $(MPICXX) -E -x c - 2> /dev/null | grep '^standard/' | cut -d/ -f2- | tr '/' '.')
 
 	# if we have USE_MPI, but MPI_VERSION is empty, abort because it means we couldn't successfully get the
 	# MPI version from mpi.h (e.g. because the development headers were not installed)
@@ -402,16 +482,18 @@ ifeq ($(USE_MPI),0)
 	MPICXX=$(CXX)
 
 	# We have to link with NVCC because otherwise thrust has issues on Mac OSX.
-	LINKER ?= $(NVCC)
+	LINKER ?= $(CUXX)
 
+else ifeq ($(CLANG_CUDA),1)
+	LINKER ?= OMPI_CXX="$(CXX)" MPICH_CXX="$(CXX)" $(MPICXX)
 else
 	# Also try to detect implementation-specific version.
 	# OpenMPI exposes the version via individual numeric macros
-	OMPI_VERSION = $(shell printf '\#include <mpi.h>\nversion/OMPI_MAJOR_VERSION/OMPI_MINOR_VERSION/OMPI_RELEASE_VERSION' | $(MPICXX) -E -x c - 2> /dev/null | grep '^version/' | grep -v 'OMPI_' | cut -d/ -f2- | tr '/' '.')
+	OMPI_VERSION := $(shell printf '\043include <mpi.h>\nversion/OMPI_MAJOR_VERSION/OMPI_MINOR_VERSION/OMPI_RELEASE_VERSION' | $(MPICXX) -E -x c - 2> /dev/null | grep '^version/' | grep -v 'OMPI_' | cut -d/ -f2- | tr '/' '.')
 	# MPICH exposes a version string macro
-	MPICH_VERSION = $(shell printf '\#include <mpi.h>\nversion/MPICH_VERSION' | $(MPICXX) -E -x c - 2> /dev/null | grep '^version/' | grep -v 'MPICH_' | cut -d\" -f2 )
+	MPICH_VERSION := $(shell printf '\043include <mpi.h>\nversion/MPICH_VERSION' | $(MPICXX) -E -x c - 2> /dev/null | grep '^version/' | grep -v 'MPICH_' | cut -d\" -f2 )
 	# MVAPICH2 exposes its own version string (MVAPICH 1.x apparently does not)
-	MVAPICH_VERSION = $(shell printf '\#include <mpi.h>\nversion/MVAPICH2_VERSION' | $(MPICXX) -E -x c - 2> /dev/null | grep '^version/' | grep -v 'MVAPICH2_' | cut -d\" -f2 )
+	MVAPICH_VERSION := $(shell printf '\043include <mpi.h>\nversion/MVAPICH2_VERSION' | $(MPICXX) -E -x c - 2> /dev/null | grep '^version/' | grep -v 'MVAPICH2_' | cut -d\" -f2 )
 
 	MPI_VERSION :=$(MPI_VERSION)$(if $(OMPI_VERSION),$(space)(OpenMPI $(OMPI_VERSION)))
 	MPI_VERSION :=$(MPI_VERSION)$(if $(MPICH_VERSION),$(space)(MPICH $(MPICH_VERSION)))
@@ -447,7 +529,7 @@ else
 	MPILDFLAGS = $(subst -Wl$(comma),--linker-options$(space),$(filter -Wl%,$(MPISHOWFLAGS))) $(filter -L%,$(MPISHOWFLAGS)) $(filter -l%,$(MPISHOWFLAGS))
 	MPICXXFLAGS = $(filter-out -L%,$(filter-out -l%,$(filter-out -Wl%,$(MPISHOWFLAGS))))
 
-	LINKER ?= $(NVCC) --compiler-options $(subst $(space),$(comma),$(strip $(MPICXXFLAGS))) $(MPILDFLAGS)
+	LINKER ?= $(CUXX) --compiler-options $(subst $(space),$(comma),$(strip $(MPICXXFLAGS))) $(MPILDFLAGS)
 
 	# (the solution is not perfect as it still generates some warnings, but at least it rolls)
 
@@ -483,9 +565,9 @@ else
 	# so the only portable way seems to echo each line separately,
 	# and grouping the echos in { } doesn't seem to work from a Makefile
 	# shell invocation
-	USE_HDF5 ?= $(shell for line in '\#include <hdf5.h>' 'main(){}' ; do echo $$line ; done | $(CXX) -xc++ $(INCPATH) $(LIBPATH) $(HDF5_CPP) $(HDF5_CXX) $(HDF5_LD) -o /dev/null - 2> /dev/null && echo 1 || echo -1)
+	USE_HDF5 ?= $(shell for line in '\043include <hdf5.h>' 'main(){}' ; do echo $$line ; done | $(CXX) -xc++ $(INCPATH) $(LIBPATH) $(HDF5_CPP) $(HDF5_CXX) $(HDF5_LD) -o /dev/null - 2> /dev/null && echo 1 || echo -1)
 	ifeq ($(USE_HDF5),-1)
-		USE_HDF5 := $(shell for line in '\#include <hdf5.h>' 'main(){}' ; do echo $$line ; done | $(MPICXX) -xc++ $(INCPATH) $(LIBPATH) $(HDF5_CPP) $(HDF5_CXX) $(HDF5_LD) -o /dev/null - 2> /dev/null && echo 2 || echo 0)
+		USE_HDF5 := $(shell for line in '\043include <hdf5.h>' 'main(){}' ; do echo $$line ; done | $(MPICXX) -xc++ $(INCPATH) $(LIBPATH) $(HDF5_CPP) $(HDF5_CXX) $(HDF5_LD) -o /dev/null - 2> /dev/null && echo 2 || echo 0)
 		ifeq ($(USE_HDF5),0)
 			TMP := $(info HDF5 library not found, HDF5 input will NOT be supported)
 		endif
@@ -608,7 +690,13 @@ endif
 
 
 # CUDA libaries
-LIBPATH += -L$(CUDA_INSTALL_PATH)/lib$(LIB_PATH_SFX)
+CUDA_LIBRARY_PATH=$(CUDA_INSTALL_PATH)/lib$(LIB_PATH_SFX)
+LIBPATH += -L$(CUDA_LIBRARY_PATH)
+ifeq ($(CLANG_CUDA),1)
+LDFLAGS += -rpath $(CUDA_LIBRARY_PATH)
+else
+LDFLAGS += --linker-options -rpath,$(CUDA_LIBRARY_PATH)
+endif
 
 # link to the CUDA runtime library
 LIBS += -lcudart
@@ -666,10 +754,10 @@ ifneq ($(USE_CHRONO),0)
 		# If CHRONO_LIB_PATH is not set, look for libChronoEngine.*
 		# under $(CHRONO_PATH)/lib or $(CHRONO_PATH)/lib64 and then build the include path by getting the up-dir
 		CHRONO_LIB_PATH := $(dir $(or \
-			$(wildcard $(CHRONO_PATH)/lib/libChronoEngine.so) \
 			$(wildcard $(CHRONO_PATH)/lib64/libChronoEngine.so) \
-			$(wildcard $(CHRONO_PATH)/build/lib/libChronoEngine.so) \
-			$(wildcard $(CHRONO_PATH)/build/lib64/libChronoEngine.so), \
+			$(wildcard $(CHRONO_PATH)/build/lib64/libChronoEngine.so) \
+			$(wildcard $(CHRONO_PATH)/lib/libChronoEngine.so) \
+			$(wildcard $(CHRONO_PATH)/build/lib/libChronoEngine.so), \
 			$(error Could not find Chrono include files, please set CHRONO_PATH or CHRONO_LIB_PATH) \
 			))
 	else
@@ -703,7 +791,11 @@ ifneq ($(USE_CHRONO),0)
 	LIBPATH += -L$(CHRONO_LIB_PATH)
 	LIBS += -lChronoEngine
 	#LIBS += -lChronoEngine_mkl
-	LDFLAGS += --linker-options -rpath,$(CHRONO_LIB_PATH)
+	ifeq ($(CLANG_CUDA),1)
+		LDFLAGS += -rpath $(CHRONO_LIB_PATH)
+	else
+		LDFLAGS += --linker-options -rpath,$(CHRONO_LIB_PATH)
+	endif
 endif
 LDFLAGS += $(LIBPATH)
 
@@ -725,8 +817,15 @@ CXXFLAGS ?=
 # override: CUFLAGS - nvcc compiler options
 CUFLAGS  ?=
 
+# Let the code know if we're using Clang to compile the CUDA device code too
+CPPFLAGS += -DCLANG_CUDA=$(CLANG_CUDA)
+ifeq ($(CLANG_CUDA),1)
+	CPPFLAGS += -DDISABLE_ALL_TEXTURES=1
+endif
+
 # First of all, put the include paths into the CPPFLAGS
 CPPFLAGS += $(INCPATH)
+
 
 # We use type limits and constants (e.g. UINT64_MAX), which are defined
 # in C99 but not in C++ versions before C++11, so on (very) old compilers
@@ -758,10 +857,16 @@ endif
 # CXXFLAGS start with the target architecture
 CXXFLAGS += $(TARGET_ARCH)
 
-# We also force C++11 mode, since we are no relying on C++11 features
+# We also force C++11 (or higher) mode, since we are now relying on C++11 features
+# If we are using CUDA 11 or higher, the standard will be C++14, as required by
+# Thrust and CUB
 # TODO Check if any -std is present in CXXFLAGS (added by the user) and if
 # the specified value is not 11, warn before removing it
+ifeq ($(CUDA_11),1)
+CXXFLAGS += -std=c++14
+else
 CXXFLAGS += -std=c++11
+endif
 
 # HDF5 might require specific flags
 ifneq ($(USE_HDF5),0)
@@ -777,16 +882,29 @@ endif
 
 # compute capability specification, if defined
 ifneq ($(COMPUTE),)
-	CUFLAGS += -arch=sm_$(COMPUTE)
-	LDFLAGS += -arch=sm_$(COMPUTE)
+	ifeq ($(CLANG_CUDA),1)
+		CU_ARCH_SPEC += --cuda-gpu-arch=sm_$(COMPUTE)
+	else
+		CU_ARCH_SPEC += -arch=sm_$(COMPUTE)
+	endif
 endif
 
-# generate line info
-# TODO this should only be done in debug mode
-CUFLAGS += --generate-line-info
+CUFLAGS += $(CU_ARCH_SPEC)
+LDFLAGS += $(CU_ARCH_SPEC)
+
+# Clang does not support --generate-line-info
+ifneq ($(CLANG_CUDA),1)
+	# generate line info
+	# TODO this should only be done in debug mode
+	CUFLAGS += --generate-line-info
+endif
 
 ifeq ($(FASTMATH),1)
-	CUFLAGS += --use_fast_math
+	ifeq ($(CLANG_CUDA),1)
+		CUFLAGS += -ffast-math
+	else
+		CUFLAGS += --use_fast_math
+	endif
 endif
 
 
@@ -801,11 +919,13 @@ else
 endif
 
 # option: verbose - 0 quiet compiler, 1 ptx assembler, 2 all warnings
-ifeq ($(verbose), 1)
-	CUFLAGS += --ptxas-options=-v
-else ifeq ($(verbose), 2)
-	CUFLAGS += --ptxas-options=-v
-	CXXFLAGS += -Wall
+ifneq ($(CLANG_CUDA),1)
+	ifeq ($(verbose), 1)
+		CUFLAGS += --ptxas-options=-v
+	else ifeq ($(verbose), 2)
+		CUFLAGS += --ptxas-options=-v
+		CXXFLAGS += -Wall
+	endif
 endif
 
 # Enable host profile with gprof. Pipeline to profile:
@@ -815,9 +935,12 @@ endif
 # LDFLAGS += -pg
 
 # Finally, add CXXFLAGS to CUFLAGS, except for -std, which gets moved outside
-
-CUFLAGS += $(filter -std=%,$(CXXFLAGS)) --compiler-options \
-	   $(subst $(space),$(comma),$(strip $(filter-out -std=%,$(CXXFLAGS))))
+ifeq ($(CLANG_CUDA),1)
+	CUFLAGS += $(CXXFLAGS)
+else
+	CUFLAGS += $(filter -std=%,$(CXXFLAGS)) --compiler-options \
+		   $(subst $(space),$(comma),$(strip $(filter-out -std=%,$(CXXFLAGS))))
+endif
 
 # CFLAGS notes
 # * Architecture (sm_XX and compute_XX):
@@ -905,6 +1028,14 @@ $(LAST_BUILT_PROBLEM): $(PROBLEM_GPUSPH_DEP)
 $(foreach p,$(PROBLEM_LIST),$(eval $(call problem_deps,$p)))
 
 # internal targets to (re)create the "selected option headers" if they're missing
+
+# Clang select. We also include the detected CUDA_MAJOR version since it will be displayed
+# as --version output
+$(CLANG_SELECT_OPTFILE): | $(OPTSDIR)
+	@echo "/* Clang vs nvcc device compilation */" > $@
+	@echo '#define CLANG_CUDA $(CLANG_CUDA)' >> $@
+	@echo '#define CLANG_CUDA_VERSION $(CLANG_CUDA_VERSION)' >> $@
+	@echo '#define CUDA_MAJOR $(CUDA_MAJOR)' >> $@
 $(DBG_SELECT_OPTFILE): | $(OPTSDIR)
 	@echo "/* Define if debug option is on. */" \
 		> $(DBG_SELECT_OPTFILE)
@@ -919,6 +1050,10 @@ $(FASTMATH_SELECT_OPTFILE): | $(OPTSDIR)
 	@echo "/* Determines if fastmath is enabled for GPU code. */" \
 		> $@
 	@echo "#define FASTMATH $(FASTMATH)" >> $@
+$(FASTDEM_SELECT_OPTFILE): | $(OPTSDIR)
+	@echo "/* Determines if fastmath is enabled for GPU code. */" \
+		> $@
+	@echo "#define FASTDEM $(FASTDEM)" >> $@
 $(MPI_SELECT_OPTFILE): | $(OPTSDIR)
 	@echo "/* Determines if we are using MPI (for multi-node) or not. */" \
 		> $@
@@ -978,31 +1113,50 @@ $(SRCDIR)/describe-debugflags.h: $(SCRIPTSDIR)/describe-debugflags.awk $(SRCDIR)
 # The idea is that to avoid restarting make when the .d files change,
 # and to avoid issues with deleted dependency files, the .d files themselves
 # have an empty rule, and they are generated when the object files are generated.
-# However, we do not use the "generate dependencies while compiling” feature of GCC
+# However, we do not use the "generate dependencies while compiling” feature of GCC.
+
+# We _do_ hack the dependency files so that all dependencies are added to an empty rule,
+# that ensures that make doesn't bother us about missing dependencies when one is added or removed.
+# Note that for some reason Clang doubles the output, so we we need to dedup them.
+# We achieve this by loading the file into x using an awk trick that doesn't print an already-printed line.
+define redupdep
+@x="$$(awk '!seen[$$0]++' $1)" ; printf '%s\n\n:%s:\n' "$$x" "$$x" | sed 's/^:[^:]*: //' > $1
+endef
+
+CXX_DEPGEN_FLAGS=-MG -MM -MT $@
+ifeq ($(CLANG_CUDA),1)
+	CU_DEPGEN_FLAGS=$(CXX_DEPGEN_FLAGS)
+else
+	CU_DEPGEN_FLAGS=--compiler-options $(subst $(space),$(comma),$(CXX_DEPGEN_FLAGS))
+endif
+
 # The -MM flag is used to not include system includes.
 # The -MG flag is used to add missing includes (useful to depend on the .opt files).
 # The -MT flag is used to define the object file.
 $(CCOBJS): $(OBJDIR)/%.o: $(SRCDIR)/%.cc $(DEPDIR)/%.d | $(OBJSUBS)
 	$(call show_stage,CC,$(@F))
-	$(CMDECHO)$(CXX) $(CC_INCPATH) $(CPPFLAGS) $(CXXFLAGS) -MG -MM -MT $@ $< > $(word 2,$^)
+	$(CMDECHO)$(CXX) $(CC_INCPATH) $(CPPFLAGS) $(CXXFLAGS) $(CXX_DEPGEN_FLAGS) $< > $(word 2,$^)
+	$(call redupdep,$(word 2,$^))
 	$(CMDECHO)$(CXX) $(CC_INCPATH) $(CPPFLAGS) $(CXXFLAGS) -c -o $@ $<
 $(GENOBJS): $(OBJDIR)/%.gen.o: $(OPTSDIR)/%.gen.cc $(DEPDIR)/%.gen.d | $(OBJSUBS)
 	$(call show_stage,CC,$(@F))
-	$(CMDECHO)$(CXX) $(CC_INCPATH) $(CPPFLAGS) $(CXXFLAGS) -MG -MM -MT $@ $< > $(word 2,$^)
+	$(CMDECHO)$(CXX) $(CC_INCPATH) $(CPPFLAGS) $(CXXFLAGS) $(CXX_DEPGEN_FLAGS) $< > $(word 2,$^)
+	$(call redupdep,$(word 2,$^))
 	$(CMDECHO)$(CXX) $(CC_INCPATH) $(CPPFLAGS) $(CXXFLAGS) -c -o $@ $<
 $(MPICXXOBJS): $(OBJDIR)/%.o: $(SRCDIR)/%.cc $(DEPDIR)/%.d | $(OBJSUBS)
 	$(call show_stage,MPI,$(@F))
-	$(CMDECHO)OMPI_CXX=$(CXX) MPICH_CXX=$(CXX) \
-		$(MPICXX) $(CC_INCPATH) $(CPPFLAGS) $(CXXFLAGS) -MG -MM -MT $@ $< > $(word 2,$^)
-	$(CMDECHO)OMPI_CXX=$(CXX) MPICH_CXX=$(CXX) \
+	$(CMDECHO)OMPI_CXX="$(CXX)" MPICH_CXX="$(CXX)" \
+		$(MPICXX) $(CC_INCPATH) $(CPPFLAGS) $(CXXFLAGS) $(CXX_DEPGEN_FLAGS) $< > $(word 2,$^)
+	$(call redupdep,$(word 2,$^))
+	$(CMDECHO)OMPI_CXX="$(CXX)" MPICH_CXX="$(CXX)" \
 		$(MPICXX) $(CC_INCPATH) $(CPPFLAGS) $(CXXFLAGS) -c -o $@ $<
 
 # compile GPU objects
 $(CUOBJS): $(OBJDIR)/%.o: $(SRCDIR)/%.cu $(DEPDIR)/%.d $(DEVCODE_OPTFILES) | $(OBJSUBS)
 	$(call show_stage,CU,$(@F))
-	$(CMDECHO)$(NVCC) $(CPPFLAGS) $(CUFLAGS) -E $< \
-		 --compiler-options -MG,-MM,-MT,$@ > $(word 2,$^)
-	$(CMDECHO)$(NVCC) $(CPPFLAGS) $(CUFLAGS) -c -o $@ $<
+	$(CMDECHO)$(CUXX) $(CPPFLAGS) $(CUFLAGS) -E $< $(CU_DEPGEN_FLAGS) > $(word 2,$^)
+	$(call redupdep,$(word 2,$^))
+	$(CMDECHO)$(CUXX) $(CPPFLAGS) $(CUFLAGS) -c -o $@ $<
 
 # deps: empty rule, but require the directories and optfiles to be present
 $(CCDEPS): | $(DEPSUBS) $(OPTFILES) $(AUTOGEN_SRC) ;
@@ -1016,7 +1170,7 @@ $(CUDEPS): | $(DEPSUBS) $(OPTFILES) ;
 # not supported in the most recent version of the SDK)
 $(LIST_CUDA_CC): $(LIST_CUDA_CC).cc
 	$(call show_stage,SCRIPTS,$(@F))
-	$(CMDECHO)$(NVCC) $(CPPFLAGS) -Wno-deprecated-gpu-targets $(filter-out -arch=sm_%,$(filter-out --ptxas-options=%,$(filter-out --generate-line-info,$(CUFLAGS)))) -o $@ $< $(filter-out -arch=sm_%,$(LDFLAGS))
+	$(CMDECHO)$(CUXX) $(CPPFLAGS) $(NO_CUDA_ARCH_VERSION_CHECK) -lcudart $(filter-out $(CU_ARCH_SPEC),$(CUFLAGS)) -o $@ $< $(filter-out $(CU_ARCH_SPEC),$(LDFLAGS))
 
 # create distdir
 $(DISTDIR):
@@ -1121,9 +1275,11 @@ $(MAKE_SHOW_TMP): Makefile Makefile.conf $(filter Makefile.local,$(MAKEFILE_LIST
 	@echo "MPICXX:          $(MPICXX)"									>> $@
 	@echo "nvcc:            $(NVCC)"									>> $@
 	@echo "nvcc version:    $(NVCC_VER)"								>> $@
+	@echo "CUXX:            $(CUXX)"								>> $@
 	@echo "LINKER:          $(LINKER)"									>> $@
 	@echo "Compute cap.:    $(COMPUTE)"									>> $@
 	@echo "Fastmath:        $(FASTMATH)"								>> $@
+	@echo "Fast DEM:        $(FASTDEM)"								>> $@
 	@echo "USE_MPI:         $(USE_MPI)"									>> $@
 	@[ 1 = $(USE_MPI) ] && echo "    MPI version: $(MPI_VERSION)"					>> $@ || true
 	@echo "USE_HDF5:        $(USE_HDF5)"								>> $@
@@ -1178,6 +1334,10 @@ Makefile.conf: Makefile $(ACTUAL_OPTFILES)
 	$(CMDECHO)echo '# Run make with the appropriate option to change a configured value' >> $@
 	$(CMDECHO)echo '# Use `make help-options` to see a list of available options' >> $@
 	$(CMDECHO)echo '# Use `make confclean` to reset your configuration' >> $@
+	$(CMDECHO)# recover value of CLANG_CUDA and CLANG_CUDA_VERSION
+	$(CMDECHO)echo 'CLANG_CUDA=$(CLANG_CUDA)' >> $@
+	$(CMDECHO)echo 'CLANG_CUDA_VERSION=$(CLANG_CUDA_VERSION)' >> $@
+	$(CMDECHO)echo 'CUDA_MAJOR=$(CUDA_MAJOR)' >> $@
 	$(CMDECHO)# recover value of LAST_BUILT_PROBLEM
 	$(CMDECHO)echo 'LAST_BUILT_PROBLEM=$(LAST_BUILT_PROBLEM)' >> $@
 	$(CMDECHO)# recover value of _DEBUG_ from OPTFILES
@@ -1186,6 +1346,8 @@ Makefile.conf: Makefile $(ACTUAL_OPTFILES)
 	$(CMDECHO)grep "\#define COMPUTE" $(COMPUTE_SELECT_OPTFILE) | cut -f2-3 -d ' ' | tr ' ' '=' >> $@
 	$(CMDECHO)# recover value of FASTMATH from OPTFILES
 	$(CMDECHO)grep "\#define FASTMATH" $(FASTMATH_SELECT_OPTFILE) | cut -f2-3 -d ' ' | tr ' ' '=' >> $@
+	$(CMDECHO)# recover value of FASTDEM from OPTFILES
+	$(CMDECHO)grep "\#define FASTDEM" $(FASTDEM_SELECT_OPTFILE) | cut -f2-3 -d ' ' | tr ' ' '=' >> $@
 	$(CMDECHO)# recover value of USE_MPI from OPTFILES
 	$(CMDECHO)grep "\#define USE_MPI" $(MPI_SELECT_OPTFILE) | cut -f2-3 -d ' ' | tr ' ' '=' >> $@
 	$(CMDECHO)# recover value of USE_HDF5 from OPTFILES

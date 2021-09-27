@@ -46,6 +46,8 @@ WaveTank::WaveTank(GlobalData *_gdata) : Problem(_gdata)
 	const bool use_cyl = get_option("cylinder", false);
 	// Density diffusion type
 	const DensityDiffusionType RHODIFF = get_option("density-diffusion", COLAGROSSI);
+	// Enable CCSPH?
+	const bool USE_CCSPH = get_option("use_ccsph", true);
 
 	if (use_bottom_plane && !use_planes)
 		throw std::invalid_argument("cannot use bottom plane if not using planes");
@@ -66,6 +68,7 @@ WaveTank::WaveTank(GlobalData *_gdata) : Problem(_gdata)
 		boundary<DUMMY_BOUNDARY>
 	).select_options(
 		RHODIFF,
+		USE_CCSPH, add_flags<ENABLE_CCSPH>(),
 		use_planes, add_flags<ENABLE_PLANES>()
 	);
 
@@ -80,10 +83,6 @@ WaveTank::WaveTank(GlobalData *_gdata) : Problem(_gdata)
 
 	m_size = make_double3(lx, ly, lz);
 	m_origin = make_double3(0, 0, 0);
-	if (use_cyl) {
-		m_origin.z -= 2.0*height;
-		m_size.z += 2.0*height;
-	}
 
 	if (get_option("testpoints", false)) {
 		addPostProcess(TESTPOINTS);
@@ -160,7 +159,7 @@ WaveTank::WaveTank(GlobalData *_gdata) : Problem(_gdata)
 	// place the fluid box. Fill the whole domain in the X and Y direction,
 	// up to the at-rest height. This will be “carved out” by the wall and floor
 	// geometries placed afterwards
-	GeometryID fluid = addBox(GT_FLUID, FT_SOLID, m_origin, lx, ly, H);
+	addBox(GT_FLUID, FT_SOLID, m_origin, lx, ly, H);
 
 	// place the paddle
 	GeometryID paddle = addBox(GT_MOVING_BODY, FT_BORDER,
@@ -245,7 +244,7 @@ WaveTank::WaveTank(GlobalData *_gdata) : Problem(_gdata)
 
 	if (use_cyl) {
 		setPositioning(PP_BOTTOM_CENTER);
-		Point p[10];
+		Point p[11];
 		p[0]  = Point(slope_origin.x + slope_length/(cos(beta)*10), ly/2., 0);
 		p[1]  = Point(slope_origin.x + slope_length/(cos(beta)*10), ly/6.,  0);
 		p[2]  = Point(slope_origin.x + slope_length/(cos(beta)*10), 5*ly/6, 0);

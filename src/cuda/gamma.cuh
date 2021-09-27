@@ -36,27 +36,37 @@
 // Gaussian quadrature constants
 ////////////////////////////////
 
+/* We can help Clang unroll loops by exposing the constants as constexpr values,
+ * but nvcc doesn't like to use them in device code
+ */
+#if CLANG_CUDA
+#define QUADRATURE_CONSTANT static constexpr
+#else
+#define QUADRATURE_CONSTANT __constant__
+#endif
+
+
 // 5th order
 ////////////
 
 //! Gaussian quadrature 5th order: weights
-__constant__ float GQ_O5_weights[3] = {0.225f, 0.132394152788506f, 0.125939180544827f};
+QUADRATURE_CONSTANT float GQ_O5_weights[3] = {0.225f, 0.132394152788506f, 0.125939180544827f};
 
 //! Gaussian quadrature 5th order: points, in barycentric coordinates
-__constant__ float GQ_O5_points[3][3] = {
+QUADRATURE_CONSTANT float GQ_O5_points[3][3] = {
 	{0.333333333333333f, 0.333333333333333f, 0.333333333333333f},
 	{0.059715871789770f, 0.470142064105115f, 0.470142064105115f},
 	{0.797426985353087f, 0.101286507323456f, 0.101286507323456f}
 };
 
 //! Gaussian quadrature 5th order: multiplicity of each quadrature point
-__constant__ int GQ_O5_mult[3] = {1, 3, 3};
+QUADRATURE_CONSTANT int GQ_O5_mult[3] = {1, 3, 3};
 
 // 14th order
 /////////////
 
 //! Gaussian quadrature 14th order: weights
-__constant__ float GQ_O14_weights[10] = {
+QUADRATURE_CONSTANT float GQ_O14_weights[10] = {
 	0.021883581369429f,
 	0.032788353544125f,
 	0.051774104507292f,
@@ -70,7 +80,7 @@ __constant__ float GQ_O14_weights[10] = {
 };
 
 //! Gaussian quadrature 14th order: points, in barycentric coordinates
-__constant__ float GQ_O14_points[10][3] = {
+QUADRATURE_CONSTANT float GQ_O14_points[10][3] = {
 	{0.022072179275643f,0.488963910362179f,0.488963910362179f},
 	{0.164710561319092f,0.417644719340454f,0.417644719340454f},
 	{0.453044943382323f,0.273477528308839f,0.273477528308839f},
@@ -84,7 +94,7 @@ __constant__ float GQ_O14_points[10][3] = {
 };
 
 //! Gaussian quadrature 14th order: multiplicity of each quadrature point
-__constant__ int GQ_O14_mult[10] = {1,3,3,3,3,3,6,6,6,6};
+QUADRATURE_CONSTANT int GQ_O14_mult[10] = {1,3,3,3,3,3,6,6,6,6};
 
 //! This function returns the function value of the integrated wendland kernel
 __device__ __forceinline__

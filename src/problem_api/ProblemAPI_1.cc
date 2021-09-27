@@ -141,10 +141,9 @@ bool ProblemAPI<1>::initialize()
 
 	// If we have a DEM, and it's set to not fill, the simulation framework must have
 	// the ENABLE_DEM flag, otherwise there will be no interaction with the topography
-	if (m_dem_geometry != INVALID_GEOMETRY)
+	if (validGeometry(m_dem_geometry))
 	{
-		if ((m_geometries[m_dem_geometry]->fill_type == FT_NOFILL) &&
-			!(simparams()->simflags & ENABLE_DEM))
+		if ((m_geometries[m_dem_geometry]->fill_type == FT_NOFILL) && !HAS_DEM(simparams()->simflags))
 			throw invalid_argument("DEM with FT_NOFILL requires ENABLE_DEM flag");
 	}
 
@@ -277,12 +276,12 @@ bool ProblemAPI<1>::initialize()
 
 	// compute the number of layers for dynamic boundaries, if not set
 	if (multilayer_boundary && m_numDynBoundLayers == 0) {
-		m_numDynBoundLayers = suggestedDynamicBoundaryLayers();
-		printf("Number of dynamic boundary layers not set, autocomputed: %u\n", m_numDynBoundLayers);
+		// force autocomputation
+		m_numDynBoundLayers = getDynamicBoundariesLayers();
 	}
 
-	// Increase the world dimensions for dinamic boundaries in directions without periodicity
-	if (simparams()->boundarytype == DYN_BOUNDARY){
+	// Increase the world dimensions for multi-layer boundaries in directions without periodicity
+	if (simparams()->boundary_is_multilayer()){
 		if (!(simparams()->periodicbound & PERIODIC_X)){
 			globalMin(0) -= (m_numDynBoundLayers-1)*m_deltap;
 			globalMax(0) += (m_numDynBoundLayers-1)*m_deltap;
@@ -311,6 +310,20 @@ bool ProblemAPI<1>::initialize()
 		m_size += 2 * m_extra_world_margin;
 	}
 
+	/* Compute the DEM position fixup, if needed */
+	if (validGeometry(m_dem_geometry)) {
+		const auto dem = static_pointer_cast<TopoCube>(m_geometries[m_dem_geometry]->ptr);
+		const float ewres = dem->get_ewres();
+		const float nsres = dem->get_nsres();
+		const Point& dem_origin = dem->get_origin();
+		auto& fixup = physparams()->dem_pos_fixup;
+		fixup =	make_float2(
+			(m_origin.x - dem_origin(0))/ewres,
+			(m_origin.y - dem_origin(1))/nsres);
+		printf("DEM position fixup: (%g, %g)\n", fixup.x, fixup.y);
+	}
+
+
 	// compute water level automatically, if not set
 	if (!isfinite(m_waterLevel)) {
 		// water level: highest fluid coordinate or (absolute) domain height
@@ -329,11 +342,17 @@ bool ProblemAPI<1>::initialize()
 	// set physical parameters depending on m_maxFall or m_waterLevel: LJ dcoeff, sspeed (through set_density())
 	const float g = length(physparams()->gravity);
 
-	if (!isfinite(physparams()->dcoeff))
+	// The LJ d coefficient is used by LJ_BOUNDARY, but also by the repulsive force of planes and DEM
+	const bool needs_dcoeff = (simparams()->boundarytype == LJ_BOUNDARY) || HAS_DEM_OR_PLANES(simparams()->simflags);
+	if (needs_dcoeff && !isfinite(physparams()->dcoeff)) {
 		physparams()->dcoeff = 5.0f * g * m_maxFall;
+		printf("Lennard–Jones D coefficient not set, autocomputed: %g\n", physparams()->dcoeff);
+	}
 
-	if (!isfinite(physparams()->MK_K))
+	if (simparams()->boundarytype == MK_BOUNDARY && !isfinite(physparams()->MK_K)) {
 		physparams()->MK_K = g * m_maxFall;
+		printf("Monaghan–Kajtar K coefficient not set, autocomputed: %g\n", physparams()->MK_K);
+	}
 
 	// hydrostatic filling works only if gravity has only vertical component and
 	// there isn't a periodic boundary in the gravity direction
@@ -417,9 +436,9 @@ bool ProblemAPI<1>::initialize()
 	// TODO ideally we should enable/disable them depending on whether
 	// they are present, but this isn't trivial to do with the static framework
 	// options
-	if (m_numOpenBoundaries > 0 && !(simparams()->simflags & ENABLE_INLET_OUTLET))
+	if (m_numOpenBoundaries > 0 && !HAS_INLET_OUTLET(simparams()->simflags))
 		throw invalid_argument("open boundaries present, but ENABLE_INLET_OUTLET not specified in framework flag");
-	if (m_numOpenBoundaries == 0 && (simparams()->simflags & ENABLE_INLET_OUTLET))
+	if (m_numOpenBoundaries == 0 && HAS_INLET_OUTLET(simparams()->simflags))
 		throw invalid_argument("no open boundaries present, but ENABLE_INLET_OUTLET specified in framework flag");
 
 	// TODO FIXME m_numMovingObjects does not exist yet
@@ -597,7 +616,7 @@ GeometryID ProblemAPI<1>::addGeometry(const GeometryType otype, const FillType f
 		// other geometries, and we can have more than one of these
 		if (geomInfo->fill_type != FT_UNFILL)
 		{
-			if (m_dem_geometry != INVALID_GEOMETRY)
+			if (validGeometry(m_dem_geometry))
 				throw std::invalid_argument("cannot add a second DEM");
 			m_dem_geometry = m_geometries.size();
 		}
@@ -610,6 +629,10 @@ GeometryID ProblemAPI<1>::addGeometry(const GeometryType otype, const FillType f
 
 bool ProblemAPI<1>::validGeometry(GeometryID gid)
 {
+	// no warning if the gid explicitly refers to the invalid geometry
+	if (gid == INVALID_GEOMETRY)
+		return false;
+
 	// ensure gid refers to a valid position
 	if (gid >= m_geometries.size()) {
 		printf("WARNING: invalid GeometryID %zu\n", gid);
@@ -1028,8 +1051,18 @@ GeometryID ProblemAPI<1>::addXYZFile(const GeometryType otype, const Point &orig
 GeometryID
 ProblemAPI<1>::addDEM(const char * fname_dem, const TopographyFormat dem_fmt, const FillType fill_type)
 {
-	TopoCube::Format tc_fmt = (TopoCube::Format)dem_fmt;
-	TopoCube * dem = TopoCube::load_file(fname_dem, tc_fmt);
+	// Our TopographyFormat match the TopoCube::Format values, except for DEM_FMT_ASCII_STRICT
+	// which corresponds to DEM_FMT_ASCII plus the STRICT option
+	TopoCube::Format tc_fmt =
+		dem_fmt == DEM_FMT_ASCII_STRICT ?
+		TopoCube::Format::DEM_FMT_ASCII :
+		TopoCube::Format(dem_fmt);
+	TopoCube::FormatOptions tc_fmt_opt =
+		dem_fmt == DEM_FMT_ASCII_STRICT ?
+		TopoCube::FormatOptions::STRICT :
+		TopoCube::FormatOptions::RELAXED;
+
+	TopoCube * dem = TopoCube::load_file(fname_dem, tc_fmt, tc_fmt_opt);
 	GeometryID ret = addGeometry(
 		GT_DEM,
 		fill_type,
@@ -1046,8 +1079,8 @@ ProblemAPI<1>::addDEM(const char * fname_dem, const TopographyFormat dem_fmt, co
 GeometryID
 ProblemAPI<1>::addDEMFluidBox(double height, GeometryID dem_gid)
 {
-	if (dem_gid == INVALID_GEOMETRY) dem_gid = m_dem_geometry;
-	if (dem_gid == INVALID_GEOMETRY)
+	if (!validGeometry(dem_gid)) dem_gid = m_dem_geometry;
+	if (!validGeometry(dem_gid))
 		throw invalid_argument("invalid DEM geometry ID");
 
 	GeometryInfo *gdem = m_geometries.at(dem_gid);
@@ -1058,6 +1091,7 @@ ProblemAPI<1>::addDEMFluidBox(double height, GeometryID dem_gid)
 	auto dem = static_pointer_cast<TopoCube>(gdem->ptr);
 
 	dem->SetCubeHeight(height);
+	dem->SetFillingOffset(physparams()->r0);
 
 	GeometryID ret = addGeometry(
 		GT_FLUID,
@@ -1511,7 +1545,7 @@ vector<GeometryID> ProblemAPI<1>::makeUniverseBox(const double3 corner1, const d
 
 vector<GeometryID> ProblemAPI<1>::addDEMPlanes(GeometryID gid)
 {
-	if (gid == INVALID_GEOMETRY) gid = m_dem_geometry;
+	if (!validGeometry(gid)) gid = m_dem_geometry;
 	FillType ftype = gid < m_geometries.size() ? m_geometries[gid]->fill_type : FT_NOFILL;
 	return addDEMPlanes(gid, ftype);
 }
@@ -1520,7 +1554,7 @@ vector<GeometryID> ProblemAPI<1>::addDEMPlanes(GeometryID gid, FillType ftype)
 {
 	vector<GeometryID> planes;
 	planes.reserve(4);
-	if (gid == INVALID_GEOMETRY) gid = m_dem_geometry;
+	if (!validGeometry(gid)) gid = m_dem_geometry;
 	const GeometryInfo *gi = getGeometryInfo(gid);
 	if (!gi)
 		throw std::invalid_argument("no DEM to add planes from");
@@ -1595,10 +1629,12 @@ void ProblemAPI<1>::setDEMNormalDisplacement(double demdx, double demdy)
 // set number of layers for dynamic boundaries. Default is 0, which means: autocompute
 void ProblemAPI<1>::setDynamicBoundariesLayers(const uint numLayers)
 {
-	if (simparams()->boundary_is_multilayer())
+	if (!simparams()->boundary_is_multilayer())
 		printf("WARNING: setting number of layers for dynamic boundaries but not using neither DYN_BOUNDARY nor DUMMY_BOUNDARY!\n");
 
-	// TODO: use autocomputed instead of 3
+	if (m_numDynBoundLayers != 0 && numLayers != m_numDynBoundLayers)
+		printf("WARNING: resetting number of layers");
+
 	const uint suggestedNumLayers = suggestedDynamicBoundaryLayers();
 	if (numLayers > 0 && numLayers < suggestedNumLayers)
 		printf("WARNING: number of layers for dynamic boundaries is low (%u), suggested number is %u\n",
@@ -1631,6 +1667,15 @@ bool is_above(::chrono::ChVector<> p1, ::chrono::ChVector<> p2, ::chrono::ChVect
 
 #endif
 
+
+uint ProblemAPI<1>::getDynamicBoundariesLayers()
+{
+	if (m_numDynBoundLayers == 0) {
+		m_numDynBoundLayers = suggestedDynamicBoundaryLayers();
+		printf("Number of dynamic boundary layers not set, autocomputed: %u\n", m_numDynBoundLayers);
+	}
+	return m_numDynBoundLayers;
+}
 
 int ProblemAPI<1>::fill_parts(bool fill)
 {
@@ -1687,15 +1732,25 @@ int ProblemAPI<1>::fill_parts(bool fill)
 		const double DEFAULT_DENSITY = atrest_density(0);
 		const double DEFAULT_PHYSICAL_DENSITY = physparams()->numFluids() > 1 ?
 			1 : physical_density(DEFAULT_DENSITY, 0);
+
 		// Setting particle mass by means of dx and default density only. This leads to same mass
-		// everywhere but possibly slightly different densities.
+		// everywhere but possibly slightly different densities. (set the define to 1 to test)
+#define SET_PARTICLE_MASS_DIRECTLY 0
+#if SET_PARTICLE_MASS_DIRECTLY
 		const double DEFAULT_PARTICLE_MASS = (dx * dx * dx) * DEFAULT_PHYSICAL_DENSITY;
+#endif
+
 
 		// Set part mass, if not set already.
-		if (m_geometries[g]->type != GT_PLANE && !m_geometries[g]->particle_mass_was_set)
-			setParticleMassByDensity(g, DEFAULT_PHYSICAL_DENSITY);
+		if (m_geometries[g]->type != GT_PLANE && !m_geometries[g]->particle_mass_was_set) {
 			// TODO: should the following be an option?
-			//setParticleMass(g, DEFAULT_PARTICLE_MASS);
+			// (most likely not, especially with the multi-fluid support planned for APIv2
+#if SET_PARTICLE_MASS_DIRECTLY
+			setParticleMass(g, DEFAULT_PARTICLE_MASS);
+#else
+			setParticleMassByDensity(g, DEFAULT_PHYSICAL_DENSITY);
+#endif
+		}
 
 		// Set object mass for floating objects, if not set already
 		if (m_geometries[g]->type == GT_FLOATING_BODY && !m_geometries[g]->mass_was_set)
@@ -1728,10 +1783,16 @@ int ProblemAPI<1>::fill_parts(bool fill)
 
 		// after making some space, fill
 		if (fill) {
+			// the only different between inner and outer fills is the direction of the FillIn
+			// in the multi-layer boundary case
+			uint fill_in_sign = 1;
 			switch (m_geometries[g]->fill_type) {
-				case FT_BORDER:
+				case FT_OUTER_BORDER:
+					fill_in_sign =-1 ;
+					/* fallthrough */
+				case FT_INNER_BORDER:
 					if (simparams()->boundary_is_multilayer())
-						m_geometries[g]->ptr->FillIn(*parts_vector, dx, - m_numDynBoundLayers);
+						m_geometries[g]->ptr->FillIn(*parts_vector, dx, fill_in_sign*m_numDynBoundLayers);
 					else
 						m_geometries[g]->ptr->FillBorder(*parts_vector, dx);
 					break;
@@ -2315,8 +2376,6 @@ void ProblemAPI<1>::copy_to_array(BufferList &buffers)
 	// Open boundaries are orthogonal to any kind of bodies, so their object_id will be simply
 	// equal to the incremental counter.
 	uint open_boundaries_counter = 0;
-	// the number of all the particles of rigid bodies will be used to set s_hRbLastIndex
-	uint bodies_particles_counter = 0;
 	// store particle mass of last added rigid body
 	double rigid_body_part_mass = NAN;
 

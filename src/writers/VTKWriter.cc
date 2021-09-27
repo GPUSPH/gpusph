@@ -40,6 +40,15 @@
 // for FLT_EPSILON
 #include <cfloat>
 
+/// TODO FIXME these should go in a more general place
+#include "cuda/tensor.h"
+template<>
+struct vector_traits<symtensor3>
+{
+	typedef float component_type;
+	enum { components = 6 };
+};
+
 using namespace std;
 
 template<typename T>
@@ -151,8 +160,6 @@ void VTKWriter::mark_written(double t)
  * which is 0 on big-endian machines, and 1 in little-endian machines */
 static int endian_int=1;
 static const char* endianness[2] = { "BigEndian", "LittleEndian" };
-
-static float zeroes[4];
 
 /* auxiliary functions to write data array entrypoints */
 inline void
@@ -380,17 +387,19 @@ public:
 	enable_if_t<vector_traits<T>::components == 4>
 	append_local_data(T const* data, const char *name_xyz, const char *name_w)
 	{
+		using S = typename vector_traits<T>::component_type ;
+
 		array_header(data, name_xyz, name_w);
 
 		data_filler.push_back( [this, data, name_xyz, name_w]() {
 			if (name_xyz) {
-				uint numbytes = 3*sizeof(T)*numParts;
+				uint numbytes = 3*sizeof(S)*numParts;
 				write_var(numbytes);
 				for (size_t i = 0; i < numParts; ++i)
 					write_var(data[i], 3);
 			}
 			if (name_w) {
-				uint numbytes = sizeof(T)*numParts;
+				uint numbytes = sizeof(S)*numParts;
 				write_var(numbytes);
 				for (size_t i = 0; i < numParts; ++i)
 					write_var(data[i].w);
@@ -413,6 +422,21 @@ public:
 	}
 };
 
+/// Binary dump of (part of) a tensor
+template<>
+inline void
+VTKAppender::write_var<symtensor3>(symtensor3 const& var, size_t components)
+{
+	out.write(reinterpret_cast<const char *>(&var.xx), sizeof(float));
+	out.write(reinterpret_cast<const char *>(&var.yy), sizeof(float));
+	out.write(reinterpret_cast<const char *>(&var.zz), sizeof(float));
+	out.write(reinterpret_cast<const char *>(&var.xy), sizeof(float));
+	out.write(reinterpret_cast<const char *>(&var.xz), sizeof(float));
+	out.write(reinterpret_cast<const char *>(&var.yz), sizeof(float));
+}
+
+
+
 float get_pressure(float4 const& pvel, particleinfo const& pinfo, GlobalData const* gdata)
 {
 	return TESTPOINT(pinfo) ? pvel.w : gdata->problem->pressure(pvel.w, fluid_num(pinfo));
@@ -434,6 +458,21 @@ float get_last_component(float4 const& pvel )
 // Return the last component of a double4, demoted to a float
 float demote_w(double4 const& data)
 { return data.w; }
+
+symtensor3 fetch_tensor(float2 const* const* data, size_t index)
+{
+	float2 const* tau0 = data[0];
+	float2 const* tau1 = data[1];
+	float2 const* tau2 = data[2];
+	symtensor3 ret;
+	ret.xx = tau0[index].x;
+	ret.xy = tau0[index].y;
+	ret.xz = tau1[index].x;
+	ret.yy = tau1[index].y;
+	ret.yz = tau2[index].x;
+	ret.zz = tau2[index].y;
+	return ret;
+}
 
 uchar get_part_type(particleinfo const& pinfo)
 { return PART_TYPE(pinfo); }
@@ -502,6 +541,9 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, dou
 	const vertexinfo *vertices = buffers.getData<BUFFER_VERTICES>();
 	const float *intEnergy = buffers.getData<BUFFER_INTERNAL_ENERGY>();
 	const float4 *forces = buffers.getData<BUFFER_FORCES>();
+
+	const float *cspm_wcoeff = buffers.getData<BUFFER_WCOEFF>();
+	const float2* const* cspm_fcoeff = buffers.getRawPtr<BUFFER_FCOEFF>();
 
 	const neibdata *neibslist = buffers.getData<BUFFER_NEIBSLIST>();
 
@@ -578,7 +620,7 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, dou
 
 				uint neib_cell_base_index = UINT_MAX;
 
-				for (uint index = start; ; index += stride) {
+				for (uint index = start; index < end; index += stride) {
 					neibdata neib = neibslist[index];
 					if (neib == NEIBS_END)
 						break;
@@ -623,8 +665,6 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, dou
 	fid << " <PolyData>" << endl;
 	fid << "  <Piece NumberOfPoints='" << numParts << "' NumberOfVerts='" << numParts << "'>" << endl;
 
-	size_t offset = 0;
-
 	// position
 	fid << "   <Points>" << endl;
 	appender.append_data(pos, "Position", nullptr);
@@ -659,7 +699,7 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, dou
 	// density
 	appender.append_data(vel, "Density", get_density);
 
-	if (gdata->debug.numerical_density) {
+	if (g_debug.numerical_density) {
 		appender.append_data(vel, "Relative Density", get_last_component);
 	}
 
@@ -798,6 +838,13 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, dou
 			// If we got here, the sum of all device particles is less than i,
 			// which is an error
 			throw runtime_error("unable to find device particle belongs to");
+		});
+	}
+
+	if (cspm_wcoeff) {
+		appender.append_data(cspm_wcoeff, "CSPM W");
+		appender.append_local_data("CSPM gradW", [this, cspm_fcoeff](size_t i) -> symtensor3 {
+			return fetch_tensor(cspm_fcoeff, i);
 		});
 	}
 
@@ -1116,16 +1163,14 @@ VTKWriter::save_dem()
 	const float ewres = gdata->problem->physparams()->ewres;
 	const float nsres = gdata->problem->physparams()->nsres;
 
-	const double3 wo = gdata->problem->get_worldorigin();
+	const string extent="1 " + to_string(cols) + " 1 " + to_string(rows) + " 0 0";
 
-	// The VTK has points at the center of each cell:
-	const float west_off = wo.x + ewres/2;
-	const float south_off = wo.y + nsres/2;
+	// TODO support DEM offset
 
 	fp	<< "<?xml version='1.0'?>\n"
 		<< "<VTKFile type='StructuredGrid'  version='0.1'  byte_order='" << endianness[*(char*)&endian_int & 1] << "'>\n"
-		<< " <StructuredGrid WholeExtent='0 " << cols << " 0 " << rows << " 0 0'>\n"
-		<< "  <Piece Extent='1 " << cols << " 1 " << rows << " 0 0'>\n"
+		<< " <StructuredGrid WholeExtent='" + extent + "'>\n"
+		<< "  <Piece Extent='" + extent + "'>\n"
 		<< "   <Points><DataArray type='Float32' NumberOfComponents='3' format='appended' offset='0'/></Points>\n"
 		<< "  </Piece>\n"
 		<< " </StructuredGrid>\n"
@@ -1137,9 +1182,9 @@ VTKWriter::save_dem()
 	uint i = 0;
 	float3 pt;
 	for (int row = 0; row < rows; ++row) {
-		pt.y = south_off + row*nsres;
+		pt.y = row*nsres;
 		for (int col = 0; col < cols; ++col) {
-			pt.x = west_off + col*ewres;
+			pt.x = col*ewres;
 			pt.z = dem[i];
 			fp.write(reinterpret_cast<char*>(&pt), sizeof(pt));
 			++i;

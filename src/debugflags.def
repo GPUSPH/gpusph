@@ -52,6 +52,9 @@ unsigned neibs : 1;
 /// debug forces on host
 unsigned forces : 1;
 
+/// debug CSPM on host
+unsigned cspm : 1;
+
 /// debug relative density variation on host
 unsigned numerical_density : 1;
 
@@ -105,7 +108,21 @@ unsigned clobber_invalid_buffers : 1;
 /// Throw (instead of just warn) if a particle is out of bounds during init
 unsigned validate_init_positions : 1;
 
+/// Check (and throw) if cells have more particles that can be encoded in the compact neighbors list
+/*! Note that this is automatically enabled if there are out-of-bounds particles */
+unsigned check_cell_overflow : 1;
+
+/// Throw (instead of just warn) if there are issues at roll call
+unsigned validate_roll_call : 1;
+
 /// Measure (and show) command runtimes
 unsigned benchmark_command_runtimes : 1;
+
+/// Check for NaNs after integration, and abort if found
+unsigned nans : 1;
+
+/// Make kernel launches synchronous
+/*! See the description of KERNEL_CHECK_ERROR for further detail */
+unsigned sync_kernels : 1;
 
 /* vim: set ft=cpp: */

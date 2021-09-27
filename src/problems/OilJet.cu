@@ -89,7 +89,6 @@ OilJet::OilJet(GlobalData *_gdata) : Problem(_gdata)
 
 	// Physical parameters
 	set_gravity(-9.81f);
-	float g = get_gravity_magnitude();
 
 	add_fluid(1000.0);
 	set_equation_of_state(0,  7.0f, 10.f);
@@ -110,29 +109,31 @@ OilJet::OilJet(GlobalData *_gdata) : Problem(_gdata)
 	const int layersm1 = layers - 1;
 	setPositioning(PP_CORNER);
 
-	GeometryID fluid1 = addBox(GT_FLUID, FT_SOLID,
+	// Main fluid body
+	addBox(GT_FLUID, FT_SOLID,
 		Point(m_deltap/2, m_deltap/2, m_deltap/2),
 		lx - m_deltap, ly - m_deltap, water_level - m_deltap);
 
-	GeometryID bottom = addBox(GT_FIXED_BOUNDARY, FT_BORDER,
+	// Bottom floor
+	addBox(GT_FIXED_BOUNDARY, FT_BORDER,
 		Point(m_deltap/2, m_deltap/2, -(layersm1 + 0.5)*m_deltap),
 		lx - m_deltap, ly - m_deltap, layersm1*m_deltap);
-	disableCollisions(bottom);
 
 	setPositioning(PP_BOTTOM_CENTER);
 	double plength = pipe_length + layersm1*m_deltap - m_deltap/2.;
 	Point corigin = Point(lx/2., ly/2., - plength - m_deltap/2.);
-	GeometryID pipe = addCylinder(GT_FIXED_BOUNDARY, FT_BORDER,
+	// Pipe
+	addCylinder(GT_FIXED_BOUNDARY, FT_BORDER,
 		corigin, (inner_diam - m_deltap)/2. + layersm1*m_deltap, plength );
-	disableCollisions(pipe);
 
-	GeometryID oil = addCylinder(GT_FLUID, FT_SOLID,
+	// Oil
+	addCylinder(GT_FLUID, FT_SOLID,
 		corigin, (inner_diam - m_deltap)/2., plength);
 
+	// Piston
 	piston_origin = make_double3(lx/2., ly/2., - plength + layersm1*m_deltap/2.);
-	GeometryID piston = addCylinder(GT_MOVING_BODY, FT_BORDER,
+	addCylinder(GT_MOVING_BODY, FT_BORDER,
 		corigin, (inner_diam - m_deltap)/2. + layersm1*m_deltap, layersm1*m_deltap);
-	disableCollisions(piston);
 }
 
 void
@@ -140,12 +141,12 @@ OilJet::moving_bodies_callback(const uint index, Object* object, const double t0
 		const float3& force, const float3& torque, const KinematicData& initial_kdata,
 		KinematicData& kdata, double3& dx, EulerParameters& dr)
 {
-    dx = make_double3(0.0);
-    dr.Identity();
-    kdata.avel = make_double3(0.0);
-    if (t0 >= piston_tstart & t1 <= piston_tend) {
-    	kdata.lvel = make_double3(0.0, 0.0, piston_vel);
-    	dx.z = -piston_vel*(t0 - t1);
+	dx = make_double3(0.0);
+	dr.Identity();
+	kdata.avel = make_double3(0.0);
+	if (t0 >= piston_tstart & t1 <= piston_tend) {
+		kdata.lvel = make_double3(0.0, 0.0, piston_vel);
+		dx.z = -piston_vel*(t0 - t1);
 	} else {
 		kdata.lvel = make_double3(0.0);
 	}

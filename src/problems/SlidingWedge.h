@@ -28,6 +28,7 @@
 #ifndef _SLIDINGWEDGE_H
 #define	_SLIDINGWEDGE_H
 
+// TODO port to Problem API 1
 #define PROBLEM_API 0
 #include "Problem.h"
 #include "Point.h"
@@ -40,18 +41,10 @@ class SlidingWedge: public Problem {
 		PointVect	boundary_parts;
 
 		Cube        wedge;
-		double		piston_height, piston_width;
-		double		h_length, height, slope_length, beta, tan_beta;
+		double		slope_length, beta, tan_beta;
 		double		H;		// still water level
 		double		lx, ly, lz;		// dimension of water tank
 		double		x0, t0;
-		double		periodic_offset_y;
-		double		cyl_xpos, cyl_height, cyl_diam, cyl_rho;
-
-		// Moving boundary data
-		double		piston_amplitude, piston_omega;
-		double3     piston_origin;
-		double		piston_tstart, piston_tend;
 
 		int			layers;		// Number of particles layers for dynamic boundaries
 	public:

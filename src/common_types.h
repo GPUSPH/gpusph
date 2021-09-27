@@ -64,6 +64,8 @@ typedef unsigned short neibdata;
  */
 #define CELLNUM_SHIFT	11
 #define CELLNUM_ENCODED	(1U<<CELLNUM_SHIFT)
+// Mask for the neigbor index (relative to the cell start).
+// Also equal to the maximum neighbor index that will encode correctly
 #define NEIBINDEX_MASK	(CELLNUM_ENCODED-1)
 #define ENCODE_CELL(cell) ((cell + 1) << CELLNUM_SHIFT)
 #define DECODE_CELL(data) ((data >> CELLNUM_SHIFT) - 1)
