@@ -45,7 +45,7 @@ struct __align__(16) space_w_t
 	float3 xyz;
 	float w;
 
-	__host__ __device__
+	//__host__ __device__
 	space_w_t() = default;
 
 	__host__ __device__
