@@ -63,8 +63,9 @@
 #if USE_CHRONO
 #include "chrono/physics/ChSystemNSC.h"
 #include "chrono/solver/ChSolver.h"
+#if CH_VERSION < 0x00050000
 #include "chrono/solver/ChSolverMINRES.h"
-#if CH_VERSION >= 0x00050000
+#else
 #include "chrono/solver/ChIterativeSolverLS.h"
 #include "chrono/solver/ChDirectSolverLS.h"
 #endif
