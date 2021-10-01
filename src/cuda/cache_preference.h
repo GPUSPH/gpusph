@@ -57,6 +57,13 @@
 #define DISABLE_TEXTURES 1
 // Disable texture usage for the DEM
 #define DISABLE_DEM_TEXTURE 1
+#else
+#ifndef DISABLE_TEXTURES
+#define DISABLE_TEXTURES 0
+#endif
+#ifndef DISABLE_DEM_TEXTURE
+#define DISABLE_DEM_TEXTURE 0
+#endif
 #endif
 
 #endif
