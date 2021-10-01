@@ -20,7 +20,7 @@ empty:=
 space:=$(empty) $(empty)
 
 # option: verbose - 0 quiet compiler, 1 ptx assembler, 2 all warnings
-#                   if verbose > 0, the configuration process will also produce additional messages
+# option:           if verbose > 0, the configuration process will also produce additional messages
 verbose ?= 0
 verbose := $(verbose)
 
@@ -238,8 +238,8 @@ endif
 
 # TODO we should support building both backends when possible
 # option: backend - determines which backend to use to compile problems
-#                   cuda (default, if available): device code is compiled for CUDA
-#                   cpu (fallback if cuda not found): device code is compiled for CPU
+# option:           cuda (default, if available): device code is compiled for CUDA
+# option:           cpu (fallback if cuda not found): device code is compiled for CPU
 COMPUTE_BACKEND ?= $(firstword $(SUPPORTED_BACKENDS))
 BACKEND_SELECT_OPTFILE=$(OPTSDIR)/backend_select.opt
 ifdef backend
@@ -262,8 +262,8 @@ cpu.backend.enabled:=0
 $(COMPUTE_BACKEND).backend.enabled:=1
 
 # option: openmp - controls usage of OpenMP (currently only with CPU backend)
-#                 0 (default): device code is compiled without OpenMP support
-#                 1:           device code is compiled with OpenMP support
+# option:         0 (default): device code is compiled without OpenMP support
+# option:         1:           device code is compiled with OpenMP support
 USE_OPENMP ?= 0
 ifdef openmp
  ifneq ($(openmp),$(USE_OPENMP))
@@ -284,11 +284,11 @@ ifeq ($(USE_OPENMP),1)
  endif
 endif
 
-# option: clang — controls usage of clang instead of nvcc to compile the device code. Supported values:
-#                 0 (default): device code is compiled with nvcc
-#                 1:           device code is compiled with the default clang version
-#                 else:        device code is compiled with the specified clang version
-#                              (e.g. clang=12 to compile with clang 12)
+# option: clang - controls usage of clang instead of nvcc to compile the device code. Supported values:
+# option:         0 (default): device code is compiled with nvcc
+# option:         1:           device code is compiled with the default clang version
+# option:         else:        device code is compiled with the specified clang version
+# option:                      (e.g. clang=12 to compile with clang 12)
 CLANG_CUDA ?= 0
 CLANG_CUDA_VERSION ?=
 CLANG_SELECT_OPTFILE=$(OPTSDIR)/clang_select.opt
@@ -506,7 +506,7 @@ ifdef dbg
 endif
 
 # option: compute - 11, 12, 13, 20, 21, 30, 35, etc: compute capability to compile for (default: autodetect)
-# does dbg differ from last?
+# does compute differ from last?
 ifdef compute
  # does it differ from last?
  ifneq ($(COMPUTE),$(compute))
