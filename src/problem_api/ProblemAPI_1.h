@@ -46,24 +46,43 @@
 #include "HDF5SphReader.h"
 #include "XYZReader.h"
 
-enum GeometryType {	GT_FLUID,
-					GT_FIXED_BOUNDARY,
-					GT_FIXEDBOUNDARY =
-						GT_FIXED_BOUNDARY,
-					GT_OPEN_BOUNDARY,
-					GT_OPENBOUNDARY =
-						GT_OPEN_BOUNDARY,
-					GT_FLOATING_BODY,
-					GT_MOVING_BODY,
-					GT_PLANE,
-					GT_DEM,
-					GT_TESTPOINTS,
-					GT_FREE_SURFACE,
-					GT_DEFORMABLE_BODY,
-					GT_FEA_RIGID_JOINT,
-					GT_FEA_FLEXIBLE_JOINT,
-					GT_FEA_FORCE,
-					GT_FEA_WRITE
+enum GeometryType {
+	//! Fluid body
+	GT_FLUID,
+	//! Fixed solid boundary
+	GT_FIXED_BOUNDARY,
+	GT_FIXEDBOUNDARY =
+		GT_FIXED_BOUNDARY,
+	//! Open boundary (inlet/outlet)
+	GT_OPEN_BOUNDARY,
+	GT_OPENBOUNDARY =
+		GT_OPEN_BOUNDARY,
+	//! Floating body (rigid body dynamics controlled by interaction with the fluid)
+	GT_FLOATING_BODY,
+	//! Movig body (imposed dynamics)
+	GT_MOVING_BODY,
+	//! Geometric plane
+	GT_PLANE,
+	//! Digital Elevation Model
+	GT_DEM,
+	//! Test points (samples fluid properties without interacting with it)
+	GT_TESTPOINTS,
+	//! Fixed free-surface particle for repacking
+	//! (removed before actual simulation)
+	GT_FREE_SURFACE,
+	//! Deformable body (dynamics controlled by interaction with the fluid)
+	//! (uses Chrono FEA for dynamics)
+	GT_DEFORMABLE_BODY,
+	//! Rigid body that can be connected to FEA elements and nodes
+	GT_FEA_RIGID_JOINT,
+	//! DEPRECATED interface for point/three-face joint Chrono element
+	GT_FEA_FLEXIBLE_JOINT,
+	//! Ficticious geometry s.t. a force (specified in the callback)
+	//! is applied to all FEA nodes inside
+	GT_FEA_FORCE,
+	//! Ficticious geometry s.t. all FEA nodes inside are written
+	//! to disk
+	GT_FEA_WRITE
 };
 
 enum FillType {	FT_NOFILL,
