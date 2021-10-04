@@ -66,9 +66,19 @@
 // #include "deprecation.h"
 
 #include "chrono_select.opt"
-#if USE_CHRONO == 1
-#include "chrono/physics/ChSystem.h"
-#include "chrono/fea/ChNodeFEAxyzD.h"
+
+#if USE_CHRONO
+// Forward declaration of Chrono classes to avoid including the headers
+namespace chrono {
+class ChSystem;
+
+namespace fea {
+class ChMesh;
+class ChNodeFEAxyz;
+class ChLinkPointFrame;
+class ChLinkDirFrame;
+}
+}
 #endif
 
 //#include "math.h"

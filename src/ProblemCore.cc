@@ -61,6 +61,7 @@
 #include "linearization.h"
 
 #if USE_CHRONO
+#include "chrono/physics/ChSystem.h"
 #include "chrono/physics/ChSystemNSC.h"
 #include "chrono/solver/ChSolver.h"
 #if CH_VERSION < 0x00050000
