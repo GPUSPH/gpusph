@@ -97,8 +97,11 @@ ProblemCore::ProblemCore(GlobalData *_gdata) :
 	m_hydrostaticFilling(true),
 	gdata(_gdata),
 	m_options(_gdata->clOptions),
+	m_fea_averager_index(0),
+	m_total_fea_force(make_float3(0.0f)),
 	m_bodies_storage(NULL)
 {
+	memset(m_fea_forces_averager, 0, FEA_MAX_PARTICLES*(FEA_FORCES_SMOOTHING_STEPS+1)*sizeof(float3));
 #if USE_CHRONO == 1
 	m_chrono_system = NULL;
 #endif
@@ -781,11 +784,13 @@ ProblemCore::write_fea_nodes(const double t)
 		force.z() << '\t' <<
 		torque.x() << '\t' <<
 		torque.y() << '\t' <<
-		torque.z() << '\t' <<
-		gdata->total_fea_force.x << '\t' <<
-		gdata->total_fea_force.y << '\t' <<
-		gdata->total_fea_force.z;
+		torque.z() << '\t';
 	}
+
+	m_fea_constr_file << m_total_fea_force.x << '\t' <<
+	m_total_fea_force.y << '\t' <<
+	m_total_fea_force.z;
+
 	m_fea_constr_file << endl;
 }
 
@@ -830,11 +835,14 @@ ProblemCore::fea_init_step(BufferList &buffers, const uint numFeaParts, const do
 
 	/* We perform a temporal averaging of the forces in order to reduce noise
 	 * therefore we store the previous forces in a matrix.*/
-	uint av_idx = gdata->averager_index; // Index of the current sample in the averager matrix
+	uint av_idx = m_fea_averager_index; // Index of the current sample in the averager matrix
 
 	/* Sum up all the forces applied to the FEM system for printing purpose */
 	float3 total_force = make_float3(0.0, 0.0, 0.0);
 
+	//! TODO FIXME dynamic allocation of forces averager
+	if (numFeaParts > FEA_MAX_PARTICLES)
+		throw std::runtime_error("too many FEA particles for averager");
 
 	for(uint i = 0; i < numFeaParts; ++i) {
 
@@ -845,25 +853,31 @@ ProblemCore::fea_init_step(BufferList &buffers, const uint numFeaParts, const do
 			(m_fea_bodies[o]->object->GetFeaMesh()->GetNode(n));
 
 
-		/* -- Time averaging -- */
-
-		// Divide the new force by the number of samples in the
+		/* -- Time averaging -- */ // Divide the new force by the number of samples in the
 		// averaging time window
-		float3 new_f  = as_float3(forces[i])/600.0f;
+		// TODO FIXME: pre-dividing means that in the first FEA_FORCES_SMOOTHING_STEPS iterations
+		// the total force will be underestimated.
+		// For the moment we accept this as this is usually shorter than the settling phase for the fluid.
+		float3 new_f  = as_float3(forces[i])/FEA_FORCES_SMOOTHING_STEPS;
 
-		// Retrieve the averaged force at previous instant
+		// Retrieve the last computed running average
 		// (stored at the end of the row)
-		float3 node_f = gdata->forces_averager[i][600];
+		float3 node_f = m_fea_forces_averager[i][FEA_FORCES_SMOOTHING_STEPS];
 
-		// Add new force and subtract oldest force to update the
-		// average
-		node_f += (new_f - gdata->forces_averager[i][av_idx]);
+		// Update the running average by subtracting the oldest force to update the
+		// average.
+		// NOTE: this is numerically suboptimal, since it loses accuracy,
+		// but since the intent is to smooth things out, this is normally acceptable.
+		// TODO FIXME: check if there are cases of catastrophic cancellation.
+		// Maybe compute the running average in double precision?
+		node_f += (new_f - m_fea_forces_averager[i][av_idx]);
 
-		// Replace the oldest force in matrix with the newest one
-		gdata->forces_averager[i][av_idx] = new_f;
+		// Replace the oldest value with the most recent one
+		// (av_idx will be updated at the end of the loop over all particles)
+		m_fea_forces_averager[i][av_idx] = new_f;
 
 		// Store the new averaged value
-		gdata->forces_averager[i][600] = node_f;
+		m_fea_forces_averager[i][FEA_FORCES_SMOOTHING_STEPS] = node_f;
 
 		/* -- End of averaging -- */
 
@@ -880,7 +894,6 @@ ProblemCore::fea_init_step(BufferList &buffers, const uint numFeaParts, const do
 		// Add the force for the current node to the total forces computation
 		total_force += node_f;
 
-
 		// tracking the nodes in the current mesh
 		n++;
 
@@ -893,12 +906,12 @@ ProblemCore::fea_init_step(BufferList &buffers, const uint numFeaParts, const do
 		}
 	}
 
-	gdata->total_fea_force = total_force;
+	m_total_fea_force = total_force;
 
 	// Manage averaging index
 	av_idx ++;
 	if (av_idx == 600) av_idx = 0;
-	gdata->averager_index = av_idx;
+	m_fea_averager_index = av_idx;
 
 #endif
 }
