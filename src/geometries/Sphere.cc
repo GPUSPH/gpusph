@@ -34,6 +34,7 @@
 
 #if USE_CHRONO == 1
 #include "chrono/physics/ChBodyEasy.h"
+#include "chrono/physics/ChSystem.h"
 #endif
 
 

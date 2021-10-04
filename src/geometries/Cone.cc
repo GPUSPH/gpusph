@@ -31,6 +31,10 @@
 
 #include "Cone.h"
 
+#if USE_CHRONO
+#include "chrono/physics/ChBody.h"
+#endif
+
 
 Cone::Cone(void)
 {

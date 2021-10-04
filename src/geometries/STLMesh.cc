@@ -41,6 +41,7 @@
 #include "chrono_select.opt"
 #if USE_CHRONO == 1
 #include "chrono/physics/ChBodyEasy.h"
+#include "chrono/physics/ChSystem.h"
 #include "chrono/fea/ChMesh.h"
 #include "chrono/fea/ChMeshFileLoader.h"
 #include "chrono/fea/ChNodeFEAxyz.h"

@@ -36,18 +36,23 @@
 
 #include "chrono_select.opt"
 #if USE_CHRONO == 1
-#include "chrono/physics/ChBody.h"
-#include "chrono/physics/ChSystem.h"
-#include "chrono/core/ChQuaternion.h"
-#include "chrono/core/ChVector.h"
-#include "chrono/fea/ChMesh.h"
-#include "chrono/fea/ChNodeFEAxyzD.h"
-#include "chrono/fea/ChLinkPointFrame.h"
-#include "chrono/fea/ChLinkDirFrame.h"
+
+// Forward declaration to avoid including Chrono headers
+namespace chrono {
+class ChBody;
+class ChSystem;
+namespace fea {
+class ChMesh;
+class ChNodeFEAxyz;
+class ChLinkPointFrame;
+class ChLinkDirFrame;
+}
+}
 
 // After version 5, Chrono introduces chrono_types::make_shared
 // that is just like std::make_shared but with proper alignment for Eigen.
 // To be source-compatible, we import make_shared from std in v4.
+#include "chrono/ChVersion.h"
 #if CH_VERSION < 0x00050000
 namespace chrono_types {
 	using std::make_shared;

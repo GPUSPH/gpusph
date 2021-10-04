@@ -39,6 +39,7 @@
 #include "ProblemAPI_1.h"
 
 #if USE_CHRONO == 1
+#include "chrono/physics/ChSystem.h"
 #include "chrono/fea/ChLinkPointTriface.h"
 #endif
 

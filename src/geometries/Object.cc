@@ -33,6 +33,17 @@
 
 #include "Object.h"
 
+#if USE_CHRONO
+#include "chrono/physics/ChBody.h"
+#include "chrono/physics/ChSystem.h"
+#include "chrono/core/ChQuaternion.h"
+#include "chrono/core/ChVector.h"
+#include "chrono/fea/ChMesh.h"
+#include "chrono/fea/ChNodeFEAxyzD.h"
+#include "chrono/fea/ChLinkPointFrame.h"
+#include "chrono/fea/ChLinkDirFrame.h"
+#endif
+
 /// Compute the particle mass according to object volume and density
 /*! The mass of object particles is computed dividing the object volume
  *  by the number of particles needed for filling and multiplying the

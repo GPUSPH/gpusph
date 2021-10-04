@@ -35,6 +35,7 @@
 #include "chrono_select.opt"
 #if USE_CHRONO == 1
 #include "chrono/physics/ChBodyEasy.h"
+#include "chrono/physics/ChSystem.h"
 #include "chrono/fea/ChElementHexa_8.h"
 #include "chrono/fea/ChElementShellANCF.h"
 #include "chrono/fea/ChElementCableANCF.h"
