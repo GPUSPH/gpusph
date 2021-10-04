@@ -33,11 +33,8 @@
 #include "Point.h"
 #include "Vector.h"
 
-#include "chrono_select.opt"
-#if USE_CHRONO == 1
-#include "chrono/core/ChQuaternion.h"
-#endif
-
+// forward declaration of bridge class between EulerParameters and ChQuaternion
+class EulerParametersQuaternion;
 
 /// Euler parameters class
 /*!
@@ -112,6 +109,7 @@ class EulerParameters {
 		EulerParameters(const float3);
 		EulerParameters(const Vector &, const double);
 		EulerParameters(const EulerParameters &);
+		EulerParameters(const EulerParametersQuaternion &);
 		~EulerParameters(void) {};
 		//@}
 
@@ -136,9 +134,7 @@ class EulerParameters {
 		//@{
 		void Normalize(void);
 		void ExtractEulerZXZ(double &, double &, double &) const;
-#if USE_CHRONO == 1
-		::chrono::ChQuaternion<> ToChQuaternion(void) const;
-#endif
+		// see EulerParameterQuaternion class for conversion between EulerParameter and ChQuaternion
 		void ToIdentity(void);
 		//@}
 

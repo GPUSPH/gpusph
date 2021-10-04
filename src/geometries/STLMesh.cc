@@ -46,6 +46,7 @@
 #include "chrono/fea/ChMeshFileLoader.h"
 #include "chrono/fea/ChNodeFEAxyz.h"
 #endif
+#include "EulerParametersQuaternion.h"
 
 #include "STLMesh.h"
 
@@ -536,7 +537,7 @@ void STLMesh::BodyCreate(::chrono::ChSystem *bodies_physical_system, const doubl
 	expand_bounds( make_float4( bbmax.x(), bbmax.y(), bbmax.z(), 0 ) );
 
 	m_body->SetPos(::chrono::ChVector<>(m_center(0), m_center(1), m_center(2)));
-	m_body->SetRot(orientation_diff*m_ep.ToChQuaternion());
+	m_body->SetRot(orientation_diff*EulerParametersQuaternion(m_ep));
 
 	m_body->SetMass(m_mass);
 	// Set custom inertia, if given. TODO: we should check if Chrono needs any explicit method call

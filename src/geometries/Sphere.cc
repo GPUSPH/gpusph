@@ -32,6 +32,7 @@
 
 #include "Sphere.h"
 
+#include "EulerParametersQuaternion.h"
 #if USE_CHRONO == 1
 #include "chrono/physics/ChBodyEasy.h"
 #include "chrono/physics/ChSystem.h"
@@ -179,7 +180,7 @@ Sphere::BodyCreate(::chrono::ChSystem * bodies_physical_system, const double dx,
 	// Creating a new Chrono object
 	m_body = chrono_types::make_shared< ::chrono::ChBodyEasySphere > ( m_r + dx/2.0, m_mass/Volume(dx), collide );
 	m_body->SetPos(::chrono::ChVector<>(m_center(0), m_center(1), m_center(2)));
-	m_body->SetRot(orientation_diff*m_ep.ToChQuaternion());
+	m_body->SetRot(orientation_diff*EulerParametersQuaternion(m_ep));
 
 	m_body->SetCollide(collide);
 	m_body->SetBodyFixed(m_isFixed);

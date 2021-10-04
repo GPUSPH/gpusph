@@ -33,6 +33,8 @@
 
 #include "Object.h"
 
+#include "EulerParametersQuaternion.h"
+
 #if USE_CHRONO
 #include "chrono/physics/ChBody.h"
 #include "chrono/physics/ChSystem.h"
@@ -739,7 +741,7 @@ Object::BodyCreate(::chrono::ChSystem * bodies_physical_system, const double dx,
 	m_body->SetMass(m_mass);
 	m_body->SetInertiaXX(::chrono::ChVector<>(m_inertia[0], m_inertia[1], m_inertia[2]));
 	m_body->SetPos(::chrono::ChVector<>(m_center(0), m_center(1), m_center(2)));
-	m_body->SetRot(orientation_diff*m_ep.ToChQuaternion());
+	m_body->SetRot(orientation_diff*EulerParametersQuaternion(m_ep));
 
 	m_body->SetCollide(collide);
 	m_body->SetBodyFixed(m_isFixed);

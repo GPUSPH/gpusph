@@ -37,6 +37,8 @@
 #include "chrono_select.opt"
 #if USE_CHRONO == 1
 
+#include "chrono/core/ChQuaternion.h"
+
 // Forward declaration to avoid including Chrono headers
 namespace chrono {
 class ChBody;

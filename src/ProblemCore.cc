@@ -60,6 +60,7 @@
 // COORD1, COORD2, COORD3
 #include "linearization.h"
 
+#include "EulerParametersQuaternion.h"
 #if USE_CHRONO
 #include "chrono/physics/ChSystem.h"
 #include "chrono/physics/ChSystemNSC.h"
@@ -484,7 +485,6 @@ ProblemCore::add_moving_body(Object* object, const MovingBodyType mbtype)
 			mbdata->adata.lvel_dt = make_double3(vec.x(), vec.y(), vec.z());
 			vec = body->GetWacc_par();
 			mbdata->adata.avel_dt = make_double3(vec.x(), vec.y(), vec.z());
-			::chrono::ChQuaternion<> quat = body->GetRot();
 			m_bodies.insert(m_bodies.begin() + simparams()->numODEbodies, mbdata);
 			simparams()->numODEbodies++;
 			simparams()->numforcesbodies++;
@@ -629,7 +629,7 @@ ProblemCore::restore_moving_body(const MovingBodyData & saved_mbdata, const uint
 #if USE_CHRONO == 1
 		std::shared_ptr< ::chrono::ChBody > body = mbdata->object->GetBody();
 		body->SetPos(::chrono::ChVector<>(mbdata->kdata.crot.x, mbdata->kdata.crot.y, mbdata->kdata.crot.z));
-		body->SetRot(mbdata->kdata.orientation.ToChQuaternion());
+		body->SetRot(EulerParametersQuaternion(mbdata->kdata.orientation));
 		body->SetPos_dt(::chrono::ChVector<>(mbdata->kdata.lvel.x, mbdata->kdata.lvel.y, mbdata->kdata.lvel.z));
 		body->SetPos_dtdt(::chrono::ChVector<>(mbdata->adata.lvel_dt.x, mbdata->adata.lvel_dt.y, mbdata->adata.lvel_dt.z));
 		body->SetWvel_par(::chrono::ChVector<>(mbdata->kdata.avel.x, mbdata->kdata.avel.y, mbdata->kdata.avel.z));
@@ -1120,7 +1120,7 @@ ProblemCore::bodies_timestep(const float3 *forces, const float3 *torques, const 
 				body->SetPos(::chrono::ChVector<>(mbdata->kdata.crot.x, mbdata->kdata.crot.y, mbdata->kdata.crot.z));
 				body->SetPos_dt(::chrono::ChVector<>(mbdata->kdata.lvel.x, mbdata->kdata.lvel.y, mbdata->kdata.lvel.z));
 				body->SetWvel_par(::chrono::ChVector<>(mbdata->kdata.avel.x, mbdata->kdata.avel.y, mbdata->kdata.avel.z));
-				body->SetRot(mbdata->kdata.orientation.ToChQuaternion());
+				body->SetRot(EulerParametersQuaternion(mbdata->kdata.orientation));
 			}
 
 			body->Empty_forces_accumulators();
@@ -1169,8 +1169,7 @@ ProblemCore::bodies_timestep(const float3 *forces, const float3 *torques, const 
 			mbdata->adata.lvel_dt = make_double3(vec.x(), vec.y(), vec.z());
 			vec = body->GetWacc_par();
 			mbdata->adata.avel_dt = make_double3(vec.x(), vec.y(), vec.z());
-			::chrono::ChQuaternion<> quat = body->GetRot();
-			const EulerParameters new_orientation = EulerParameters(quat.e0(), quat.e1(), quat.e2(), quat.e3());
+			const EulerParameters new_orientation( body->GetRot() );
 			dr = new_orientation*mbdata->kdata.orientation.Inverse();
 			mbdata->kdata.orientation = new_orientation;
 		}
