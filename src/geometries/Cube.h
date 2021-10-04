@@ -132,7 +132,7 @@ class Cube: public Object {
 		//@{
 #if USE_CHRONO == 1
 		void BodyCreate(::chrono::ChSystem * bodies_physical_system, const double dx, const bool collide,
-			const ::chrono::ChQuaternion<> & orientation_diff);
+			const EulerParameters & orientation_diff);
 		void CreateFemMesh(::chrono::ChSystem *fea_system);
 #endif
 		//@}

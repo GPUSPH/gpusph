@@ -728,7 +728,7 @@ void Object::getBoundingBoxOfCube(Point &out_min, Point &out_max,
  */
 void
 Object::BodyCreate(::chrono::ChSystem * bodies_physical_system, const double dx, const bool collide,
-			const chrono::ChQuaternion<> & orientation_diff)
+			const EulerParameters & orientation_diff)
 {
 	// Check if the physical system is valid
 	if (!bodies_physical_system)
@@ -741,7 +741,7 @@ Object::BodyCreate(::chrono::ChSystem * bodies_physical_system, const double dx,
 	m_body->SetMass(m_mass);
 	m_body->SetInertiaXX(::chrono::ChVector<>(m_inertia[0], m_inertia[1], m_inertia[2]));
 	m_body->SetPos(::chrono::ChVector<>(m_center(0), m_center(1), m_center(2)));
-	m_body->SetRot(orientation_diff*EulerParametersQuaternion(m_ep));
+	m_body->SetRot(EulerParametersQuaternion(orientation_diff*m_ep));
 
 	m_body->SetCollide(collide);
 	m_body->SetBodyFixed(m_isFixed);
@@ -754,7 +754,7 @@ void
 Object::BodyCreate(::chrono::ChSystem *bodies_physical_system, const double dx,
 		const bool collide)
 {
-	BodyCreate(bodies_physical_system, dx, collide, ::chrono::ChQuaternion<>(1., 0., 0., 0.));
+	BodyCreate(bodies_physical_system, dx, collide, EulerParameters());
 }
 
 void

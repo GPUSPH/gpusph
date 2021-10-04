@@ -863,7 +863,7 @@ ostream& operator<<(ostream& out, const Cube& cube) // output
  */
 void
 Cube::BodyCreate(::chrono::ChSystem * bodies_physical_system, const double dx, const bool collide,
-	const ::chrono::ChQuaternion<> & orientation_diff)
+	const EulerParameters & orientation_diff)
 {
 	// Check if the physical system is valid
 	if (!bodies_physical_system)
@@ -872,7 +872,7 @@ Cube::BodyCreate(::chrono::ChSystem * bodies_physical_system, const double dx, c
 	// Creating a new Chrono object
 	m_body = chrono_types::make_shared< ::chrono::ChBodyEasyBox > ( m_lx + dx, m_ly + dx, m_lz + dx, m_mass/Volume(dx), collide );
 	m_body->SetPos(::chrono::ChVector<>(m_center(0), m_center(1), m_center(2)));
-	m_body->SetRot(orientation_diff*EulerParametersQuaternion(m_ep));
+	m_body->SetRot(EulerParametersQuaternion(orientation_diff*m_ep));
 
 	m_body->SetCollide(collide);
 	m_body->SetBodyFixed(m_isFixed);

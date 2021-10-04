@@ -514,7 +514,7 @@ void STLMesh::shift(const double3 &offset)
 
 #if USE_CHRONO == 1
 void STLMesh::BodyCreate(::chrono::ChSystem *bodies_physical_system, const double dx, const bool collide,
-			const ::chrono::ChQuaternion<> & orientation_diff)
+			const EulerParameters & orientation_diff)
 {
 	if (m_objfile == "")
 		throw std::runtime_error("Object::BodyCreate called but no obj file specified in constructor!");
@@ -537,7 +537,7 @@ void STLMesh::BodyCreate(::chrono::ChSystem *bodies_physical_system, const doubl
 	expand_bounds( make_float4( bbmax.x(), bbmax.y(), bbmax.z(), 0 ) );
 
 	m_body->SetPos(::chrono::ChVector<>(m_center(0), m_center(1), m_center(2)));
-	m_body->SetRot(orientation_diff*EulerParametersQuaternion(m_ep));
+	m_body->SetRot(EulerParametersQuaternion(orientation_diff*m_ep));
 
 	m_body->SetMass(m_mass);
 	// Set custom inertia, if given. TODO: we should check if Chrono needs any explicit method call

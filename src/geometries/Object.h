@@ -37,8 +37,6 @@
 #include "chrono_select.opt"
 #if USE_CHRONO == 1
 
-#include "chrono/core/ChQuaternion.h"
-
 // Forward declaration to avoid including Chrono headers
 namespace chrono {
 class ChBody;
@@ -208,7 +206,7 @@ class Object {
 #if USE_CHRONO == 1
 		/// Create a Chrono body in the specified Chrono physical system
 		virtual void BodyCreate(::chrono::ChSystem * bodies_physical_system, const double dx, const bool collide,
-			const ::chrono::ChQuaternion<> & orientation_diff);
+			const EulerParameters & orientation_diff);
 		void BodyCreate(::chrono::ChSystem * bodies_physical_system, const double dx, const bool collide);
 		std::shared_ptr< ::chrono::ChBody > GetBody(void)
 		{	if (!m_body)

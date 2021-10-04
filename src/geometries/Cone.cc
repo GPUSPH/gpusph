@@ -34,6 +34,7 @@
 #if USE_CHRONO
 #include "chrono/physics/ChBody.h"
 #endif
+#include "EulerParametersQuaternion.h"
 
 
 Cone::Cone(void)
@@ -232,7 +233,7 @@ Cone::IsInside(const Point& p, const double dx) const
 void
 Cone::BodyCreate(::chrono::ChSystem *bodies_physical_system, const double dx, const bool collide)
 {
-	Object::BodyCreate(bodies_physical_system, dx, collide, Q_from_AngAxis(::chrono::CH_C_PI/2., ::chrono::VECT_X));
+	Object::BodyCreate(bodies_physical_system, dx, collide, EulerParameters(Q_from_AngAxis(::chrono::CH_C_PI/2., ::chrono::VECT_X)));
 	if (collide)
 		GeomCreate(dx);
 }
