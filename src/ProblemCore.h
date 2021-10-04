@@ -68,6 +68,7 @@
 #include "chrono_select.opt"
 #if USE_CHRONO == 1
 #include "chrono/physics/ChSystem.h"
+#include "chrono/fea/ChNodeFEAxyzD.h"
 #endif
 
 //#include "math.h"
@@ -87,9 +88,15 @@ class ProblemCore
 {
 	private:
 		std::string			m_problem_dir;
+		WriterList		m_writers;
+
+#if USE_CHRONO
+		// TODO FIXME these should go into their own writer,
+		// even if it's a special writer that gets invoked
+		// outside of the standard writing phase
 		std::ofstream			m_fea_nodes_file;
 		std::ofstream			m_fea_constr_file;
-		WriterList		m_writers;
+#endif
 
 		const float		*m_dem;
 		int				m_ncols, m_nrows;
@@ -118,6 +125,12 @@ class ProblemCore
 		*/
 
 #define	SETUP_FRAMEWORK(...) this->simframework() =  CUDASimFramework< __VA_ARGS__ >()
+
+	protected:
+		std::vector<int> m_WriteFeaNodesIndices;	// indices of the fea nodes to be written on file 
+		std::vector<std::shared_ptr<::chrono::fea::ChNodeFEAxyz>> m_WriteFeaNodesPointers;	// pointers to nodes to be written 
+		std::vector<std::shared_ptr<::chrono::fea::ChLinkPointFrame>> m_WriteFeaPointConstrPointers;	// pointers to position constraints to be written 
+		std::vector<std::shared_ptr<::chrono::fea::ChLinkDirFrame>> m_WriteFeaDirConstrPointers;	// pointers to direction constraints to be written 
 
 	public:
 		// used to set the preferred split axis; LONGEST_AXIS (default) uses the longest of the worldSize

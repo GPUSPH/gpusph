@@ -1969,8 +1969,8 @@ int ProblemAPI<1>::fill_parts(bool fill)
 						fea_mesh,
 						m_deltap,
 						num_prev_nodes,
-						gdata->s_hWriteFeaNodesIndices,
-						gdata->s_hWriteFeaNodesPointers);
+						m_WriteFeaNodesIndices,
+						m_WriteFeaNodesPointers);
 
 					num_prev_nodes += fea_mesh->GetNnodes();
 				}
@@ -2001,8 +2001,8 @@ int ProblemAPI<1>::fill_parts(bool fill)
 
 			if (m_geometries[g]->is_dynamometer == true) {
 				m_geometries[g]->ptr->makeDynamometer(m_chrono_system,
-					gdata->s_hWriteFeaPointConstrPointers,
-					gdata->s_hWriteFeaDirConstrPointers);
+					m_WriteFeaPointConstrPointers,
+					m_WriteFeaDirConstrPointers);
 				simparams()->numConstraintsToWrite += 1;
 			}
 		}

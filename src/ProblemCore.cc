@@ -769,7 +769,7 @@ ProblemCore::write_fea_nodes(const double t)
 		/*We read from the array of nodes to be wirtten. This array
 		 * is set at the beginning of the simulation in ProblemAPI_1
 		 * when defining GT_FEA_WRITE geometries*/
-		node = gdata->s_hWriteFeaNodesPointers[i];
+		node = m_WriteFeaNodesPointers[i];
 
 		// print nodes position to file
 		m_fea_nodes_file << '\t' <<
@@ -783,8 +783,8 @@ ProblemCore::write_fea_nodes(const double t)
 	m_fea_constr_file << t;
 	for (int i = 0; i < simparams()->numConstraintsToWrite; ++i) {
 
-		::chrono::ChVector<> force = gdata->s_hWriteFeaPointConstrPointers[i]->Get_react_force();
-		::chrono::ChVector<> torque = gdata->s_hWriteFeaDirConstrPointers[i]->Get_react_torque();
+		::chrono::ChVector<> force = m_WriteFeaPointConstrPointers[i]->Get_react_force();
+		::chrono::ChVector<> torque = m_WriteFeaDirConstrPointers[i]->Get_react_torque();
 
 		m_fea_constr_file << '\t' <<
 		force.x() << '\t' <<
@@ -1698,7 +1698,7 @@ ProblemCore::create_fea_nodes_file(void)
 	m_fea_nodes_file << "time";
 
 	for (int n = 0; n < simparams()->numNodesToWrite; ++n) {
-		int node_id = gdata->s_hWriteFeaNodesIndices[n];
+		int node_id = m_WriteFeaNodesIndices[n];
 		m_fea_nodes_file <<
 			"\tNode_" << node_id << "_x[m]"
 #if 1 //write only x component
