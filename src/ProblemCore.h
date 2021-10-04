@@ -200,14 +200,13 @@ class ProblemCore
 		//! The averager takes care of the smoothing, by storing the last
 		//! FEA_FORCES_SMOOTHING_STEPS SPH-computed forces in a ring,
 		//! and applying the averaged value to the nodes.
-
 		//! TODO FIXME the number of iterations should be customizable by the user
 #define FEA_FORCES_SMOOTHING_STEPS 600
-		//! TODO FIXME dynamically allocate
-#define FEA_MAX_PARTICLES 24
-		float3 m_fea_forces_averager[FEA_MAX_PARTICLES][FEA_FORCES_SMOOTHING_STEPS+1];
+		std::vector<std::vector<float3>> m_fea_forces_ring;
+		std::vector<float3> m_fea_average_forces;
+
 		//! Index in the m_fea_forces_averager ring
-		uint m_fea_averager_index;
+		uint m_fea_ring_index;
 		//! Internal only: total amount of applied FEA forces
 		//! (used for validation checks against Chrono-computed total reactive forces)
 		float3 m_total_fea_force;

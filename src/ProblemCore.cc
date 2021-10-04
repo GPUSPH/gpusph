@@ -97,11 +97,10 @@ ProblemCore::ProblemCore(GlobalData *_gdata) :
 	m_hydrostaticFilling(true),
 	gdata(_gdata),
 	m_options(_gdata->clOptions),
-	m_fea_averager_index(0),
+	m_fea_ring_index(0),
 	m_total_fea_force(make_float3(0.0f)),
 	m_bodies_storage(NULL)
 {
-	memset(m_fea_forces_averager, 0, FEA_MAX_PARTICLES*(FEA_FORCES_SMOOTHING_STEPS+1)*sizeof(float3));
 #if USE_CHRONO == 1
 	m_chrono_system = NULL;
 #endif
@@ -394,6 +393,15 @@ void
 ProblemCore::SetFeaReady()
 {
 #if USE_CHRONO == 1
+
+	const int numFeaParts = get_fea_objects_numparts();
+
+	m_fea_average_forces.resize(numFeaParts);
+	m_fea_forces_ring.resize(numFeaParts);
+	for (int i = 0 ; i < numFeaParts; ++i) {
+		m_fea_forces_ring[i].resize(FEA_FORCES_SMOOTHING_STEPS);
+	}
+
 	//m_chrono_system->SetupInitial();
 
 	// If there are nodes to write create the output file
@@ -835,14 +843,10 @@ ProblemCore::fea_init_step(BufferList &buffers, const uint numFeaParts, const do
 
 	/* We perform a temporal averaging of the forces in order to reduce noise
 	 * therefore we store the previous forces in a matrix.*/
-	uint av_idx = m_fea_averager_index; // Index of the current sample in the averager matrix
+	uint av_idx = m_fea_ring_index; // Index of the current sample in the averager matrix
 
 	/* Sum up all the forces applied to the FEM system for printing purpose */
 	float3 total_force = make_float3(0.0, 0.0, 0.0);
-
-	//! TODO FIXME dynamic allocation of forces averager
-	if (numFeaParts > FEA_MAX_PARTICLES)
-		throw std::runtime_error("too many FEA particles for averager");
 
 	for(uint i = 0; i < numFeaParts; ++i) {
 
@@ -861,8 +865,9 @@ ProblemCore::fea_init_step(BufferList &buffers, const uint numFeaParts, const do
 		float3 new_f  = as_float3(forces[i])/FEA_FORCES_SMOOTHING_STEPS;
 
 		// Retrieve the last computed running average
-		// (stored at the end of the row)
-		float3 node_f = m_fea_forces_averager[i][FEA_FORCES_SMOOTHING_STEPS];
+		float3 node_f = m_fea_average_forces[i];
+
+		auto& part_forces = m_fea_forces_ring[i];
 
 		// Update the running average by subtracting the oldest force to update the
 		// average.
@@ -870,14 +875,14 @@ ProblemCore::fea_init_step(BufferList &buffers, const uint numFeaParts, const do
 		// but since the intent is to smooth things out, this is normally acceptable.
 		// TODO FIXME: check if there are cases of catastrophic cancellation.
 		// Maybe compute the running average in double precision?
-		node_f += (new_f - m_fea_forces_averager[i][av_idx]);
+		node_f += (new_f - part_forces[av_idx]);
 
 		// Replace the oldest value with the most recent one
 		// (av_idx will be updated at the end of the loop over all particles)
-		m_fea_forces_averager[i][av_idx] = new_f;
+		part_forces[av_idx] = new_f;
 
 		// Store the new averaged value
-		m_fea_forces_averager[i][FEA_FORCES_SMOOTHING_STEPS] = node_f;
+		m_fea_average_forces[i] = node_f;
 
 		/* -- End of averaging -- */
 
@@ -910,8 +915,8 @@ ProblemCore::fea_init_step(BufferList &buffers, const uint numFeaParts, const do
 
 	// Manage averaging index
 	av_idx ++;
-	if (av_idx == 600) av_idx = 0;
-	m_fea_averager_index = av_idx;
+	if (av_idx == FEA_FORCES_SMOOTHING_STEPS) av_idx = 0;
+	m_fea_ring_index = av_idx;
 
 #endif
 }
