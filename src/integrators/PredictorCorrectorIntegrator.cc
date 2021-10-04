@@ -28,6 +28,8 @@
 #include <string>
 
 #include "GlobalData.h"
+#include "ProblemCore.h"
+#include "simparams.h"
 
 #include "PredictorCorrectorIntegrator.h"
 

@@ -29,6 +29,9 @@
 
 #include "VTKLegacyWriter.h"
 #include "GlobalData.h"
+#include "ProblemCore.h"
+#include "physparams.h"
+#include "simparams.h"
 
 using namespace std;
 

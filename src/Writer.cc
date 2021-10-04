@@ -34,6 +34,8 @@
 
 #include "Writer.h"
 #include "GlobalData.h"
+#include "ProblemCore.h"
+#include "simframework.h"
 
 #include "CommonWriter.h"
 #include "CustomTextWriter.h"

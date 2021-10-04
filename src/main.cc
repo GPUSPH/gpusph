@@ -38,6 +38,7 @@
 #include "GPUSPH.h"
 #include "Options.h"
 #include "GlobalData.h"
+#include "Synchronizer.h"
 #include "NetworkManager.h"
 
 #include "debugflags.h"

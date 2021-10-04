@@ -34,6 +34,8 @@
 // GlobalData is required for writing the device index. With some order
 // of inclusions, a forward declaration might be required
 #include "GlobalData.h"
+#include "ProblemCore.h"
+#include "simparams.h"
 
 #include "vector_print.h"
 

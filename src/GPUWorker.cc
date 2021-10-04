@@ -38,6 +38,11 @@
 #include <cfloat>
 
 #include "GPUWorker.h"
+#include "ProblemCore.h"
+#include "Synchronizer.h"
+#include "NetworkManager.h"
+#include "simframework.h"
+
 #include "cudautil.h"
 
 #include "cudabuffer.h"

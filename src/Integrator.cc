@@ -29,6 +29,8 @@
 #include <stdexcept>
 
 #include "GlobalData.h"
+#include "ProblemCore.h"
+#include "simparams.h"
 
 #include "Integrator.h"
 

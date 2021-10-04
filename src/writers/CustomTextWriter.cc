@@ -30,6 +30,7 @@
 
 #include "CustomTextWriter.h"
 #include "GlobalData.h"
+#include "ProblemCore.h"
 
 using namespace std;
 

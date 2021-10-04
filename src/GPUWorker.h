@@ -57,6 +57,9 @@
 // the particle system, cum suis
 #include "ParticleSystem.h"
 
+// SimFramework and engine-related defines
+#include "simframework.h"
+
 // Bursts handling
 #include "bursts.h"
 

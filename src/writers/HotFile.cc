@@ -32,6 +32,9 @@ The file represents particle and other state.
 #include <stdexcept>
 #include "HotFile.h"
 
+#include "ProblemCore.h"
+#include "simparams.h"
+
 using namespace std;
 
 /**

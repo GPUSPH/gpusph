@@ -43,6 +43,11 @@
 // This inclusion problem should be solved
 #include "GPUSPH.h"
 
+#include "Synchronizer.h"
+#include "NetworkManager.h"
+
+#include "simframework.h"
+
 // HostBuffer
 #include "hostbuffer.h"
 

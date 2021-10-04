@@ -29,6 +29,10 @@
 
 #include "GlobalData.h"
 
+#include "ProblemCore.h"
+#include "simframework.h"
+#include "simparams.h"
+
 #include "RepackingIntegrator.h"
 
 /*! \file
