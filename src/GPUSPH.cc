@@ -2491,9 +2491,29 @@ struct TimerObject
 	}
 };
 
+template<CommandName Cmd>
+void GPUSPH::describeCommand(CommandStruct const& cmd)
+{
+	if (Cmd < NUM_WORKER_COMMANDS) {
+		/* nothing to describe, this is an error condition;
+		 * it will be handled separately in the command dispatch switch
+		 */
+		return;
+	}
+
+	string desc = string(" G H issuing ") + getCommandName(Cmd);
+
+	// TODO Add buffer specification, if needed
+	// TODO Add extra information, if needed
+
+	cout << desc << endl;
+}
+
 // set nextCommand, unlock the threads and wait for them to complete
 void GPUSPH::dispatchCommand(CommandStruct const& cmd)
 {
+	static const bool dbg_step_printf = g_debug.print_step;
+
 	shared_ptr<TimerObject> timer;
 	if (g_debug.benchmark_command_runtimes) {
 		++cmd_calls[cmd.command];
@@ -2518,7 +2538,7 @@ void GPUSPH::dispatchCommand(CommandStruct const& cmd)
 		switch (cmd.command) {
 #define DEFINE_COMMAND(code, ...) \
 			case code: \
-				/* TODO if (dbg_step_printf) describeCommand<code>(cmd); */ \
+				if (dbg_step_printf) describeCommand<code>(cmd); \
 				runCommand<code>(cmd); \
 				break;
 #include "define_host_commands.h"

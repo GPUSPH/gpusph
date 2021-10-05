@@ -134,6 +134,10 @@ private:
 	template<CommandName>
 	void runCommand(CommandStruct const& cmd);
 
+	/// Function template to show a specific command
+	template<CommandName>
+	void describeCommand(CommandStruct const& cmd);
+
 	/// Raise an errror about an unknown command
 	void unknownCommand(CommandName cmd);
 
