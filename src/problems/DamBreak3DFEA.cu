@@ -53,7 +53,7 @@ DamBreak3DFEA::DamBreak3DFEA(GlobalData *_gdata) : XProblem(_gdata)
 	// * = tested in this problem
 	SETUP_FRAMEWORK(
 		viscosity<ARTVISC>,
-		boundary<DYN_BOUNDARY>,
+		boundary<DUMMY_BOUNDARY>,
 		add_flags<ENABLE_FEA>
 	).select_options(
 		RHODIFF,
@@ -101,13 +101,15 @@ DamBreak3DFEA::DamBreak3DFEA(GlobalData *_gdata) : XProblem(_gdata)
 
 	// *** Geometrical parameters, starting from the size of the domain
 	const double dimX = 1.6;
-	const double dimY = 0.67;
-	const double dimZ = 1.0;
+	const double dimY = 0.3;
+	const double dimZ = 0.7;
 	const double obstacle_side = 0.12;
 	const double obstacle_xpos = 0.9;
 	const double water_length = 0.4;
 	const double water_height = H;
 	const double water_bed_height = 0.1;
+
+	const double pil_h = 0.6;
 
 	// If we used only makeUniverseBox(), origin and size would be computed automatically
 	m_origin = make_double3(0, 0, 0);
@@ -152,10 +154,9 @@ DamBreak3DFEA::DamBreak3DFEA(GlobalData *_gdata) : XProblem(_gdata)
 //	set_fea_ground(0, 0, 1, 0.05); // a, b, c and d parameters of a plane equation. Grounding nodes in the negative side of the plane
 
 	// Define pillers
-	const double pil_h = 0.8;
 	setPositioning(PP_BOTTOM_CENTER);
 
-	GeometryID piller0 = addCylinder(GT_DEFORMABLE_BODY, FT_BORDER, Point(0.5, 0.3, 2.0*BOUNDARY_DISTANCE), 0.04, 0.04 - 0.005, pil_h, 2);
+	GeometryID piller0 = addCylinder(GT_DEFORMABLE_BODY, FT_BORDER, Point(0.5, dimY/2.0, BOUNDARY_DISTANCE), 0.04, 0.04 - 0.005, pil_h, 2);
 
 	setYoungModulus(piller0, 30e5);
 	setPoissonRatio(piller0, 0.001);
@@ -167,13 +168,14 @@ DamBreak3DFEA::DamBreak3DFEA(GlobalData *_gdata) : XProblem(_gdata)
 	setPositioning(PP_CENTER);
 	// node writer
 	const double box_side = 0.1;
-	GeometryID writer_box = addBox(GT_FEA_WRITE, FT_NOFILL, Point(0.5, 0.3, pil_h + BOUNDARY_DISTANCE), box_side, box_side, box_side);
+	GeometryID writer_box = addBox(GT_FEA_WRITE, FT_NOFILL, Point(0.5, dimY/2.0, pil_h + BOUNDARY_DISTANCE), box_side, box_side, box_side);
 
 
 	const double dynamometer_side = 0.1;
-	GeometryID dynamometer = addBox(GT_FEA_RIGID_JOINT, FT_NOFILL, Point(0.5, 0.3, 2.0*BOUNDARY_DISTANCE), dynamometer_side, dynamometer_side, dynamometer_side);
+	GeometryID dynamometer = addBox(GT_FEA_RIGID_JOINT, FT_NOFILL, Point(0.5, dimY/2.0, BOUNDARY_DISTANCE), dynamometer_side, dynamometer_side, dynamometer_side);
 	setEraseOperation(dynamometer, ET_ERASE_NOTHING);
 	setUnfillRadius(dynamometer, 0.5*m_deltap);
+	setDynamometer(dynamometer, true);
 
 	simparams()->fea_write_every = 0.01f;
 
