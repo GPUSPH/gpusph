@@ -138,9 +138,11 @@ class ProblemCore
 
 	protected:
 		std::vector<int> m_WriteFeaNodesIndices;	// indices of the fea nodes to be written on file 
+#if USE_CHRONO
 		std::vector<std::shared_ptr<::chrono::fea::ChNodeFEAxyz>> m_WriteFeaNodesPointers;	// pointers to nodes to be written 
 		std::vector<std::shared_ptr<::chrono::fea::ChLinkPointFrame>> m_WriteFeaPointConstrPointers;	// pointers to position constraints to be written 
 		std::vector<std::shared_ptr<::chrono::fea::ChLinkDirFrame>> m_WriteFeaDirConstrPointers;	// pointers to direction constraints to be written 
+#endif
 
 	public:
 		// used to set the preferred split axis; LONGEST_AXIS (default) uses the longest of the worldSize

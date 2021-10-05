@@ -72,10 +72,10 @@ class Cylinder: public Object {
 
 		bool IsInside(const Point&, const double) const;
 
+#if USE_CHRONO == 1
 		float4 getNaturalCoords(const double4 abs_coords);
 		int4 getOwningNodes(const double4 abs_coords);
 
-#if USE_CHRONO == 1
 		void BodyCreate(::chrono::ChSystem * bodies_physical_system, const double dx, const bool collide,
 			const EulerParameters & orientation_diff);
 		void CreateFemMesh(::chrono::ChSystem * fea_system);

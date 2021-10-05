@@ -53,12 +53,15 @@ public:
 	EulerParametersQuaternion(EulerParameters const& ep)
 	{ m_ep[0] = ep(0); m_ep[1] = ep(1); m_ep[2] = ep(2); m_ep[3] = ep(3); }
 
+#if USE_CHRONO
 	EulerParametersQuaternion(::chrono::ChQuaternion<> const& q)
 	{ m_ep[0] = q.e0(); m_ep[1] = q.e1(); m_ep[2] = q.e2(); m_ep[3] = q.e3(); }
 
 	// Conversion operator to ChQuaternion
 	//operator EulerParameters() const { return EulerParameters(m_ep); }
 	operator ::chrono::ChQuaternion<>() const { return ::chrono::ChQuaternion<>(m_ep[0], m_ep[1], m_ep[2], m_ep[3]); }
+#endif
+
 };
 
 #endif

@@ -794,6 +794,8 @@ int4 Cube::getOwningNodes(const double4 abs_coords)
 	NG = m_fea_nodes_offset[NG];
 
 	return make_int4(NA, NC, NE, NG);
+#else
+	return make_int4(-1, -1, -1, -1);
 #endif
 }
 
@@ -845,6 +847,8 @@ float4 Cube::getNaturalCoords(const double4 abs_coords)
 	const int el_type_id = 0;
 
 	return make_float4(nat_coord_x, nat_coord_y, nat_coord_z, el_type_id);
+#else
+	return make_float4(NAN, NAN, NAN, NAN);
 #endif
 }
 

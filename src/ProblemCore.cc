@@ -761,6 +761,7 @@ ProblemCore::calc_grid_and_local_pos(double3 const& globalPos, int3 *gridPos, fl
 void
 ProblemCore::write_fea_nodes(const double t)
 {
+#if USE_CHRONO
 	// Printing position of nodes in a GT_FEA_WRITE
 	m_fea_nodes_file << t;
 	for (int i = 0; i < simparams()->numNodesToWrite; ++i) {
@@ -801,12 +802,14 @@ ProblemCore::write_fea_nodes(const double t)
 	m_total_fea_force.z;
 
 	m_fea_constr_file << endl;
+#endif
 }
 
 /*Multi-device: collect from the devices the forces applied to the FEA nodes*/
 void
 ProblemCore::reduce_fea_forces(BufferList &buffers, const uint numFeaNodes)
 {
+#if USE_CHRONO
 	float4 *forces = buffers.getData<BUFFER_FEA_EXCH>(); // contains forces from (FSI)
 
 	//number of devices
@@ -821,6 +824,7 @@ ProblemCore::reduce_fea_forces(BufferList &buffers, const uint numFeaNodes)
 
 		forces[i] = f_sum;
 	}
+#endif
 }
 
 // Set external forces and Fluid-Solid Interaction (FSI) forces to FEM nodes
@@ -1689,6 +1693,7 @@ ProblemCore::create_problem_dir(void)
 void
 ProblemCore::create_fea_nodes_file(void)
 {
+#if USE_CHRONO
 	string filename = m_problem_dir + "/data/fea_nodes.txt";
 
 	std::cout << "Opening: " << filename << endl;
@@ -1710,11 +1715,13 @@ ProblemCore::create_fea_nodes_file(void)
 			;
 	}
 	m_fea_nodes_file << endl;
+#endif
 }
 
 void
 ProblemCore::create_fea_constr_file(void)
 {
+#if USE_CHRONO
 	string filename = m_problem_dir + "/data/fea_dynamometer.txt";
 
 	std::cout << "Opening: " << filename << endl;
@@ -1745,6 +1752,7 @@ ProblemCore::create_fea_constr_file(void)
 			;
 	}
 	m_fea_constr_file << endl;
+#endif
 }
 
 void
