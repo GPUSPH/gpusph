@@ -28,14 +28,14 @@
 
 #include <iostream>
 
-#include "Gate.h"
+#include "AntociGate.h"
 #include "Cube.h"
 #include "Point.h"
 #include "Vector.h"
 #include "GlobalData.h"
 #include "cudasimframework.cu"
 
-Gate::Gate(GlobalData *_gdata) : XProblem(_gdata)
+AntociGate::AntociGate(GlobalData *_gdata) : XProblem(_gdata)
 {
 	// *** user parameters from command line
 	// density diffusion terms: 0 none, 1 Ferrari, 2 Molteni & Colagrossi, 3 Brezzi
@@ -64,7 +64,7 @@ Gate::Gate(GlobalData *_gdata) : XProblem(_gdata)
 	physparams()->gravity = make_float3(0.0, 0.0, -9.81);
 	const float g = length(physparams()->gravity);
 	H = 0.14; //water height
-	const double GateL = 0.08; //Gate height
+	const double AntociGateL = 0.08; //AntociGate height
 	physparams()->dcoeff = 10.0f*g*H;
 	water = add_fluid(1000.0);
 
@@ -78,7 +78,7 @@ Gate::Gate(GlobalData *_gdata) : XProblem(_gdata)
 	// Drawing and saving times
 	add_writer(VTKWRITER, 0.005f);
 	// *** Other parameters and settings
-	m_name = "Gate";
+	m_name = "AntociGate";
 
 	// *** Geometrical parameters, starting from the size of the domain
 	const double dimX = 0.3; // inner dimension of the chamber
@@ -110,7 +110,7 @@ Gate::Gate(GlobalData *_gdata) : XProblem(_gdata)
 		water_length - 2*m_deltap, dimY - 2*m_deltap, water_height - m_deltap); // check BC on the free surface
 
 	// add wall above the gate
-	GeometryID wall = addRect(GT_FIXED_BOUNDARY, FT_BORDER, Point(water_length, m_deltap, 2*m_deltap + GateL), dimZ - GateL - 3*m_deltap, dimY - 2*m_deltap);
+	GeometryID wall = addRect(GT_FIXED_BOUNDARY, FT_BORDER, Point(water_length, m_deltap, 2*m_deltap + AntociGateL), dimZ - AntociGateL - 3*m_deltap, dimY - 2*m_deltap);
 
 	rotate(wall, 0, M_PI/2, 0);
 	setEraseOperation(wall, ET_ERASE_NOTHING);
@@ -127,24 +127,24 @@ Gate::Gate(GlobalData *_gdata) : XProblem(_gdata)
 
 
 	// Add the flexible gate as a mesh
-	GeometryID gate = addBox(GT_DEFORMABLE_BODY, FT_BORDER, Point(water_length + 0.005, m_deltap, m_deltap), GateL, dimY - 2*m_deltap, round_up(0.005, m_deltap), 10, 1);
+	GeometryID gate = addBox(GT_DEFORMABLE_BODY, FT_BORDER, Point(water_length + 0.005, m_deltap, m_deltap), AntociGateL, dimY - 2*m_deltap, round_up(0.005, m_deltap), 10, 1);
 	setEraseOperation(gate, ET_ERASE_NOTHING);
 	setYoungModulus(gate, 1e7);
 	setPoissonRatio(gate, 0.3);
 	setAlphaDamping(gate, 0.001);
 	setDensity(gate, 1100);
 	rotate(gate, 0, M_PI/2, 0);
-	set_fea_ground(0, 0, -1, -(GateL + 0.5*m_deltap)); // a, b, c and d parameters of a plane equation. Grounding nodes in the negative side of the plane
+	set_fea_ground(0, 0, -1, -(AntociGateL + 0.5*m_deltap)); // a, b, c and d parameters of a plane equation. Grounding nodes in the negative side of the plane
 }
 
 // since the fluid topology is roughly symmetric along Y through the whole simulation, prefer Y split
-/*void Gate::fillDeviceMap()
+/*void AntociGate::fillDeviceMap()
 {
 	fillDeviceMapByAxis(Y_AXIS);
 }
 */
 
-void Gate::initializeParticles(BufferList &buffer, const uint numParticle)
+void AntociGate::initializeParticles(BufferList &buffer, const uint numParticle)
 {
 	float4 *pos = buffer.getData<BUFFER_POS>();
 	float4 *vel = buffer.getData<BUFFER_VEL>();
@@ -160,7 +160,7 @@ void Gate::initializeParticles(BufferList &buffer, const uint numParticle)
 	}
 }
 
-bool Gate::need_write(double t) const
+bool AntociGate::need_write(double t) const
 {
 	return false;
 }

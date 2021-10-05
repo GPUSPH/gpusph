@@ -26,22 +26,22 @@
     along with GPUSPH.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _GATE_H
-#define	_GATE_H
+#ifndef _ANTOCIGATE_H
+#define	_ANTOCIGATE_H
 
 #include "XProblem.h"
 
-class Gate: public XProblem {
+class AntociGate: public XProblem {
 	private:
 		double H; // still water level
 		size_t	water, gum; // fluids references
 	public:
-		Gate(GlobalData *);
-		//virtual ~Gate(void);
+		AntociGate(GlobalData *);
+		//virtual ~AntociGate(void);
 		// override standard split
 		void initializeParticles(BufferList &buffer, const uint numParticles);
 //		void fillDeviceMap();
 		bool need_write(double) const;
 };
-#endif	/* _GATE_H */
+#endif	/* _ANTOCIGATE_H */
 
