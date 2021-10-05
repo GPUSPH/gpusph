@@ -1121,7 +1121,10 @@ size_t GPUWorker::allocateDeviceBuffers() {
 	return allocated;
 }
 
-void GPUWorker::pinGlobalHostBuffers() {
+void GPUWorker::pinGlobalHostBuffers()
+{
+	// nothing to do if FEA buffers should not be pinned
+	if (!gdata->clOptions->pin_fea_buffers) return;
 
 	float4* fea_exch = gdata->s_hBuffers.getData<BUFFER_FEA_EXCH>();
 
@@ -1131,7 +1134,10 @@ void GPUWorker::pinGlobalHostBuffers() {
 	cout << "Pinned BUFFER_FEA_EXCH for " << m_numFeaNodes << " particles " << endl;
 }
 
-void GPUWorker::unpinGlobalHostBuffers() {
+void GPUWorker::unpinGlobalHostBuffers()
+{
+	// nothing to do if FEA buffers should not be pinned
+	if (!gdata->clOptions->pin_fea_buffers) return;
 
 	float4* fea_exch = gdata->s_hBuffers.getData<BUFFER_FEA_EXCH>();
 
