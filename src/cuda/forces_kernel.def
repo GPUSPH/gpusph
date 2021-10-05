@@ -4067,9 +4067,6 @@ enable_if_t<
 >
 compute_pp_interaction(FP const& params, P const& pdata, N const & ndata, OP & pout, ON & nout)
 {
-	if (FEA_NODE(pdata.info))
-		return;
-
 	compute_density_derivative(params, pdata, ndata, pout, nout);
 
 	// We need to compute force on boundary particles only when we have floating bodies or force feedback
@@ -4107,9 +4104,6 @@ enable_if_t<
 >
 compute_pp_interaction(FP const& params, P const& pdata, N const & ndata, OP & pout, ON & nout)
 {
-	if (FEA_NODE(pdata.info))
-		return;
-
 	// We need to compute force on boundary particles only when we have floating bodies or force feedback
 	if (COMPUTE_FORCE(pdata.info) || HAS_INTERNAL_ENERGY(FP::simflags) || DEFORMABLE(pdata.info)) {
 		// Compute pressure part of acceleration
@@ -4150,10 +4144,6 @@ enable_if_t<
 >
 compute_pp_interaction(FP const& params, P const& pdata, N const & ndata, OP & pout, ON & nout)
 {
-	// No interaction with FEA nodes
-	if (FEA_NODE(ndata.info))
-		return;
-
 	// Compute repulsive force from boundary particle
 	compute_repulsive_force(params, pdata, ndata, pout, nout);
 
@@ -4179,8 +4169,6 @@ enable_if_t<
 >
 compute_pp_interaction(FP const& params, P const& pdata, N const & ndata, OP & pout, ON & nout)
 {
-	if (FEA_NODE(ndata.info))
-		return;
 	compute_all_pp_interaction(params, pdata, ndata, pout, nout);
 }
 
@@ -4192,8 +4180,6 @@ enable_if_t<
 >
 compute_pp_interaction(FP const& params, P const& pdata, N const & ndata, OP & pout, ON & nout)
 {
-	if (FEA_NODE(ndata.info))
-		return;
 	compute_all_pp_interaction(params, pdata, ndata, pout, nout);
 }
 
@@ -4210,8 +4196,6 @@ enable_if_t<
 >
 compute_pp_interaction(FP const& params, P const& pdata, N const & ndata, OP & pout, ON & nout)
 {
-	if (FEA_NODE(ndata.info))
-		return;
 	compute_all_pp_interaction(params, pdata, ndata, pout, nout);
 }
 
@@ -4421,6 +4405,14 @@ forcesDevice(FP params)
 		// Skip if the current particle is not of the type for which we are computing interactions
 		if (PART_TYPE(info) != cptype) break;
 
+		// FEA_NODE particles are a sub-type of boundary particles that don't actually belong
+		// to the SPH system, and thus do not interact with anything.
+		// So skip forces if this is a FEA_NODE.
+		// The check is only done in the PT_BOUNDARY central particle case,
+		// since that's the only case in which a particle may be FEA_NODE
+		// TODO FIXME they should be their own particle type
+		if (FP::cptype == PT_BOUNDARY && FEA_NODE(info))
+			break;
 
 		// Cell-local position of the particle
 		const float4 pos = params.fetchPos(index);
