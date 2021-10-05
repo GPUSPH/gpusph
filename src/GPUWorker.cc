@@ -126,7 +126,7 @@ GPUWorker::GPUWorker(GlobalData* _gdata, devcount_t _deviceIndex) :
 	m_dBuffers.addBuffer<CUDABuffer, BUFFER_INFO>();
 	m_dBuffers.addBuffer<CUDABuffer, BUFFER_FORCES>(0);
 
-	if (m_simparams->simflags & ENABLE_FEA) {
+	if (HAS_FEA(m_simparams->simflags)) {
 		m_dBuffers.addBuffer<CUDABuffer, BUFFER_FEA_EXCH>(0);
 	}
 
@@ -1882,7 +1882,7 @@ void GPUWorker::initialize()
 	uploadEulerBodiesCentersOfGravity();
 	uploadForcesBodiesCentersOfGravity();
 
-	if (m_simparams->simflags & ENABLE_FEA)
+	if (HAS_FEA(m_simparams->simflags))
 		pinGlobalHostBuffers();
 
 	// create and upload the compact device map (2 bits per cell)
@@ -1909,7 +1909,7 @@ void GPUWorker::finalize()
 	deallocateDeviceBuffers();
 	// ...what else?
 
-	if (m_simparams->simflags & ENABLE_FEA)
+	if (HAS_FEA(m_simparams->simflags))
 		unpinGlobalHostBuffers();
 
 	cudaDeviceReset();

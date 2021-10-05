@@ -775,7 +775,7 @@ template<KernelType _kerneltype,
 	bool _has_keps = _ViscSpec::turbmodel == KEPSILON,
 	bool _has_sps = _ViscSpec::turbmodel == SPS,
 	bool _has_effective_visc = NEEDS_EFFECTIVE_VISC(_ViscSpec::rheologytype),
-	typename fea_cond = typename COND_STRUCT(!_repacking && (_simflags & ENABLE_FEA), fea_particle_data),
+	typename fea_cond = typename COND_STRUCT(!_repacking && HAS_FEA(_simflags), fea_particle_data),
 	typename vol_cond = typename COND_STRUCT(!_repacking && _sph_formulation == SPH_GRENIER &&
 			(_densitydiffusiontype == COLAGROSSI), volume_particle_data),
 	typename grenier_cond = typename
@@ -891,7 +891,7 @@ struct finalize_forces_particle_data :
 	common_finalize_particle_data,
 	// the next is only needed for PT_OBJECT, which in fact need no other data
 	rb_particle_data,
-	COND_STRUCT(_simflags & ENABLE_FEA, fea_particle_data),
+	COND_STRUCT(HAS_FEA(_simflags), fea_particle_data),
 	COND_STRUCT(!_repacking && _sph_formulation == SPH_GRENIER, grenier_finalize_particle_data),
 	COND_STRUCT(_boundarytype == SA_BOUNDARY, sa_finalize_particle_data),
 	COND_STRUCT(!_repacking && _has_effective_visc, effective_visc_particle_data),
@@ -916,7 +916,7 @@ struct finalize_forces_particle_data :
 		FinalizeForcesParams const& params) :
 		common_finalize_particle_data(_index, _pos, params.velArray[_index], _info, params.particleHash),
 		rb_particle_data(_info),
-		COND_STRUCT(_simflags & ENABLE_FEA, fea_particle_data)(params, _index, _info),
+		COND_STRUCT(HAS_FEA(_simflags), fea_particle_data)(params, _index, _info),
 		COND_STRUCT(sph_formulation == SPH_GRENIER, grenier_finalize_particle_data)(_index, params),
 		COND_STRUCT(boundarytype == SA_BOUNDARY, sa_finalize_particle_data)(_index, params),
 		COND_STRUCT(has_effective_visc, effective_visc_particle_data)(_index, params),
@@ -3619,7 +3619,7 @@ void distribute_fea_forces(FP const& params, OP const& pout, uint node, float sh
 // taking the contribution from the associated particles
 template<typename FP, typename PD, typename OP>
 __device__ __forceinline__
-enable_if_t<(FP::simflags & ENABLE_FEA)>
+enable_if_t<HAS_FEA(FP::simflags)>
 assign_fea_force(FP const& params, PD const& pdata, OP const& pout)
 {
 	// TODO these are computed for both shells and cables,
@@ -3677,7 +3677,7 @@ assign_fea_force(FP const& params, PD const& pdata, OP const& pout)
 
 template<typename FP, typename PD, typename OP>
 __device__ __forceinline__
-enable_if_t<!(FP::simflags & ENABLE_FEA)>
+enable_if_t<!HAS_FEA(FP::simflags)>
 assign_fea_force(FP const& params, PD const& pdata, OP &pout)
 {
 	/* Do nothing */

@@ -279,7 +279,7 @@ integrate_energy(EP const& params, P &pdata, int index, float dt)
 /// Add FEA displacement 
 template<typename EP, typename P>
 __device__ __forceinline__
-enable_if_t<EP::simflags & ENABLE_FEA>
+enable_if_t<HAS_FEA(EP::simflags)>
 move_fea_nodes(EP const& params, P &pdata, int index, float dt)
 {
 	pdata.pos.x += pdata.fea_vel.x*dt;
@@ -290,7 +290,7 @@ move_fea_nodes(EP const& params, P &pdata, int index, float dt)
 
 template<typename EP, typename P>
 __device__ __forceinline__
-enable_if_t<not (EP::simflags & ENABLE_FEA)>
+enable_if_t<not HAS_FEA(EP::simflags)>
 move_fea_nodes(EP const& params, P &pdata, int index, float dt)
 { /* do nothing */ }
 
@@ -306,7 +306,7 @@ void distribute_fea_movement(EP const& params, uint node, float shape_weight, co
 /// Add FEA displacement 
 template<typename EP, typename P>
 __device__ __forceinline__
-enable_if_t<EP::simflags & ENABLE_FEA>
+enable_if_t<HAS_FEA(EP::simflags)>
 move_fea_parts(EP const& params, P &pdata, int index, float dt)
 {
 
@@ -377,7 +377,7 @@ move_fea_parts(EP const& params, P &pdata, int index, float dt)
 
 template<typename EP, typename P>
 __device__ __forceinline__
-enable_if_t<not (EP::simflags & ENABLE_FEA)>
+enable_if_t<not HAS_FEA(EP::simflags)>
 move_fea_parts(EP const& params, P &pdata, int index, float dt)
 { /* do nothing */ }
 
@@ -393,7 +393,7 @@ move_fea_parts(EP const& params, P &pdata, int index, float dt)
 
 template<typename EP, typename P>
 __device__ __forceinline__
-enable_if_t<EP::simflags & ENABLE_FEA>
+enable_if_t<HAS_FEA(EP::simflags)>
 set_fea_parts_vel(EP const& params, P &pdata, int index, float dt)
 {
 	pdata.vel.x = pdata.fea_vel.x;
@@ -404,7 +404,7 @@ set_fea_parts_vel(EP const& params, P &pdata, int index, float dt)
 
 template<typename EP, typename P>
 __device__ __forceinline__
-enable_if_t<not (EP::simflags & ENABLE_FEA)>
+enable_if_t<not HAS_FEA(EP::simflags)>
 set_fea_parts_vel(EP const& params, P &pdata, int index, float dt)
 { /* do nothing */ }
 

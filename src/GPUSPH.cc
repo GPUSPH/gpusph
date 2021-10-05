@@ -513,7 +513,7 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 		gdata->problem->get_bodies_cg();
 	}
 
-	if (_sp->simflags & ENABLE_FEA)
+	if (HAS_FEA(_sp->simflags))
 		gdata->problem->SetFeaReady();
 
 
@@ -1023,7 +1023,7 @@ size_t GPUSPH::allocateGlobalHostBuffers()
 		gdata->s_hBuffers.addBuffer<HostBuffer, BUFFER_INTERNAL_ENERGY>();
 	}
 
-	if (problem->simparams()->simflags & ENABLE_FEA) {
+	if (HAS_FEA(problem->simparams()->simflags)) {
 		gdata->s_hBuffers.addBuffer<HostBuffer, BUFFER_FEA_EXCH>();
 	}
 
