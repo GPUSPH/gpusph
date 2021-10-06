@@ -1484,7 +1484,7 @@ void ProblemAPI<1>::setUnfillRadius(const GeometryID gid, double unfillRadius)
 	m_geometries[gid]->unfill_radius = unfillRadius;
 }
 
-const GeometryInfo* ProblemAPI<1>::getGeometryInfo(GeometryID gid)
+const GeometryInfo* ProblemAPI<1>::getGeometryInfo(GeometryID gid) const
 {
 	// NOTE: not checking validGeometry() to allow for deleted geometries
 
@@ -1496,6 +1496,20 @@ const GeometryInfo* ProblemAPI<1>::getGeometryInfo(GeometryID gid)
 
 	// return geometry even if deleted
 	return m_geometries[gid];
+}
+
+const ObjectPtr ProblemAPI<1>::getGeometryObject(GeometryID gid) const
+{
+	const GeometryInfo *gi = getGeometryInfo(gid);
+	if (gi) return gi->ptr;
+	throw runtime_error("Requested objected for null geometry");
+}
+
+ObjectPtr ProblemAPI<1>::getGeometryObject(GeometryID gid)
+{
+	if (gid >=m_geometries.size())
+		throw runtime_error("Requested objected for null geometry");
+	return m_geometries[gid]->ptr;
 }
 
 // set the positioning policy for geometries added after the call

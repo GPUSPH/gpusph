@@ -425,7 +425,11 @@ class ProblemAPI<1> : public ProblemCore
 		void setUnfillRadius(const GeometryID gid, double unfillRadius);
 
 		// get read-only information
-		const GeometryInfo* getGeometryInfo(GeometryID gid);
+		const GeometryInfo* getGeometryInfo(GeometryID gid) const;
+
+		//! get (pointer to) Object associated with the given geometry
+		const ObjectPtr getGeometryObject(GeometryID gid) const;
+		ObjectPtr getGeometryObject(GeometryID gid);
 
 		// set the positioning policy for geometries added after the call
 		void setPositioning(PositioningPolicy positioning);
