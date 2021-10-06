@@ -67,7 +67,6 @@
 
 #include "chrono_select.opt"
 
-#if USE_CHRONO
 // Forward declaration of Chrono classes to avoid including the headers
 namespace chrono {
 class ChSystem;
@@ -79,7 +78,6 @@ class ChLinkPointFrame;
 class ChLinkDirFrame;
 }
 }
-#endif
 
 //#include "math.h"
 
@@ -154,12 +152,10 @@ class ProblemCore
 			Z_AXIS
 		};
 
-#if USE_CHRONO == 1
 		::chrono::ChSystem	*m_chrono_system;	// Chrono physical system containing all solid bodies, contacts, FEM...
 
+#if USE_CHRONO == 1
 		std::vector<float4> m_old_fea_vel; // FIXME temporary way of storing old velocities 
-#else
-		void *m_chrono_system;
 #endif
 
 		/*! \inpsection{geometry}

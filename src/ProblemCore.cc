@@ -87,6 +87,7 @@ ProblemCore::ProblemCore(GlobalData *_gdata) :
 	m_dem(NULL),
 	m_physparams(NULL),
 	m_simframework(NULL),
+	m_chrono_system(NULL),
 	m_size(make_double3(NAN, NAN, NAN)),
 	m_origin(make_double3(NAN, NAN, NAN)),
 	m_out_of_bounds_count(0),
@@ -266,7 +267,7 @@ ProblemCore::initializeChronoSystem(::chrono::ChSystem *chrono_system)
 		cout << "FEA disabled: defaulting to PSOR solver with default timestepper" << endl;
 	}
 #else
-	throw runtime_error(__func__ ": trying to initialize Chrono System without USE_CHRONO");
+	throw runtime_error(string(__func__) + ": trying to initialize Chrono System without USE_CHRONO");
 #endif
 }
 

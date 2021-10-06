@@ -192,6 +192,6 @@ void Objects::initializeObjectJoints() {
 	// Add the link to the physical system
 	m_chrono_system->AddLink( joint1 );
 #else
-	throw runtime_error("Chrono disabled, no object joints available");
+	throw std::runtime_error("Chrono disabled, no object joints available");
 #endif
 }

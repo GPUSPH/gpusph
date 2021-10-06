@@ -35,7 +35,6 @@
 #include "EulerParameters.h"
 
 #include "chrono_select.opt"
-#if USE_CHRONO == 1
 // Forward declaration to avoid including Chrono headers
 namespace chrono {
 class ChBody;
@@ -47,16 +46,11 @@ class ChLinkPointFrame;
 class ChLinkDirFrame;
 }
 }
-#endif
 
 //! Auxiliary type for joints between FEA nodes
 struct feaNodeInfo {
 	double dist; //distance from the center of the joint geometry
-#if USE_CHRONO == 1
 	std::shared_ptr<::chrono::fea::ChNodeFEAxyz> node; //pointer to node
-#else
-	std::shared_ptr<void> node; //pointer to node
-#endif
 };
 
 
@@ -91,32 +85,23 @@ class Object {
 		double				m_alphaDamping;		///< alpha damping for deformable objects
 		double				m_density;		///> object density
 
-#if USE_CHRONO == 1
 		std::shared_ptr< ::chrono::ChBody >		m_body;		///< Chrono body linked to the object
 		std::shared_ptr< ::chrono::fea::ChMesh>	m_fea_mesh;	///< Chrono mesh linked to the object
 
 		std::vector<int>		m_fea_nodes_offset;     ///< when reusing previous nodes here we store the offset between the used and replaced node 
 		uint				m_previous_nodes;      ///< number of nodes already defined in the previous geometries
-#else
-		void				*m_body;
-		void				*m_fea_mesh;
-#endif
 
 		// auxiliary function for computing the bounding box
 		void getBoundingBoxOfCube(Point &out_min, Point &out_max,
 			Point &origin, Vector v1, Vector v2, Vector v3);
 	public:
 		Object(void) {
-#if !(USE_CHRONO == 1)
 			m_body = NULL;
 			m_fea_mesh = NULL;
-#endif
 			m_mass = 0.0;
 			m_center = Point(0,0,0);
 			m_numParts = 0;
-#if USE_CHRONO == 1
 			m_previous_nodes = 0;
-#endif
 			m_isFixed = false;
 			m_inertia[0] = NAN;
 			m_inertia[1] = NAN;
@@ -169,11 +154,9 @@ class Object {
 		/// Returns the particle vector associated with the fea nodes 
 		PointVect& GetFeaNodes(void);
 
-#if USE_CHRONO == 1
 		bool reduceNodes(std::shared_ptr<::chrono::fea::ChNodeFEAxyz> newNode, ::chrono::ChSystem * fea_system, std::vector<std::shared_ptr<::chrono::fea::ChNodeFEAxyz>>&);
 
 		void set_previous_nodes_num(::chrono::ChSystem * fea_system);
-#endif
 
 		/// Sets the number of particles associated with an object
 		void SetNumParts(const int numParts);
@@ -192,7 +175,6 @@ class Object {
 		 * an exception.
 		 */
 		//@{
-#if USE_CHRONO == 1
 		/// Create a Chrono body in the specified Chrono physical system
 		virtual void BodyCreate(::chrono::ChSystem * bodies_physical_system, const double dx, const bool collide,
 			const EulerParameters & orientation_diff);
@@ -215,13 +197,6 @@ class Object {
 
 		bool HasFeaMesh() { return (!! m_fea_mesh); }
 		virtual void CreateFemMesh(::chrono::ChSystem *fea_system);
-#else
-		void BodyCreate(void *, const double, const bool)
-		{ throw std::runtime_error("Object::BodyCreate Trying to create a Chrono body without USE_CHRONO defined !\n"); }
-		void * GetBody(void) { return m_body;}
-		virtual void CreateFemMesh(void *fea_system)
-		{ throw std::runtime_error("Trying to CreateFemMesh without USE_CHRONO!"); }
-#endif
 		virtual float4 getNaturalCoords(double4 global_pos)
 		{ throw std::runtime_error("Calling getNaturalCoords for a geometry that doesn't support FEA meshes yet"); }
 		virtual int4 getOwningNodes(double4 global_pos)

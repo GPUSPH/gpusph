@@ -718,7 +718,6 @@ void Object::getBoundingBoxOfCube(Point &out_min, Point &out_max,
 	out_max(2) = currMax(2);
 }
 
-#if USE_CHRONO == 1
 /// Create a Chrono body associated to the cube
 /* Create a generic Chrono body inside a specified Chrono physical system.
  *	\param bodies_physical_system : Chrono physical system
@@ -730,6 +729,7 @@ void
 Object::BodyCreate(::chrono::ChSystem * bodies_physical_system, const double dx, const bool collide,
 			const EulerParameters & orientation_diff)
 {
+#if USE_CHRONO
 	// Check if the physical system is valid
 	if (!bodies_physical_system)
 		throw std::runtime_error("Object::BodyCreate Trying to create a body in an invalid physical system !\n");
@@ -748,6 +748,9 @@ Object::BodyCreate(::chrono::ChSystem * bodies_physical_system, const double dx,
 
 	// Add the body to the physical system
 	bodies_physical_system->AddBody(m_body);
+#else
+	throw std::runtime_error(std::string(__func__) + ": Trying to create a FEA mesh without USE_CHRONO defined !");
+#endif
 }
 
 void
@@ -760,11 +763,14 @@ Object::BodyCreate(::chrono::ChSystem *bodies_physical_system, const double dx,
 void
 Object::CreateFemMesh(::chrono::ChSystem *fea_system)
 {
+#if USE_CHRONO
 	std::string class_name = abi::__cxa_demangle(typeid(*this).name(), NULL, 0, NULL);
 	std::string error = "CreateFemMesh for " + class_name + " is not supported yet";
 	throw std::runtime_error(error);
-}
+#else
+	throw std::runtime_error(std::string(__func__) + ": Trying to create a FEA mesh without USE_CHRONO defined !");
 #endif
+}
 
 /// Print ODE-related information such as position, CG, geometry bounding box (if any), etc.
 // TODO: could be useful to print also the rotation matrix

@@ -71,13 +71,8 @@ class Rect: public Object {
 		void getBoundingBox(Point &output_min, Point &output_max);
 		void shift(const double3 &offset);
 
-#if USE_CHRONO == 1
 		void BodyCreate(::chrono::ChSystem *bodies_physical_system, const double dx, const bool collide,
 			const EulerParameters & orientation_diff)
 		{ throw std::runtime_error("Rect::BodyCreate not implemented !"); };
-#else
-		void BodyCreate(void *p1, const double p2, const bool p3)
-		{ Object::BodyCreate(p1, p2, p3); }
-#endif
 };
 #endif	/* _RECT_H */
