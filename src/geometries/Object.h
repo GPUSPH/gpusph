@@ -36,7 +36,6 @@
 
 #include "chrono_select.opt"
 #if USE_CHRONO == 1
-
 // Forward declaration to avoid including Chrono headers
 namespace chrono {
 class ChBody;
@@ -48,16 +47,6 @@ class ChLinkPointFrame;
 class ChLinkDirFrame;
 }
 }
-
-// After version 5, Chrono introduces chrono_types::make_shared
-// that is just like std::make_shared but with proper alignment for Eigen.
-// To be source-compatible, we import make_shared from std in v4.
-#include "chrono/ChVersion.h"
-#if CH_VERSION < 0x00050000
-namespace chrono_types {
-	using std::make_shared;
-}
-#endif
 #endif
 
 //! Auxiliary type for joints between FEA nodes
