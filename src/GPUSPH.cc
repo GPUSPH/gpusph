@@ -893,13 +893,13 @@ void GPUSPH::runCommand<FEA_STEP>(CommandStruct const& cmd)
 		problem->fea_init_step(gdata->s_hBuffers, numFeaNodes, t, step);
 	}
 
-	/* Performing FEA analysis */
-	// the FEA is suspended inside. Don't stop this when !dofea because diplacements
-	// need to be updated anyway FIXME do this better
 
 //	fprintf(m_info_stream, "starting FEA step...\n");
-	problem->fea_do_step(gdata->s_hBuffers, numFeaNodes, dt, dofea && (step == 1), fea_every);
+	if (dofea && (step ==1))
+		problem->fea_do_step(dt, fea_every);
 //	fprintf(m_info_stream, "FEA step completed\n");
+
+	problem->transfer_fea_motion(gdata->s_hBuffers, numFeaNodes, dofea && (step == 1));
 
 	/* writing FEA nodes */
 	float timer = gdata->s_fea_writer_timer;

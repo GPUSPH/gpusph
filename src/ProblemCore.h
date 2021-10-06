@@ -666,7 +666,8 @@ class ProblemCore
 		void fea_init_step( BufferList&, const uint numFeaParts, const double t,  const int step);
 
 		/* Do FEA step -- dynamic */
-		void fea_do_step( BufferList&, const uint, const double dt, const bool dofea, const uint fea_every);
+		void fea_do_step( const double dt, const uint fea_every);
+		void transfer_fea_motion( BufferList&, const uint, const bool dofea);
 
 		void bodies_timestep(const float3 *forces, const float3 *torques, const int step,
 							const double dt, const double t,

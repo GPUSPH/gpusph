@@ -925,7 +925,19 @@ ProblemCore::fea_init_step(BufferList &buffers, const uint numFeaParts, const do
 
 /* Do FEA and get displacements during timestep */
 void
-ProblemCore::fea_do_step(BufferList &buffers, const uint numFeaParts, const  double dt, const bool dofea, const uint fea_every)
+ProblemCore::fea_do_step(const  double dt, const uint fea_every)
+{
+#if USE_CHRONO == 1
+	// - we perform FEA during the predictor, where dt is half the complete
+	//   time-step, then we use 2*dt
+	// - we perform FEA every fea_every SPH steps, then (assuming dt constant
+	//   over this time) we perform FEA using a factor fea_every on the time-step
+	m_chrono_system->DoStepDynamics(2*dt*fea_every);
+#endif
+}
+
+void
+ProblemCore::transfer_fea_motion(BufferList &buffers, const uint numFeaParts, const bool dofea)
 {
 #if USE_CHRONO == 1
 
@@ -933,13 +945,6 @@ ProblemCore::fea_do_step(BufferList &buffers, const uint numFeaParts, const  dou
 	float4 *fea_vel = buffers.getData<BUFFER_FEA_VEL>();
 
 	if (dofea) {
-		// - we perform FEA during the predictor, where dt is half the complete
-		//   time-step, then we use 2*dt
-		// - we perform FEA every fea_every SPH steps, then (assuming dt constant
-		//   over this time) we perform FEA using a factor fea_every on the time-step
-		m_chrono_system->DoStepDynamics(2*dt*fea_every);
-
-
 		shared_ptr<::chrono::fea::ChNodeFEAxyzD> node;
 		float4 node_vel = make_float4(0.0); //FIXME it could be float3
 
