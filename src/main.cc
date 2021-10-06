@@ -83,7 +83,7 @@ void show_version()
 		COMPUTE_BACKEND);
 
 	if (CUDA_BACKEND_ENABLED) {
-		printf("for compute capability %u.%u (cache preference: %s cache)\n",
+		printf(" for compute capability %u.%u (cache preference: %s cache)\n",
 			COMPUTE/10, COMPUTE%10,
 			PREFER_L1 ? "L1" : "texture");
 		printf("\tbuilt with %s, major version %d\n",
