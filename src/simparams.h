@@ -141,6 +141,7 @@ typedef struct SimParams {
 	 * TODO need UI parameters
 	 * @{ */
 	double			t_fea_start;					///<  FEM analysis starting time
+	uint			fea_smoothing_samples;				///<  Number of samples used in FEA forces smoothing
 	float			fea_write_every;				///<  FEM nodes written to file every
 	int			numNodesToWrite;				///<  Number of FEM nodes to write
 	int			numConstraintsToWrite;				///<  Number of FEM constraints for which to write force and torque
@@ -312,6 +313,7 @@ typedef struct SimParams {
 		dt(0),
 		tend(0),
 		t_fea_start(0),
+		fea_smoothing_samples(600),
 		fea_write_every(NAN),
 		numNodesToWrite(0),
 		numConstraintsToWrite(0),

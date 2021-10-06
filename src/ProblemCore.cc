@@ -280,7 +280,7 @@ ProblemCore::SetFeaReady()
 	m_fea_average_forces.resize(numFeaParts);
 	m_fea_forces_ring.resize(numFeaParts);
 	for (int i = 0 ; i < numFeaParts; ++i) {
-		m_fea_forces_ring[i].resize(FEA_FORCES_SMOOTHING_STEPS);
+		m_fea_forces_ring[i].resize(simparams()->fea_smoothing_samples);
 	}
 
 	//m_chrono_system->SetupInitial();
@@ -692,6 +692,8 @@ ProblemCore::fea_init_step(BufferList &buffers, const uint numFeaParts, const do
 
 	const float4 *forces = buffers.getConstData<BUFFER_FEA_FORCES>(); // contains forces from FSI now
 	const particleinfo *info = buffers.getConstData<BUFFER_INFO>();
+	const uint smoothing_samples = simparams()->fea_smoothing_samples;
+
 
 	shared_ptr<::chrono::fea::ChNodeFEAxyzD> node;
 
@@ -716,12 +718,12 @@ ProblemCore::fea_init_step(BufferList &buffers, const uint numFeaParts, const do
 			(m_fea_bodies[o]->object->GetFeaMesh()->GetNode(n));
 
 
-		/* -- Time averaging -- */ // Divide the new force by the number of samples in the
-		// averaging time window
-		// TODO FIXME: pre-dividing means that in the first FEA_FORCES_SMOOTHING_STEPS iterations
+		/* -- Time averaging -- */
+		// Divide the new force by the number of samples in the averaging time window
+		// TODO FIXME: pre-dividing means that in the first smoothing_samples iterations
 		// the total force will be underestimated.
 		// For the moment we accept this as this is usually shorter than the settling phase for the fluid.
-		float3 new_f  = as_float3(forces[i])/FEA_FORCES_SMOOTHING_STEPS;
+		float3 new_f  = as_float3(forces[i])/smoothing_samples;
 
 		// Retrieve the last computed running average
 		float3 node_f = m_fea_average_forces[i];
@@ -774,7 +776,7 @@ ProblemCore::fea_init_step(BufferList &buffers, const uint numFeaParts, const do
 
 	// Manage averaging index
 	av_idx ++;
-	if (av_idx == FEA_FORCES_SMOOTHING_STEPS) av_idx = 0;
+	if (av_idx == smoothing_samples) av_idx = 0;
 	m_fea_ring_index = av_idx;
 
 #endif

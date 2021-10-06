@@ -223,10 +223,8 @@ class ProblemCore
 		//! The reduce the noise from small fluctuations, we smooth them out
 		//! by averaging them over a fixed number of iterations.
 		//! The averager takes care of the smoothing, by storing the last
-		//! FEA_FORCES_SMOOTHING_STEPS SPH-computed forces in a ring,
+		//! simparams()->fea_smoothing_samples SPH-computed forces in a ring,
 		//! and applying the averaged value to the nodes.
-		//! TODO FIXME the number of iterations should be customizable by the user
-#define FEA_FORCES_SMOOTHING_STEPS 600
 		std::vector<std::vector<float3>> m_fea_forces_ring;
 		std::vector<float3> m_fea_average_forces;
 
@@ -394,6 +392,13 @@ class ProblemCore
 		 */
 		double set_neiblist_expansion(double alpha)
 		{ return simparams()->set_neiblist_expansion(alpha); }
+
+		/// Set the number of samples used in FEA forces smoothing
+		/*! Forces applied to FEA bodies are smoothed by averaging them over
+		 *  the specified number of iterations. (Default: 600)
+		 */
+		void set_fea_smoothing_samples(uint samples)
+		{ simparams()->fea_smoothing_samples = samples; }
 
 		/// Resize the neighbors list
 		/*! Sets the per-particle neighbors list size so that it has
