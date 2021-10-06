@@ -156,7 +156,7 @@ struct fea_euler_params
 
 	// Constructor / initializer
 	fea_euler_params(BufferList const&	bufread):
-		fea_velocities(bufread.getData<BUFFER_FEA_EXCH>())
+		fea_velocities(bufread.getData<BUFFER_FEA_VEL>())
 	{}
 };
 

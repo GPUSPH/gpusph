@@ -1024,7 +1024,8 @@ size_t GPUSPH::allocateGlobalHostBuffers()
 	}
 
 	if (HAS_FEA(problem->simparams()->simflags)) {
-		gdata->s_hBuffers.addBuffer<HostBuffer, BUFFER_FEA_EXCH>();
+		gdata->s_hBuffers.addBuffer<HostBuffer, BUFFER_FEA_FORCES>();
+		gdata->s_hBuffers.addBuffer<HostBuffer, BUFFER_FEA_VEL>();
 	}
 
 	// number of elements to allocate
@@ -1041,7 +1042,7 @@ size_t GPUSPH::allocateGlobalHostBuffers()
 			totCPUbytes += iter->second->alloc(numparts*gdata->problem->simparams()->neiblistsize);
 		else if (iter->first & BUFFERS_CELL)
 			totCPUbytes += iter->second->alloc(gdata->nGridCells);
-		else if (iter->first & BUFFER_FEA_EXCH)
+		else if (iter->first & FEA_BUFFERS)
 			totCPUbytes += iter->second->alloc(gdata->problem->get_fea_objects_numnodes()*gdata->devices);
 		else
 			totCPUbytes += iter->second->alloc(numparts);
@@ -1579,7 +1580,7 @@ void GPUSPH::sortParticlesByHash() {
 // Swap two particles in all host arrays that hold particle data; used in host sort
 void GPUSPH::particleSwap(uint idx1, uint idx2)
 {
-	static constexpr flag_t no_swap_buffers = BUFFERS_CELL | BUFFER_NEIBSLIST | BUFFER_FEA_EXCH;
+	static constexpr flag_t no_swap_buffers = BUFFERS_CELL | BUFFER_NEIBSLIST | FEA_BUFFERS;
 
 	BufferList::iterator iter = gdata->s_hBuffers.begin();
 	while (iter != gdata->s_hBuffers.end()) {

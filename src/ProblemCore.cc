@@ -810,7 +810,7 @@ void
 ProblemCore::reduce_fea_forces(BufferList &buffers, const uint numFeaNodes)
 {
 #if USE_CHRONO
-	float4 *forces = buffers.getData<BUFFER_FEA_EXCH>(); // contains forces from (FSI)
+	float4 *forces = buffers.getData<BUFFER_FEA_FORCES>(); // contains forces from (FSI)
 
 	//number of devices
 	uint n_devs = gdata->devices;
@@ -833,10 +833,7 @@ ProblemCore::fea_init_step(BufferList &buffers, const uint numFeaParts, const do
 {
 #if USE_CHRONO == 1
 
-	/* The BUFFER_FEA_EXCH is used to exchange data between the FEM
-	 * and SPH models. It transfers FSI forces to the FEM model and
-	 * nodes velocities to the SPH model.*/
-	const float4 *forces = buffers.getConstData<BUFFER_FEA_EXCH>(); // contains forces from FSI now
+	const float4 *forces = buffers.getConstData<BUFFER_FEA_FORCES>(); // contains forces from FSI now
 	const particleinfo *info = buffers.getConstData<BUFFER_INFO>();
 
 	shared_ptr<::chrono::fea::ChNodeFEAxyzD> node;
@@ -933,9 +930,7 @@ ProblemCore::fea_do_step(BufferList &buffers, const uint numFeaParts, const  dou
 #if USE_CHRONO == 1
 
 	const particleinfo *info = buffers.getConstData<BUFFER_INFO>();
-	// Now we are going to put into BUFFER_FEA_EXCH the data from FEA
-	// (node velocities) that will be used to move the associated particles
-	float4 *fea_vel = buffers.getData<BUFFER_FEA_EXCH>();
+	float4 *fea_vel = buffers.getData<BUFFER_FEA_VEL>();
 
 	if (dofea) {
 		// - we perform FEA during the predictor, where dt is half the complete

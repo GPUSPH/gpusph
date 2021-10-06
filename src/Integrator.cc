@@ -101,12 +101,13 @@ Integrator::buildNeibsPhase(flag_t import_buffers)
 {
 	const SimParams* sp = gdata->problem->simparams();
 
-	import_buffers |= PARTICLE_SUPPORT_BUFFERS;
+	import_buffers |= PARTICLE_SUPPORT_BUFFERS | BUFFER_FEA_VEL;
 
 	// Some buffers can be shared between the sorted and unsorted state, because
 	// they are not directly tied to the particles themselves, but the particle system
 	// as a whole. The buffers that need to get shared depend on a number of conditions:
 	static const bool has_forces_bodies = (sp->numforcesbodies > 0);
+	static const bool has_fea = HAS_FEA(sp->simflags);
 
 	// Determine if we're using planes, and thus need the BUFFER_NEIBPLANES buffer
 	static const bool has_planes = HAS_DEM_OR_PLANES(sp->simflags);
@@ -114,10 +115,11 @@ Integrator::buildNeibsPhase(flag_t import_buffers)
 	static const flag_t sorting_shared_buffers =
 	// The compact device map (when present) carries over to the other state, unchanged
 		(MULTI_DEVICE ? BUFFER_COMPACT_DEV_MAP : BUFFER_NONE) |
+	// The FEA buffers don't get sorted either
+		(has_fea ? BUFFER_FEA_VEL : BUFFER_NONE) |
 	// The object particle key buffer is static (precomputed on host, never changes),
 	// so we bring it across all particle states
 		(has_forces_bodies ? BUFFER_RB_KEYS : BUFFER_NONE);
-
 
 	Phase *neibs_phase = new Phase(this, "build neighbors list");
 

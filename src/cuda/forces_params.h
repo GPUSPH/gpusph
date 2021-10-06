@@ -351,7 +351,7 @@ struct fea_forces_params
 
 	fea_forces_params(BufferList const& bufread, BufferList &bufwrite) :
 		normsArray(bufread.getData<BUFFER_NORMALS>()),
-		feaforces(bufwrite.getData<BUFFER_FEA_EXCH>())
+		feaforces(bufwrite.getData<BUFFER_FEA_FORCES>())
 	{}
 };
 

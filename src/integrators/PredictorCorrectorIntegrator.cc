@@ -558,7 +558,7 @@ PredictorCorrector::initializePredCorrSequence(StepInfo const& step)
 			BUFFER_FORCES | BUFFER_CFL | BUFFER_CFL_TEMP |
 			BUFFER_CFL_GAMMA | BUFFER_CFL_KEPS |
 			BUFFER_RB_FORCES | BUFFER_RB_TORQUES |
-			BUFFER_FEA_EXCH |
+			BUFFER_FEA_FORCES |
 			BUFFER_XSPH |
 			/* TODO BUFFER_TAU is written by forces only in the k-epsilon case,
 			 * and it is not updated across devices, is this correct?
@@ -635,15 +635,17 @@ PredictorCorrector::initializePredCorrSequence(StepInfo const& step)
 	// TODO these commands should only be done every SPH/FEA ratio iterations
 	if (has_fea) {
 		this_phase->add_command(DUMP)
-			.reading(current_state, BUFFER_FEA_EXCH);
+			.reading(current_state, BUFFER_FEA_FORCES);
 
 		this_phase->add_command(FEA_STEP)
 			.set_step(step)
 			.set_dt(dt_op)
 			.set_src(current_state);
 
+		// BUFFER_FEA_VEL is only updated during the predictor.
+		// For the corrector we keep the predicted value
 		this_phase->add_command(UNDUMP)
-			.writing(current_state, BUFFER_FEA_EXCH);
+			.writing(current_state, BUFFER_FEA_VEL);
 	}
 
 
@@ -670,7 +672,7 @@ PredictorCorrector::initializePredCorrSequence(StepInfo const& step)
 		.reading(current_state,
 			BUFFER_FORCES | BUFFER_XSPH |
 			BUFFER_INTERNAL_ENERGY_UPD |
-			BUFFER_FEA_EXCH |
+			BUFFER_FEA_VEL |
 			BUFFER_DKDE);
 
 	// now, the difference:
