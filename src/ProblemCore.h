@@ -358,6 +358,12 @@ class ProblemCore
 		void set_kernel_radius(double radius)
 		{ simparams()->set_kernel_radius(radius); }
 
+		float set_ccsph_min_det(const float ccsph_min_det)
+		{
+			simparams()->ccsph_min_det = ccsph_min_det;
+			return ccsph_min_det;
+		}
+
 		void set_grid_params(void);
 
 		/// Compute the uniform grid coordinates of a point, clamping to edges

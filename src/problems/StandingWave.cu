@@ -90,6 +90,7 @@ StandingWave::StandingWave(GlobalData *_gdata) : Problem(_gdata)
 	simparams()->tend = 20.0;
 	simparams()->buildneibsfreq = 10;
 	simparams()->ferrariLengthScale = H;
+	set_ccsph_min_det(0.65);
 	//physparams()->artvisccoeff = 0.05;
 
 	// enlarge the domain to take into account the extra layers of particles
