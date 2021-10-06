@@ -241,16 +241,32 @@ ProblemCore::InitializeChrono()
 	m_chrono_system->Set_G_acc(::chrono::ChVector<>(m_physparams->gravity.x, m_physparams->gravity.y,
 		m_physparams->gravity.z));
 
-
-	auto mkl_solver = chrono_types::make_shared<::chrono::ChSolverSparseQR>();
-	mkl_solver->UseSparsityPatternLearner(true);
-	mkl_solver->LockSparsityPattern(true);
-	mkl_solver->SetVerbose(false);
-	m_chrono_system->SetSolver(mkl_solver);
-	m_chrono_system->SetTimestepperType(::chrono::ChTimestepper::Type::EULER_IMPLICIT); // HHT is an implicit integration scheme.
-
+	initializeChronoSystem(m_chrono_system);
 #else
 	throw runtime_error ("ProblemCore::InitializeChrono Trying to use Chrono without USE_CHRONO defined !\n");
+#endif
+}
+
+void
+ProblemCore::initializeChronoSystem(::chrono::ChSystem *chrono_system)
+{
+#if USE_CHRONO
+	// The default Chrono solver and timesteppers depend on whether FEA is enabled or not
+	if (HAS_FEA(simparams()->simflags)) {
+		auto solver = chrono_types::make_shared<::chrono::ChSolverSparseQR>();
+		solver->UseSparsityPatternLearner(true);
+		solver->LockSparsityPattern(true);
+		solver->SetVerbose(false);
+		chrono_system->SetSolver(solver);
+		chrono_system->SetTimestepperType(::chrono::ChTimestepper::Type::EULER_IMPLICIT);
+		cout << "FEA enabled: defaulting to Sparse QR solver with EULER_IMPLICIT timestepper" << endl;
+	} else {
+		chrono_system->SetSolverType(::chrono::ChSolver::Type::PSOR);
+		chrono_system->SetSolverMaxIterations(100);
+		cout << "FEA disabled: defaulting to PSOR solver with default timestepper" << endl;
+	}
+#else
+	throw runtime_error(__func__ ": trying to initialize Chrono System without USE_CHRONO");
 #endif
 }
 

@@ -640,6 +640,15 @@ class ProblemCore
 		void SetFeaReady(void);
 		void FinalizeChrono(void);
 
+		//! Callback to initialize the Chrono system
+		/*! This is invoked during Chrono initialization,
+		 *  and the problems can override it to modify the Chrono system.
+		 *  Typically this is used to define a Chrono solver and timestepper
+		 *  different from the default
+		 */
+		virtual void
+		initializeChronoSystem(::chrono::ChSystem *chrono_system);
+
 		// callback for initializing joints between Chrono bodies
 		virtual void initializeObjectJoints();
 
