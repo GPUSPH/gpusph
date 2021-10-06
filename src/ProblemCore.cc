@@ -805,28 +805,6 @@ ProblemCore::write_fea_nodes(const double t)
 #endif
 }
 
-/*Multi-device: collect from the devices the forces applied to the FEA nodes*/
-void
-ProblemCore::reduce_fea_forces(BufferList &buffers, const uint numFeaNodes)
-{
-#if USE_CHRONO
-	float4 *forces = buffers.getData<BUFFER_FEA_FORCES>(); // contains forces from (FSI)
-
-	//number of devices
-	uint n_devs = gdata->devices;
-
-	for (uint i = 0; i < numFeaNodes; i++) {
-
-		float4 f_sum = forces[i];
-
-		for (uint d = 1; d < n_devs; d++)
-			f_sum += forces[d*numFeaNodes + i];
-
-		forces[i] = f_sum;
-	}
-#endif
-}
-
 // Set external forces and Fluid-Solid Interaction (FSI) forces to FEM nodes
 void
 ProblemCore::fea_init_step(BufferList &buffers, const uint numFeaParts, const double t,  const int step)

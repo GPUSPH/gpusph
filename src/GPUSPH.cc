@@ -874,16 +874,40 @@ void GPUSPH::runCommand<BODY_FORCES_CALLBACK>(CommandStruct const& cmd)
 	problem->bodies_forces_callback(t0, t1, step, gdata->s_hRbAppliedForce, gdata->s_hRbAppliedTorque);
 }
 
+/// Multi-device: collect from the devices the forces applied to the FEA nodes
 template<>
 void GPUSPH::runCommand<REDUCE_FEA_FORCES_HOST>(CommandStruct const& cmd)
 {
+	float4 *forces = gdata->s_hBuffers.getData<BUFFER_FEA_FORCES>(); // contains forces from (FSI)
+
 	const uint numFeaNodes = gdata->problem->get_fea_objects_numnodes();
 	const uint fea_every = gdata->problem->simparams()->feaSph_iterations_ratio;
 	const double t = gdata->t;
 	bool dofea = (t >= gdata->problem->simparams()->t_fea_start) && (gdata->iterations % fea_every == 0);
 
-	if (dofea){
-		if(MULTI_GPU)	problem->reduce_fea_forces(gdata->s_hBuffers, numFeaNodes);
+	if (!dofea) return;
+
+	// Sum up the partial forces computed in each gpu
+	if (MULTI_GPU) {
+
+		//number of devices
+		uint n_devs = gdata->devices;
+
+		for (uint i = 0; i < numFeaNodes; i++) {
+
+			float4 f_sum = forces[i];
+
+			for (uint d = 1; d < n_devs; d++)
+				f_sum += forces[d*numFeaNodes + i];
+
+			forces[i] = f_sum;
+		}
+	}
+
+	// if running multinode, also reduce across nodes
+	if (MULTI_NODE) {
+		// to minimize the overhead, we reduce the whole arrays of forces and torques in one command
+		gdata->networkManager->networkFloatReduction((float*)forces, 4*numFeaNodes, SUM_REDUCTION);
 	}
 }
 
