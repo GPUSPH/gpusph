@@ -912,7 +912,22 @@ void GPUSPH::runCommand<REDUCE_FEA_FORCES_HOST>(CommandStruct const& cmd)
 }
 
 template<>
-void GPUSPH::runCommand<FEA_STEP>(CommandStruct const& cmd)
+void GPUSPH::runCommand<FEA_APPLY_FORCES>(CommandStruct const& cmd)
+{
+	const uint numFeaNodes = gdata->problem->get_fea_objects_numnodes(); //FIXME the number should be evaluated once, and stored (not just in worker)
+	const int step = cmd.step.number;
+
+	const double t = gdata->t;
+	const uint fea_every = gdata->problem->simparams()->feaSph_iterations_ratio;
+	bool dofea = (t >= gdata->problem->simparams()->t_fea_start) && (gdata->iterations % fea_every == 0);
+
+	if (dofea ){
+		problem->fea_init_step(gdata->s_hBuffers, numFeaNodes, t, step);
+	}
+}
+
+template<>
+void GPUSPH::runCommand<FEA_MOVE_BODIES>(CommandStruct const& cmd)
 {
 	const uint numFeaNodes = gdata->problem->get_fea_objects_numnodes(); //FIXME the number should be evaluated once, and stored (not just in worker)
 	const float dt = cmd.dt(gdata);
@@ -922,11 +937,8 @@ void GPUSPH::runCommand<FEA_STEP>(CommandStruct const& cmd)
 	const uint fea_every = gdata->problem->simparams()->feaSph_iterations_ratio;
 	bool dofea = (t >= gdata->problem->simparams()->t_fea_start) && (gdata->iterations % fea_every == 0);
 
-	if (dofea && (step == 1)){
-		problem->fea_init_step(gdata->s_hBuffers, numFeaNodes, t, step);
-	}
 //	fprintf(m_info_stream, "starting FEA step...\n");
-	if (dofea && (step ==1))
+	if (dofea && (step == 1))
 		problem->fea_do_step(dt, fea_every);
 //	fprintf(m_info_stream, "FEA step completed\n");
 
