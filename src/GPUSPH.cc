@@ -875,9 +875,21 @@ void GPUSPH::runCommand<BODY_FORCES_CALLBACK>(CommandStruct const& cmd)
 }
 
 template<>
+void GPUSPH::runCommand<REDUCE_FEA_FORCES_HOST>(CommandStruct const& cmd)
+{
+	const uint numFeaNodes = gdata->problem->get_fea_objects_numnodes();
+	const uint fea_every = gdata->problem->simparams()->feaSph_iterations_ratio;
+	const double t = gdata->t;
+	bool dofea = (t >= gdata->problem->simparams()->t_fea_start) && (gdata->iterations % fea_every == 0);
+
+	if (dofea){
+		if(MULTI_GPU)	problem->reduce_fea_forces(gdata->s_hBuffers, numFeaNodes);
+	}
+}
+
+template<>
 void GPUSPH::runCommand<FEA_STEP>(CommandStruct const& cmd)
 {
-
 	const uint numFeaNodes = gdata->problem->get_fea_objects_numnodes(); //FIXME the number should be evaluated once, and stored (not just in worker)
 	const float dt = cmd.dt(gdata);
 	const int step = cmd.step.number;
@@ -886,14 +898,9 @@ void GPUSPH::runCommand<FEA_STEP>(CommandStruct const& cmd)
 	const uint fea_every = gdata->problem->simparams()->feaSph_iterations_ratio;
 	bool dofea = (t >= gdata->problem->simparams()->t_fea_start) && (gdata->iterations % fea_every == 0);
 
-	/* Initializing FEA step: this is done during the predictor (step == 1) */
 	if (dofea && (step == 1)){
-		if(MULTI_GPU)
-			problem->reduce_fea_forces(gdata->s_hBuffers, numFeaNodes);
 		problem->fea_init_step(gdata->s_hBuffers, numFeaNodes, t, step);
 	}
-
-
 //	fprintf(m_info_stream, "starting FEA step...\n");
 	if (dofea && (step ==1))
 		problem->fea_do_step(dt, fea_every);

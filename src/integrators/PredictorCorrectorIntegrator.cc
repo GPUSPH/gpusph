@@ -637,6 +637,10 @@ PredictorCorrector::initializePredCorrSequence(StepInfo const& step)
 		this_phase->add_command(DUMP)
 			.reading(current_state, BUFFER_FEA_FORCES);
 
+
+		if (step.number == 1)
+			this_phase->add_command(REDUCE_FEA_FORCES_HOST);
+
 		this_phase->add_command(FEA_STEP)
 			.set_step(step)
 			.set_dt(dt_op)

@@ -105,6 +105,9 @@ DEFINE_COMMAND_NOBUF(CHECK_NEWNUMPARTS)
 DEFINE_COMMAND_NOBUF(DEBUG_DUMP)
 
 /// Execute Finite Element Analysis
+DEFINE_COMMAND_NOBUF(REDUCE_FEA_FORCES_HOST)
+
+/// Execute Finite Element Analysis
 DEFINE_COMMAND_NOBUF(FEA_STEP)
 
 /// Stop criterion of the Jacobi solver used to compute effective pressure (granular rheology)
