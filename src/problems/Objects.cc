@@ -184,8 +184,8 @@ void Objects::initializeObjectJoints() {
 #if USE_CHRONO == 1
 	// Make a new ChLinkDistance
 	auto joint1 = chrono_types::make_shared< ::chrono::ChLinkDistance >();
-	auto a1 = getGeometryInfo(floating_obj_1)->ptr->GetBody();
-	auto a2 = getGeometryInfo(floating_obj_2)->ptr->GetBody();
+	auto a1 = getGeometryBody(floating_obj_1);
+	auto a2 = getGeometryBody(floating_obj_2);
 	joint1->SetName("DistanceConstraint");
 	// distance link params: body1, body1, bool (true if pos are relative), endpoint1, endpoint2, bool (true if distance is auto)
 	joint1->Initialize(	a1, a2, false, a1->GetPos(), a2->GetPos(), true);

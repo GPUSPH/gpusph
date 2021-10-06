@@ -431,6 +431,11 @@ class ProblemAPI<1> : public ProblemCore
 		const ObjectPtr getGeometryObject(GeometryID gid) const;
 		ObjectPtr getGeometryObject(GeometryID gid);
 
+		std::shared_ptr< ::chrono::ChBody > getGeometryBody(GeometryID gid)
+		{ return getGeometryObject(gid)->GetBody(); }
+		std::shared_ptr< ::chrono::fea::ChMesh > getGeometryFeaMesh(GeometryID gid)
+		{ return getGeometryObject(gid)->GetFeaMesh(); }
+
 		// set the positioning policy for geometries added after the call
 		void setPositioning(PositioningPolicy positioning);
 
