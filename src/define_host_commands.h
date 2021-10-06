@@ -113,6 +113,9 @@ DEFINE_COMMAND_NOBUF(FEA_APPLY_FORCES)
 /// Execute Finite Element Analysis
 DEFINE_COMMAND_NOBUF(FEA_MOVE_BODIES)
 
+/// Write out FEA node info
+DEFINE_COMMAND_NOBUF(FEA_WRITE_NODES)
+
 /// Stop criterion of the Jacobi solver used to compute effective pressure (granular rheology)
 /*! Reduce Jacobi backward error and residual, and determine
 whether the solver should stop based one simulation paramters

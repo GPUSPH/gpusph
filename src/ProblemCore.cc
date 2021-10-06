@@ -962,14 +962,6 @@ ProblemCore::transfer_fea_motion(BufferList &buffers, const uint numFeaParts, co
 				o++;
 			}
 		}
-	} else {
-		for(uint i = 0; i < numFeaParts; ++i) {
-			// when we do not compute a new FEA we send the newest stored velocity
-			fea_vel[i] = m_old_fea_vel[i];
-		}
-
-
-		/*TODO DISCUSS alternatively we could fo FEA for the SPH dt and fea_every times the displacement*/
 	}
 #endif
 }

@@ -921,7 +921,7 @@ void GPUSPH::runCommand<FEA_APPLY_FORCES>(CommandStruct const& cmd)
 	const uint fea_every = gdata->problem->simparams()->feaSph_iterations_ratio;
 	bool dofea = (t >= gdata->problem->simparams()->t_fea_start) && (gdata->iterations % fea_every == 0);
 
-	if (dofea ){
+	if (dofea){
 		problem->fea_init_step(gdata->s_hBuffers, numFeaNodes, t, step);
 	}
 }
@@ -943,13 +943,20 @@ void GPUSPH::runCommand<FEA_MOVE_BODIES>(CommandStruct const& cmd)
 //	fprintf(m_info_stream, "FEA step completed\n");
 
 	problem->transfer_fea_motion(gdata->s_hBuffers, numFeaNodes, dofea && (step == 1));
+}
+
+template<>
+void GPUSPH::runCommand<FEA_WRITE_NODES>(CommandStruct const& cmd)
+{
+	const float dt = cmd.dt(gdata);
+
+	const double t = gdata->t;
 
 	/* writing FEA nodes */
 	float timer = gdata->s_fea_writer_timer;
 
-	if (step == 2)
-		// Time from last writing
-		gdata->s_fea_writer_timer += dt;
+	// Time from last writing
+	gdata->s_fea_writer_timer += dt;
 
 	if (timer > gdata->problem->simparams()->fea_write_every) {
 		gdata->s_fea_writer_timer = 0.0f;
