@@ -365,6 +365,7 @@ template<KernelType _kerneltype,
 	BoundaryType _boundarytype,
 	typename _ViscSpec,
 	flag_t _simflags,
+	Dimensionality _dimensions,
 	ParticleType _cptype,
 	ParticleType _nptype,
 	RunMode _run_mode = SIMULATE,
@@ -431,6 +432,7 @@ struct forces_params : _ViscSpec,
 	static const ViscousModel viscmodel = ViscSpec::viscmodel;
 
 	static const flag_t simflags = _simflags;
+	static const Dimensionality dimensions = _dimensions;
 	static const ParticleType cptype = _cptype;
 	static const ParticleType nptype = _nptype;
 
@@ -488,10 +490,11 @@ using repackViscSpec = FullViscSpec<NEWTONIAN, LAMINAR_FLOW, KINEMATIC, MORRIS, 
 template<KernelType _kerneltype,
 	BoundaryType _boundarytype,
 	flag_t _simflags,
+	Dimensionality _dimensions,
 	ParticleType _cptype,
 	ParticleType _nptype>
 using repack_params = forces_params<_kerneltype, SPH_F1, DENSITY_DIFFUSION_NONE,
-	  _boundarytype, repackViscSpec<_simflags>, _simflags, _cptype, _nptype, REPACK>;
+	  _boundarytype, repackViscSpec<_simflags>, _simflags, _dimensions, _cptype, _nptype, REPACK>;
 
 /// The actual finalize_forces_params struct, which concatenates all of the above, as appropriate.
 template<SPHFormulation _sph_formulation,

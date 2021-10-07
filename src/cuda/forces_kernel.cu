@@ -354,7 +354,7 @@ skip_cspm_early(particleinfo const& info, float4 const& vel)
 }
 
 //! Compute the renormalized density gradient for Antuono's density diffusion term in delta-SPH
-template<KernelType kerneltype, typename Params>
+template<KernelType kerneltype, Dimensionality dimensions, typename Params>
 __device__ __forceinline__
 enable_if_t<Params::densitydiffusiontype == ANTUONO>
 compute_renormalized_density(Params const&params, symtensor3 const& fcoeff, uint index,
@@ -415,7 +415,7 @@ compute_renormalized_density(Params const&params, symtensor3 const& fcoeff, uint
 	params.renorm_dens_grad[index] = make_float4(renorm_dens_grad, NAN);
 }
 
-template<KernelType kerneltype, typename Params>
+template<KernelType kerneltype, Dimensionality dimensions, typename Params>
 __device__ __forceinline__
 enable_if_t<Params::densitydiffusiontype != ANTUONO>
 compute_renormalized_density(Params const&params, symtensor3 const& fcoeff, uint index,
@@ -425,7 +425,7 @@ compute_renormalized_density(Params const&params, symtensor3 const& fcoeff, uint
 
 //! Store the CSPM / CCSPH F-correction tensor coefficient.
 //! The tensor is reset to the identity matrix if any of the threshold conditions are satisfied.
-template<typename Params>
+template<Dimensionality dimensions, typename Params>
 __device__ __forceinline__
 enable_if_t<HAS_CCSPH(Params::simflags)>
 store_ccsph_fcoeff(Params const& params, symtensor3& fcoeff, uint index, uint num_neibs, bool close_to_boundary)
@@ -435,7 +435,7 @@ store_ccsph_fcoeff(Params const& params, symtensor3& fcoeff, uint index, uint nu
 	if (!reset_fcoeff) {
 
 #if CCSPH_THRESHOLD == 2
-		const float D = kbn_det(fcoeff);
+		const float D = kbn_det<dimensions>(fcoeff);
 
 		reset_fcoeff = (D < d_ccsph_min_det);
 
@@ -452,7 +452,7 @@ store_ccsph_fcoeff(Params const& params, symtensor3& fcoeff, uint index, uint nu
 }
 
 //! If CSPM / CCSPH is disabled, nothing to do when storing the CSPM tensor
-template<typename Params>
+template<Dimensionality dimensions, typename Params>
 __device__ __forceinline__
 enable_if_t<not HAS_CCSPH(Params::simflags)>
 store_ccsph_fcoeff(Params const& params, symtensor3& fcoeff, uint index, uint num_neibs, bool close_to_boundary)
@@ -468,7 +468,7 @@ store_ccsph_fcoeff(Params const& params, symtensor3& fcoeff, uint index, uint nu
 template<KernelType kerneltype,
 	BoundaryType boundarytype,
 	DensityDiffusionType densitydiffusiontype,
-	flag_t simflags,
+	flag_t simflags, Dimensionality dimensions,
 	typename params_t = cspm_coeff_params<boundarytype, densitydiffusiontype, simflags>
 >
 struct cspmCoeffDevice : params_t
@@ -578,9 +578,9 @@ struct cspmCoeffDevice : params_t
 
 	} while (0);
 
-	compute_renormalized_density<kerneltype>(params, fcoeff, index, info, pos, vel.w, gridPos);
+	compute_renormalized_density<kerneltype, dimensions>(params, fcoeff, index, info, pos, vel.w, gridPos);
 
-	store_ccsph_fcoeff(params, fcoeff, index, num_neibs, close_to_boundary);
+	store_ccsph_fcoeff<dimensions>(params, fcoeff, index, num_neibs, close_to_boundary);
 }
 };
 

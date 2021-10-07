@@ -79,10 +79,16 @@ set_identity(symtensor4& T)
 }
 
 // determinant of a 3x3 symmetric tensor
+template<Dimensionality dimensions = R3, int dims = space_dimensions_for(dimensions)>
 __spec
 float
 det(symtensor3 const& T)
 {
+	if (dims == 2)
+	{
+		return(T.xx*T.yy - T.xy*T.xy);
+	}
+
 	float ret = 0;
 	ret += T.xx*(T.yy*T.zz - T.yz*T.yz);
 	ret -= T.xy*(T.xy*T.zz - T.xz*T.yz);
@@ -90,10 +96,16 @@ det(symtensor3 const& T)
 	return ret;
 }
 
+template<Dimensionality dimensions = R3, int dims = space_dimensions_for(dimensions)>
 __spec
 float
 kbn_det(symtensor3 const& T)
 {
+	if (dims == 2)
+	{
+		return(T.xx*T.yy - T.xy*T.xy);
+	}
+
 	float ret = 0, kahan = 0;
 	ret = kbn_add(ret,  T.xx*(T.yy*T.zz - T.yz*T.yz), kahan);
 	ret = kbn_add(ret, -T.xy*(T.xy*T.zz - T.xz*T.yz), kahan);
@@ -157,11 +169,24 @@ norm_inf(symtensor4 const& T)
 }
 
 // compute inverse of tensor when the determinant has been computed already
+template<Dimensionality dimensions = R3, int dims = space_dimensions_for(dimensions)>
 __spec
 symtensor3
 inverse(symtensor3 const& T, const float D)
 {
 	symtensor3 R;
+
+	if (dims == 2)
+	{
+		R.xx = T.yy/D;
+		R.xy = - T.xy/D;
+		R.yy = T.xx/D;
+		R.xz = 0.0f;
+		R.yz = 0.0f;
+		R.zz = 1.0f;
+		return R;
+	}
+
 	R.xx = (T.yy*T.zz - T.yz*T.yz)/D;
 	R.xy = (T.xz*T.yz - T.xy*T.zz)/D;
 	R.xz = (T.xy*T.yz - T.xz*T.yy)/D;
@@ -173,11 +198,12 @@ inverse(symtensor3 const& T, const float D)
 }
 
 // compute inverse of a tensor when the determinant has not been computed already
+template<Dimensionality dimensions = R3>
 __spec
 symtensor3
 inverse(symtensor3 const& T)
 {
-	return inverse(T, det(T));
+	return inverse<dimensions>(T, det<dimensions>(T));
 }
 
 __spec

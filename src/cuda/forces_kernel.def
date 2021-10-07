@@ -1204,13 +1204,14 @@ struct cspm_neib_data
 		cspm_rTr_r2(compute_rTr_r2(avg_fcoeffTens, ndata.relPos))
 	{}
 
+	template<typename FP>
 	__device__ __forceinline__
-	cspm_neib_data(
+	cspm_neib_data(FP const& params, // this is just to extract the dimensions
 		cspm_particle_data const& pdata, common_neib_data const& ndata,
 		symtensor3 neib_fcoeffTens)
 	:
 		cspm_neib_data(ndata,
-			inverse((pdata.fcoeffTens + neib_fcoeffTens)*0.5f)
+			inverse<FP::dimensions>((pdata.fcoeffTens + neib_fcoeffTens)*0.5f)
 			)
 	{}
 
@@ -1219,7 +1220,7 @@ struct cspm_neib_data
 	cspm_neib_data(FP const& params, const uint index,
 		cspm_particle_data const& pdata, common_neib_data const& ndata)
 	:
-		cspm_neib_data(pdata, ndata, params.fetchFcoeff(index))
+		cspm_neib_data(params, pdata, ndata, params.fetchFcoeff(index))
 	{}
 
 // Past experiments:
