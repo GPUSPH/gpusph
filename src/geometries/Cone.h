@@ -68,10 +68,8 @@ class Cone: public Object {
 		bool IsInside(const Point&, const double) const;
 
 #if USE_CHRONO == 1
+		// TODO FIXME why aren't we overriding the BodyCreate with EulerParameters?
 		void BodyCreate(::chrono::ChSystem *, const double, const bool);
-#else
-		void BodyCreate(void *p1, const double p2, const bool p3)
-		{ Object::BodyCreate(p1, p2, p3); }
 #endif
 		void GeomCreate(const double dx);
 };

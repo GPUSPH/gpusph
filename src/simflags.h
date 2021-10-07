@@ -104,9 +104,13 @@
 #define ENABLE_MOVING_BODIES	(ENABLE_DEM << 1)
 #define HAS_MOVING_BODIES(field) QUERY_ANY_FLAGS(field, ENABLE_MOVING_BODIES)
 
+//! Finite elements analysis 
+#define ENABLE_FEA	(ENABLE_MOVING_BODIES << 1)
+#define HAS_FEA(field)	QUERY_ANY_FLAGS(field, ENABLE_FEA)
+
 //! inlet/outlet
 //! open boundaries
-#define ENABLE_INLET_OUTLET		(ENABLE_MOVING_BODIES << 1)
+#define ENABLE_INLET_OUTLET		(ENABLE_FEA << 1)
 #define HAS_INLET_OUTLET(field)	QUERY_ANY_FLAGS(field, ENABLE_INLET_OUTLET)
 
 //! water depth computation

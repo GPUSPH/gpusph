@@ -34,6 +34,7 @@
 class Objects: public Problem {
 	private:
 		GeometryID floating_obj_1, floating_obj_2;
+		void setup_framework(DensityDiffusionType RHODIFF, bool USE_PLANES);
 	public:
 		Objects(GlobalData *);
 		//virtual ~Objects(void);

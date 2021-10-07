@@ -382,6 +382,7 @@ typedef struct PhysParams {
 	 * TLT_GRAVITY
    */
 	float3	gravity;		///< Gravity
+	float4	feaGround;		///< Parameters of a plane representing the ground for fea elements TODO this should be a vector of planes, and we should be able to let the user set existing planes as ground planes
 	/** @} */
 
 	// We have 2 deprecated members, but we don't need
@@ -421,7 +422,8 @@ IGNORE_WARNINGS(deprecated-declarations)
 		cosconeanglefluid(0.86f),
 		cosconeanglenonfluid(0.5f),
 
-		gravity(make_float3(0, 0, -9.81))
+		gravity(make_float3(0, 0, -9.81)),
+		feaGround(make_float4(0, 0, 0, 0))
 	{};
 
 	// ProblemCore and all ProblemAPI specialization
@@ -779,6 +781,17 @@ protected:
 		return cohesion.at(fluid_idx);
 	}
 	/** @} */
+
+	/// Set the ground plane for fea bodies 
+	void set_fea_ground(
+		const float a,
+		const float b,
+		const float c,
+		const float d) {
+
+		feaGround = make_float4(a, b, c, d);
+	}
+
 
 } PhysParams;
 

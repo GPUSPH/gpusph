@@ -880,7 +880,7 @@ ifneq ($(USE_CHRONO),0)
 
  ifeq ($(CHRONO_LIB_PATH),$(empty))
   # If CHRONO_LIB_PATH is not set, look for libChronoEngine.*
-  # under $(CHRONO_PATH)/lib64 and then build the include path by getting the up-dir
+  # under $(CHRONO_PATH)/lib or $(CHRONO_PATH)/lib64 and then build the include path by getting the up-dir
   CHRONO_LIB_PATH := $(dir $(or \
    $(wildcard $(CHRONO_PATH)/lib64/libChronoEngine.so) \
    $(wildcard $(CHRONO_PATH)/build/lib64/libChronoEngine.so) \

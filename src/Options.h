@@ -77,6 +77,7 @@ public:
 	float	checkpoint_freq; ///< frequency of hotstart checkpoints (in simulated seconds)
 	int		checkpoints; ///< number of hotstart checkpoints to keep
 	bool	nosave; ///< disable saving
+	bool	pin_fea_buffers; ///< pin host-side global buffers for FEA
 	bool	gpudirect; ///< enable GPUDirect
 	bool	striping; ///< enable striping (i.e. compute/transfer overlap)
 	bool	asyncNetworkTransfers; ///< enable asynchronous network transfers
@@ -106,6 +107,7 @@ public:
 		repack_maxiter(0),
 		checkpoint_freq(NAN),
 		checkpoints(-1),
+		pin_fea_buffers(true),
 		nosave(false),
 		gpudirect(false),
 		striping(false),

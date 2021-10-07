@@ -124,6 +124,50 @@ struct dummy_particle_data
 	{}
 };
 
+struct fea_particle_data
+{
+	float4 fea_vel;
+	float4 fea_nat_coords;
+	uint4 fea_ref_nodes;
+
+	__device__ __forceinline__
+	fea_particle_data(int part_id, int2 const& node_start_index, int2 const& parts_start_index, fea_euler_params const& params, particleinfo const& info)  :
+
+		fea_vel(make_float4(NAN)),
+		fea_nat_coords(make_float4(NAN)),
+		fea_ref_nodes(make_uint4(0, 0, 0, 0))
+	{
+		int node_index = part_id + node_start_index.x - node_start_index.y;
+		int parts_index = part_id + parts_start_index.x - parts_start_index.y;
+
+		if (FEA_NODE(info)){
+			if(node_index < 0)
+				printf("N %d %d %d %d\n", node_index, part_id, node_start_index.x, node_start_index.y);
+			else
+				fea_vel = params.fea_velocities[node_index];
+		}
+
+		if (DEFORMABLE(info)){
+			if(parts_index < 0)
+				printf("P %d %d %d %d\n", parts_index, part_id, parts_start_index.x, parts_start_index.y);
+			else{
+				fea_nat_coords = d_feapartsnatcoords[parts_index];
+				fea_ref_nodes = d_feapartsownnodes[parts_index];
+			}
+		}
+	}
+
+	__device__ __forceinline__
+	fea_particle_data(int part_id, int obj_id, fea_euler_params const& params, particleinfo const& info)  :
+		fea_particle_data(part_id, d_feanodesstartindex[obj_id], d_feapartsstartindex[obj_id], params, info)
+	{}
+
+	__device__ __forceinline__
+	fea_particle_data(particleinfo const& info, fea_euler_params const& params)  :
+		fea_particle_data(id(info), object(info), params, info)
+	{}
+};
+
 /// The actual euler_particle_data struct, which concatenates all of the above, as appropriate.
 template<typename EP, ///< euler_param template specialization
 	KernelType _kerneltype = EP::kerneltype,
@@ -140,6 +184,7 @@ struct euler_particle_data :
 	COND_STRUCT(HAS_XSPH(_simflags) && !EP::repacking, xsph_particle_data),
 	COND_STRUCT(_sph_formulation == SPH_GRENIER && !EP::repacking, grenier_particle_data),
 	COND_STRUCT(HAS_INTERNAL_ENERGY(_simflags), energy_particle_data),
+	COND_STRUCT(HAS_FEA(_simflags), fea_particle_data),
 	COND_STRUCT(_boundarytype == DUMMY_BOUNDARY, dummy_particle_data)
 {
 	static const KernelType kerneltype = _kerneltype;
@@ -162,6 +207,7 @@ struct euler_particle_data :
 		COND_STRUCT(HAS_XSPH(simflags) && !EP::repacking, xsph_particle_data)(_index, params),
 		COND_STRUCT(sph_formulation == SPH_GRENIER && !EP::repacking, grenier_particle_data)(_index, params),
 		COND_STRUCT(HAS_INTERNAL_ENERGY(simflags), energy_particle_data)(_index, params),
+		COND_STRUCT(HAS_FEA(simflags), fea_particle_data)(this->info, params),
 		COND_STRUCT(boundarytype == DUMMY_BOUNDARY, dummy_particle_data)(this->vel)
 	{}
 };
@@ -234,6 +280,139 @@ __device__ __forceinline__
 enable_if_t<not HAS_INTERNAL_ENERGY(EP::simflags)>
 integrate_energy(EP const& params, P &pdata, int index, float dt)
 { /* do nothing */ }
+
+/// Add FEA displacement 
+template<typename EP, typename P>
+__device__ __forceinline__
+enable_if_t<HAS_FEA(EP::simflags)>
+move_fea_nodes(EP const& params, P &pdata, int index, float dt)
+{
+	pdata.pos.x += pdata.fea_vel.x*dt;
+	pdata.pos.y += pdata.fea_vel.y*dt;
+	pdata.pos.z += pdata.fea_vel.z*dt;
+
+}
+
+template<typename EP, typename P>
+__device__ __forceinline__
+enable_if_t<not HAS_FEA(EP::simflags)>
+move_fea_nodes(EP const& params, P &pdata, int index, float dt)
+{ /* do nothing */ }
+
+template<typename EP>
+__device__ __forceinline__
+void distribute_fea_movement(EP const& params, uint node, float shape_weight, const float dt, float4& disp, float4& vel)
+{
+	float4 node_disp = params.fea_velocities[node];
+	disp += shape_weight*node_disp*dt;
+	vel += shape_weight*node_disp;
+}
+
+/// Add FEA displacement 
+template<typename EP, typename P>
+__device__ __forceinline__
+enable_if_t<HAS_FEA(EP::simflags)>
+move_fea_parts(EP const& params, P &pdata, int index, float dt)
+{
+
+	// TODO these are computed for both shells and cables,
+	// even though each type needs its own subset
+	// quantities to build shape functions
+	// shell
+	const float cm = 1.0 - pdata.fea_nat_coords.x;
+	const float cp = 1.0 + pdata.fea_nat_coords.x;
+	const float em = 1.0 - pdata.fea_nat_coords.y;
+	const float ep = 1.0 + pdata.fea_nat_coords.y;
+	// cable
+	const float zm = 1.0 - pdata.fea_nat_coords.z;
+	const float zp = 1.0 + pdata.fea_nat_coords.z;
+
+	float4 disp = make_float4(0.0); // displacement to be evaluated
+	float4 vel = make_float4(0.0); // velocity to be evaluated
+
+	/* shape functions (unused due to unrolled loop below */
+	// const float shell_shape[] = { cm*em, cp*em, cm*ep, cp*ep };
+	// float cable_shape[] = { zm, zp };
+
+	/* set of nodes (unused due to the rolled loop below */
+	const uint4 rn = pdata.fea_ref_nodes;
+	// const uint shell_nodes = { rn.x, rn.y, rn.z, rn.w };
+	// const uint cable_nodes = { rn.x, rn.y };
+
+	const int el_type_id = pdata.fea_nat_coords.w;
+
+	// the FG_DEFORMABLE particle is assigned to an element and distributes the force that the
+	// fluid is exerting on it among all the nodes of the element, in proportions given by the 
+	// shaping function.
+	// Here we compute the force as SPH acceleraion times particle mass, and then we atomically 
+	// add the contribution to the respective nodes
+
+	// divide by 4 for el_type_id == 0, 2 if el_type_id == 1
+	const float weight = 1.0f/(4 - 2*el_type_id);
+
+	// both shells and cables have at least two contributing nodes
+	const float shape_weight0 = weight*(el_type_id == 0 ? cm*em : zm);
+	const float shape_weight1 = weight*(el_type_id == 0 ? cp*em : zp);
+	const uint node0 = rn.x;
+	const uint node1 = rn.y;
+
+	distribute_fea_movement(params, node0, shape_weight0, dt, disp, vel);
+	distribute_fea_movement(params, node1, shape_weight1, dt, disp, vel);
+
+	// shells have another two nodes
+	if (el_type_id == 0) {
+		const float shape_weight2 = weight*cm*ep;
+		const float shape_weight3 = weight*cp*ep;
+		const uint node2 = rn.z;
+		const uint node3 = rn.w;
+
+		distribute_fea_movement(params, node2, shape_weight2, dt, disp, vel);
+		distribute_fea_movement(params, node3, shape_weight3, dt, disp, vel);
+	}
+
+	pdata.pos.x += disp.x;
+	pdata.pos.y += disp.y;
+	pdata.pos.z += disp.z;
+
+	pdata.vel.x = vel.x;
+	pdata.vel.y = vel.y;
+	pdata.vel.z = vel.z;
+}
+
+
+template<typename EP, typename P>
+__device__ __forceinline__
+enable_if_t<not HAS_FEA(EP::simflags)>
+move_fea_parts(EP const& params, P &pdata, int index, float dt)
+{ /* do nothing */ }
+
+
+
+/// Add FEA particles velocity. We could get the velocity
+/// from the FEA, but we shoul manage another data transfer
+/// between the host and device. Then we compute the velocity
+/// from the displacement. TODO see if it is better to pass the
+/// velocity and update the position, e don't have to subtract
+/// and re-add on the position-displacement-position, and we
+/// have velocities straightforward
+
+template<typename EP, typename P>
+__device__ __forceinline__
+enable_if_t<HAS_FEA(EP::simflags)>
+set_fea_parts_vel(EP const& params, P &pdata, int index, float dt)
+{
+	pdata.vel.x = pdata.fea_vel.x;
+	pdata.vel.y = pdata.fea_vel.y;
+	pdata.vel.z = pdata.fea_vel.z;
+
+}
+
+template<typename EP, typename P>
+__device__ __forceinline__
+enable_if_t<not HAS_FEA(EP::simflags)>
+set_fea_parts_vel(EP const& params, P &pdata, int index, float dt)
+{ /* do nothing */ }
+
 
 
 /// Integrate the continuity equation
@@ -493,7 +672,7 @@ struct eulerDevice : EP
 		const bool integrateBoundary = !(params.repacking) &&
 			(boundarytype == DYN_BOUNDARY || boundarytype == SA_BOUNDARY);
 		// TODO: fix for MOBILE and FLOATING boundaries with any type of bound type
-		if (is_inactive(pdata) || (pdata.ptype == PT_BOUNDARY && !integrateBoundary && !MOVING(pdata.info)) )
+		if (is_inactive(pdata) || (pdata.ptype == PT_BOUNDARY && !integrateBoundary && !MOVING(pdata.info) && !FEA_NODE(pdata.info) && !DEFORMABLE(pdata.info)) )
 			break;
 
 		// velc = vel if step == 1, but
@@ -567,9 +746,20 @@ struct eulerDevice : EP
 			}
 
 			// DYN_BOUNDARY: integrate density and internal energy
-			if (boundarytype == DYN_BOUNDARY) {
+			if (boundarytype == DYN_BOUNDARY && !FEA_NODE(pdata.info)) {
 				continuity_integration(params, pdata, index, dt);
 				integrate_energy(params, pdata, index, dt);
+			}
+
+			// apply fea displacements to fea particles
+			if (FEA_NODE(pdata.info)) {
+				move_fea_nodes(params, pdata, index, dt);
+				set_fea_parts_vel(params, pdata, index, dt);
+			}
+
+			// apply fea displacements to fea particles
+			if (DEFORMABLE(pdata.info)) {
+				move_fea_parts(params, pdata, index, dt);
 			}
 
 			// integrate Eulerian velocity (for k-eps)

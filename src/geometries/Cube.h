@@ -73,11 +73,15 @@ class Cube: public Object {
 		double	m_ly;		///< length along y' axis
 		double	m_lz;		///< length along z' axis
 
+		uint3	m_nels;		///< number of fea elements in the three directins
+
 	public:
 		/// \name Constructors and destructor
 		//@{
 		Cube(void);
-		Cube(const Point&, const double, const double, const double, const EulerParameters& = EulerParameters());
+		Cube(const Point&, const double, const double, const double, int nelsx, int nelsy, int nelsz, const EulerParameters& = EulerParameters());
+		Cube(const Point& o, const double lx, const double ly, const double lz, const EulerParameters& ep = EulerParameters()) :
+			Cube(o, lx, ly, lz, 1, 1, 1, ep) {}
 		Cube(const Point&, const Vector&, const Vector&, const Vector&) GPUSPH_DEPRECATED_MSG("rotate a Cube(double, double, double) instead");
 		virtual ~Cube(void) {};
 		//@}
@@ -121,11 +125,15 @@ class Cube: public Object {
 		void getBoundingBox(Point &output_min, Point &output_max);
 		void shift(const double3 &offset);
 
+		float4 getNaturalCoords(const double4 abs_coords);
+		int4 getOwningNodes(const double4 abs_coords);
+
 		/// \name Chrono related  functions
 		//@{
 #if USE_CHRONO == 1
 		void BodyCreate(::chrono::ChSystem * bodies_physical_system, const double dx, const bool collide,
-			const ::chrono::ChQuaternion<> & orientation_diff);
+			const EulerParameters & orientation_diff);
+		void CreateFemMesh(::chrono::ChSystem *fea_system);
 #endif
 		//@}
 		friend std::ostream& operator<<(std::ostream&, const Cube&);

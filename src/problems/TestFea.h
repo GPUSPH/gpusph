@@ -1,9 +1,10 @@
-/*  Copyright (c) 2011-2017 INGV, EDF, UniCT, JHU
+/*  Copyright (c) 2019 INGV, EDF, UniCT, JHU, NU
 
     Istituto Nazionale di Geofisica e Vulcanologia, Sezione di Catania, Italy
     Électricité de France, Paris, France
     Università di Catania, Catania, Italy
     Johns Hopkins University, Baltimore (MD), USA
+    Northwestern University, Evanston (IL), USA
 
     This file is part of GPUSPH. Project founders:
         Alexis Hérault, Giuseppe Bilotta, Robert A. Dalrymple,
@@ -25,45 +26,39 @@
     along with GPUSPH.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _DISK_H
-#define	_DISK_H
+#ifndef _TESTFEA_H
+#define	_TESTFEA_H
 
-#include "Object.h"
+#include "XProblem.h"
 #include "Point.h"
+#include "Cube.h"
+#include "Cylinder.h"
+#include "Rect.h"
 #include "Vector.h"
 
 
-class Disk: public Object {
+class TestFea: public XProblem {
 	private:
-		double	m_r;
+		bool		use_cyl, use_bottom_plane;
+		double		paddle_length;
+		double		paddle_width;
+		double		h_length, height, slope_length, beta;
+		double		H;		// still water level
+		double		lx, ly, lz;		// dimension of experiment box
+
+		// Moving boundary data
+		double		paddle_amplitude, paddle_omega;
+		double3     paddle_origin;
+		double		paddle_tstart, paddle_tend;
+		bool		need_write(double) const;
 
 	public:
-		Disk(void);
-		Disk(const Point&, const double);
-		Disk(const Point&, const double, const Vector&);
-		Disk(const Point&, const double, const EulerParameters&);
-		Disk(const Point&, const Vector&, const Vector &);
-		virtual ~Disk(void) {};
-
-		double Volume(const double) const;
-		void SetInertia(const double);
-
-		void setEulerParameters(const EulerParameters &ep);
-		void getBoundingBox(Point &output_min, Point &output_max);
-		void shift(const double3 &offset);
-
-		void FillBorder(PointVect&, const double);
-
-		int Fill(PointVect&, const double, const bool fill = true);
-		void FillIn(PointVect& points, const double dx, const int layers);
-		void FillIn2D(PointVect& points, const double dx, const int layers);
-		void FillIn3D(PointVect& points, const double dx, const int layers);
-
-		bool IsInside(const Point&, const double) const;
-
-		void BodyCreate(::chrono::ChSystem *bodies_physical_system, const double dx, const bool collide)
-		{ throw std::runtime_error("Disk::BodyCreate not implemented !"); }
+		TestFea(GlobalData *);
+		void copy_planes(PlaneList &);
+		void initializeParticles(BufferList &buffer, const uint numParticles);
+		void moving_bodies_callback(const uint, Object*, const double, const double, const float3&,
+									const float3&, const KinematicData &, KinematicData &,
+									double3&, EulerParameters&);
 };
-#endif	/* _CIRCLE_H */
-
+#endif	/* _TESTFEA_H */
 

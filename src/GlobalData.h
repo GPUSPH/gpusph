@@ -32,12 +32,6 @@
 #ifndef _GLOBAL_DATA_
 #define _GLOBAL_DATA_
 
-// ostringstream
-#include <sstream>
-
-// std::map
-#include <map>
-
 // MAX_DEVICES et al.
 #include "multi_gpu_defines.h"
 // common host types
@@ -49,24 +43,14 @@
 // TimingInfo
 #include "timing.h"
 
+// RunMode
+#include "particledefine.h"
+
 // BufferList
 #include "buffer.h"
 
 // COORD1, COORD2, COORD3
 #include "linearization.h"
-
-// GPUWorker
-// no need for a complete definition, a simple declaration will do
-// and since GPUWorker.h needs to include GlobalData.h, it solves
-// the problem of recursive inclusions
-class GPUWorker;
-
-// Synchronizer
-#include "Synchronizer.h"
-// Writer
-#include "Writer.h"
-// NetworkManager
-#include "NetworkManager.h"
 
 // IGNORE_WARNINGS
 #include "deprecation.h"
@@ -80,10 +64,23 @@ class GPUWorker;
 // buffer definitions are set into their own include
 #include "define_buffers.h"
 
-// forward declaration of Writer
+#include "debugflags.h"
+
+// forward declarations to avoid including unnecessary headers:
+// these are all classes for which we only need to know their existance.
+// NOTE: for the GPUWorker the use of the forward declaration is quite important,
+// because GPUWorker.h needs to include GlobalData.h, and this solves
+// the problem of recursive inclusions
+class GPUWorker;
+
+class ProblemCore;
+class SimFramework;
+class BufferAllocPolicy;
+
+class Synchronizer;
+class NetworkManager;
 class Writer;
 
-#include "ProblemCore.h"
 
 enum SupportedDeviceTypes
 {
@@ -212,6 +209,8 @@ struct GlobalData {
 
 	// variable gravity
 	float3 s_varGravity;
+	// FEA external force FIXME make an array so that we can specify more forces
+	float3 s_FeaExtForce;
 
 	// simulation time control
 	RunMode run_mode;
@@ -259,6 +258,16 @@ struct GlobalData {
 
 	float3* s_hRbTotalForce; // aggregate total force (sum across all devices and nodes);
 	float3* s_hRbTotalTorque; // aggregate total torque (sum across all devices and nodes);
+
+	int2* s_hFeaNodesFirstIndex; // first indices of nodes in fea bodies: so forces kernel knows where to write fea body force
+	int2* s_hFeaPartsFirstIndex; // first indices of boundary particles in fea bodies: so euler kernel knows where to read fea body force
+
+	std::vector<bool> s_hFeaExtForce;	// true if external force is being applied to the node
+
+	float s_fea_writer_timer;				// Tracks time from last FEA nodes write
+
+	float4* s_hFeaNatCoords; //natural coordinates of the fea particles
+	uint4* s_hFeaOwningNodes; // indices of the nodes relative to the owning element
 
 	// actual applied total forces and torques. may be different from the computed total
 	// forces/torques if modified by the problem callback
@@ -346,6 +355,12 @@ struct GlobalData {
 		s_hRbRotationMatrices(NULL),
 		s_hRbLinearVelocities(NULL),
 		s_hRbAngularVelocities(NULL),
+		s_hFeaNodesFirstIndex(NULL),
+		s_hFeaPartsFirstIndex(NULL),
+		s_hFeaExtForce(),
+		s_fea_writer_timer(0.0f),
+		s_hFeaNatCoords(NULL),
+		s_hFeaOwningNodes(NULL),
 		h_IOwaterdepth(NULL),
 		h_maxIOwaterdepth(NULL)
 	{
@@ -369,12 +384,7 @@ struct GlobalData {
 				s_hDeviceCanAccessPeer[d][p] = false;
 	};
 
-	~GlobalData() {
-		delete problem;
-		if (networkManager)
-			networkManager->finalizeNetwork(ret);
-		delete networkManager;
-	}
+	~GlobalData();
 
 	//! Textual description of the current run mode (lowercase)
 	const char * run_mode_desc() const
@@ -569,51 +579,11 @@ struct GlobalData {
 	// Write the process device map to a CSV file. Appends process rank if multinode.
 	// To open such file in Paraview: open the file; check the correct separator is set; apply "Table to points" filter;
 	// set the correct fields; apply and enable visibility
-	void saveDeviceMapToFile(std::string prefix) const {
-		std::ostringstream oss;
-		oss << problem->get_dirname() << "/";
-		if (!prefix.empty())
-			oss << prefix << "_";
-		oss << problem->m_name;
-		oss << "_dp" << problem->m_deltap;
-		if (mpi_nodes > 1) oss << "_rank" << mpi_rank << "." << mpi_nodes << "." << networkManager->getProcessorName();
-		oss << ".csv";
-		std::string fname = oss.str();
-		FILE *fid = fopen(fname.c_str(), "w");
-		fprintf(fid,"X,Y,Z,LINEARIZED,VALUE\n");
-		for (uint ix=0; ix < gridSize.x; ix++)
-				for (uint iy=0; iy < gridSize.y; iy++)
-					for (uint iz=0; iz < gridSize.z; iz++) {
-						uint cell_lin_idx = calcGridHashHost(ix, iy, iz);
-						fprintf(fid,"%u,%u,%u,%u,%u\n", ix, iy, iz, cell_lin_idx, s_hDeviceMap[cell_lin_idx]);
-					}
-		fclose(fid);
-		printf(" > device map dumped to file %s\n",fname.c_str());
-	}
+	void saveDeviceMapToFile(std::string prefix) const;
 
 	// Same as saveDeviceMapToFile() but saves the *compact* device map and, if multi-gpu, also appends the device number
 	// NOTE: values are shifted; CELLTYPE_*_CELL is written while CELLTYPE_*_CELL_SHIFTED is in memory
-	void saveCompactDeviceMapToFile(std::string prefix, uint srcDev, uint *compactDeviceMap) const {
-		std::ostringstream oss;
-		oss << problem->get_dirname() << "/";
-		if (!prefix.empty())
-			oss << prefix << "_";
-		oss << problem->m_name;
-		oss << "_dp" << problem->m_deltap;
-		if (devices > 1) oss << "_dev" << srcDev << "." << devices;
-		oss << ".csv";
-		std::string fname = oss.str();
-		FILE *fid = fopen(fname.c_str(), "w");
-		fprintf(fid,"X,Y,Z,LINEARIZED,VALUE\n");
-		for (uint ix=0; ix < gridSize.x; ix++)
-				for (uint iy=0; iy < gridSize.y; iy++)
-					for (uint iz=0; iz < gridSize.z; iz++) {
-						uint cell_lin_idx = calcGridHashHost(ix, iy, iz);
-						fprintf(fid,"%u,%u,%u,%u,%u\n", ix, iy, iz, cell_lin_idx, compactDeviceMap[cell_lin_idx] >> 30);
-					}
-		fclose(fid);
-		printf(" > compact device map dumped to file %s\n",fname.c_str());
-	}
+	void saveCompactDeviceMapToFile(std::string prefix, uint srcDev, uint *compactDeviceMap) const;
 
 	//! Initialize numResumeBuffers by counting the number of non-ephemeral buffers in s_hBuffers
 	void countResumeBuffers()
@@ -625,58 +595,7 @@ struct GlobalData {
 	}
 
 	// function for cleanup between the repacking and the standard run
-	void cleanup() {
-		printf("Cleaning GlobalData...\n");
-
-		GPUWORKERS.clear();
-		threadSynchronizer = NULL;
-
-		s_hRbCgGridPos = NULL;
-		s_hRbCgPos = NULL;
-		s_hRbTranslations = NULL;
-		s_hRbLinearVelocities = NULL;
-		s_hRbAngularVelocities = NULL;
-		s_hRbRotationMatrices = NULL;
-
-		s_hRbFirstIndex = NULL;
-		s_hRbLastIndex = NULL;
-		s_hRbTotalForce = NULL;
-		s_hRbAppliedForce = NULL;
-		s_hRbTotalTorque = NULL;
-		s_hRbAppliedTorque = NULL;
-		s_hRbDeviceTotalForce = NULL;
-		s_hRbDeviceTotalTorque = NULL;
-
-		s_hDeviceMap = NULL;
-		s_hPartsPerSliceAlongX = NULL;
-		s_hPartsPerSliceAlongY = NULL;
-		s_hPartsPerSliceAlongZ = NULL;
-		s_dCellEnds = NULL;
-		s_dCellStarts = NULL;
-		s_dSegmentsStart = NULL;
-
-		allocPolicy = NULL;
-		simframework = NULL;
-		delete problem;
-		problem = NULL;
-		totParticles = 0;
-		numOpenVertices = 0;
-		allocatedParticles = 0;
-		nGridCells = 0;
-		particlesCreated = false;
-		createdParticlesIterations = 0;
-		keep_going = true;
-		quit_request = false;
-		save_request = false;
-		iterations = 0;
-		maxiter = ULONG_MAX;
-		t = 0.0;
-		dt = 0.0f;
-		lastGlobalPeakFluidBoundaryNeibsNum = 0;
-		lastGlobalPeakVertexNeibsNum = 0;
-		lastGlobalNumInteractions = 0;
-		nextCommand = IDLE;
-	}
+	void cleanup();
 };
 
 // utility defines, improve readability

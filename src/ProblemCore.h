@@ -59,15 +59,25 @@
 #include "vector_math.h"
 #include "Object.h"
 #include "MovingBody.h"
+#include "FEABody.h"
 
 #include "buffer.h"
 #include "simframework.h"
 // #include "deprecation.h"
 
 #include "chrono_select.opt"
-#if USE_CHRONO == 1
-#include "chrono/physics/ChSystem.h"
-#endif
+
+// Forward declaration of Chrono classes to avoid including the headers
+namespace chrono {
+class ChSystem;
+
+namespace fea {
+class ChMesh;
+class ChNodeFEAxyz;
+class ChLinkPointFrame;
+class ChLinkDirFrame;
+}
+}
 
 //#include "math.h"
 
@@ -87,6 +97,14 @@ class ProblemCore
 	private:
 		std::string			m_problem_dir;
 		WriterList		m_writers;
+
+#if USE_CHRONO
+		// TODO FIXME these should go into their own writer,
+		// even if it's a special writer that gets invoked
+		// outside of the standard writing phase
+		std::ofstream			m_fea_nodes_file;
+		std::ofstream			m_fea_constr_file;
+#endif
 
 		const float		*m_dem;
 		int				m_ncols, m_nrows;
@@ -116,6 +134,14 @@ class ProblemCore
 
 #define	SETUP_FRAMEWORK(...) this->simframework() =  DEFINED_SIMFRAMEWORK< __VA_ARGS__ >()
 
+	protected:
+		std::vector<int> m_WriteFeaNodesIndices;	// indices of the fea nodes to be written on file 
+#if USE_CHRONO
+		std::vector<std::shared_ptr<::chrono::fea::ChNodeFEAxyz>> m_WriteFeaNodesPointers;	// pointers to nodes to be written 
+		std::vector<std::shared_ptr<::chrono::fea::ChLinkPointFrame>> m_WriteFeaPointConstrPointers;	// pointers to position constraints to be written 
+		std::vector<std::shared_ptr<::chrono::fea::ChLinkDirFrame>> m_WriteFeaDirConstrPointers;	// pointers to direction constraints to be written 
+#endif
+
 	public:
 		// used to set the preferred split axis; LONGEST_AXIS (default) uses the longest of the worldSize
 		enum SplitAxis
@@ -126,10 +152,10 @@ class ProblemCore
 			Z_AXIS
 		};
 
+		::chrono::ChSystem	*m_chrono_system;	// Chrono physical system containing all solid bodies, contacts, FEM...
+
 #if USE_CHRONO == 1
-		::chrono::ChSystem	*m_bodies_physical_system;	// Chrono physical system containing all solid bodies, contacts, ...
-#else
-		void *m_bodies_physical_system;
+		std::vector<float4> m_old_fea_vel; // FIXME temporary way of storing old velocities 
 #endif
 
 		/*! \inpsection{geometry}
@@ -186,6 +212,24 @@ class ProblemCore
 		GlobalData	*gdata;
 		const Options		*m_options;					// commodity pointer to gdata->clOptions
 
+		FeaBodiesVect		m_fea_bodies;			// array of fea bodies
+
+		//! FEA body forces averager:
+		//! The forces computed on FEA nodes are not applied directly.
+		//! The reduce the noise from small fluctuations, we smooth them out
+		//! by averaging them over a fixed number of iterations.
+		//! The averager takes care of the smoothing, by storing the last
+		//! simparams()->fea_smoothing_samples SPH-computed forces in a ring,
+		//! and applying the averaged value to the nodes.
+		std::vector<std::vector<float3>> m_fea_forces_ring;
+		std::vector<float3> m_fea_average_forces;
+
+		//! Index in the m_fea_forces_averager ring
+		uint m_fea_ring_index;
+		//! Internal only: total amount of applied FEA forces
+		//! (used for validation checks against Chrono-computed total reactive forces)
+		float3 m_total_fea_force;
+
 		MovingBodiesVect	m_bodies;			// array of moving objects
 		KinematicData		*m_bodies_storage;				// kinematic data storage for bodie movement integration
 
@@ -208,6 +252,9 @@ class ProblemCore
 		virtual void check_neiblistsize();
 
 		std::string const& create_problem_dir();
+
+		void create_fea_nodes_file(void);
+		void create_fea_constr_file(void);
 
 		Options const& get_options(void) const
 		{ return *m_options; }
@@ -339,6 +386,13 @@ class ProblemCore
 		double set_neiblist_expansion(double alpha)
 		{ return simparams()->set_neiblist_expansion(alpha); }
 
+		/// Set the number of samples used in FEA forces smoothing
+		/*! Forces applied to FEA bodies are smoothed by averaging them over
+		 *  the specified number of iterations. (Default: 600)
+		 */
+		void set_fea_smoothing_samples(uint samples)
+		{ simparams()->fea_smoothing_samples = samples; }
+
 		/// Resize the neighbors list
 		/*! Sets the per-particle neighbors list size so that it has
 		 * nonvertex elements for fluid and boundary neighbors, and vertex elements
@@ -462,6 +516,8 @@ class ProblemCore
 		{ return physparams()->set_sinpsi(fluid_idx, sinpsivalue); }
 		void set_cohesion(size_t fluid_idx, float cohesionvalue)
 		{ return physparams()->set_cohesion(fluid_idx, cohesionvalue); }
+		void set_fea_ground(const float a, const float b, const float c, const float d)
+		{ return physparams()->set_fea_ground(a, b, c, d); }
 
 		float get_kinematic_visc(size_t fluid_idx) const
 		{ return physparams()->get_kinematic_visc(fluid_idx); }
@@ -560,9 +616,14 @@ class ProblemCore
 		//! @userfunc
 		//! Variable gravity definition
 		virtual float3 g_callback(const double t);
+		virtual float3 ext_force_callback(const double t);
 
 		void allocate_bodies_storage();
 		void add_moving_body(Object *, const MovingBodyType);
+		void add_fea_body(Object *);
+#if USE_CHRONO == 1
+		void groundFeaNodes(std::shared_ptr<::chrono::fea::ChMesh> fea_mesh);
+#endif
 		void restore_moving_body(const MovingBodyData &, const uint, const int, const int);
 		const MovingBodiesVect& get_mbvect() const
 		{ return m_bodies; };
@@ -574,6 +635,9 @@ class ProblemCore
 		size_t	get_forces_bodies_numparts(void);
 		size_t	get_body_numparts(const int);
 		size_t	get_body_numparts(const Object *);
+
+		size_t	get_fea_objects_numparts(void);
+		size_t	get_fea_objects_numnodes(void);
 
 		void get_bodies_data(float3 * &, float * &, float3 * &, float3 * &);
 		void get_bodies_cg(void);
@@ -588,7 +652,17 @@ class ProblemCore
 		void set_body_angularvel(const Object*, const double3&);
 
 		void InitializeChrono(void);
+		void SetFeaReady(void);
 		void FinalizeChrono(void);
+
+		//! Callback to initialize the Chrono system
+		/*! This is invoked during Chrono initialization,
+		 *  and the problems can override it to modify the Chrono system.
+		 *  Typically this is used to define a Chrono solver and timestepper
+		 *  different from the default
+		 */
+		virtual void
+		initializeChronoSystem(::chrono::ChSystem *chrono_system);
 
 		// callback for initializing joints between Chrono bodies
 		virtual void initializeObjectJoints();
@@ -609,6 +683,14 @@ class ProblemCore
 		moving_bodies_callback(const uint index, Object* object, const double t0, const double t1,
 							const float3& force, const float3& torque, const KinematicData& initial_kdata,
 							KinematicData& kdata, double3& dx, EulerParameters& dr);
+
+		/* Initialize FEA step (e.g. assign forces to nodes)*/
+		void write_fea_nodes(const double t);
+		void fea_init_step( BufferList&, const uint numFeaParts, const double t,  const int step);
+
+		/* Do FEA step -- dynamic */
+		void fea_do_step( const double dt, const uint fea_every);
+		void transfer_fea_motion( BufferList&, const uint, const bool dofea);
 
 		void bodies_timestep(const float3 *forces, const float3 *torques, const int step,
 							const double dt, const double t,

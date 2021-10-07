@@ -49,9 +49,6 @@
 // GageList
 #include "simparams.h"
 
-// Object
-#include "Object.h"
-
 // StepInfo
 #include "command_type.h"
 

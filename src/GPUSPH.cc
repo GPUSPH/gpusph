@@ -43,6 +43,11 @@
 // This inclusion problem should be solved
 #include "GPUSPH.h"
 
+#include "Synchronizer.h"
+#include "NetworkManager.h"
+
+#include "simframework.h"
+
 // HostBuffer
 #include "hostbuffer.h"
 
@@ -473,6 +478,17 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 			cout << "\t" << gdata->s_hRbFirstIndex[i] << "\t" << gdata->s_hRbLastIndex[i] << endl;
 	}
 
+	cout << "FEA body parts first Index:\n";
+	for (uint i = 0 ; i < problem->simparams()->numfeabodies; ++i) {
+			cout << "\t" << gdata->s_hFeaPartsFirstIndex[i].x << " indexed at " <<   gdata->s_hFeaPartsFirstIndex[i].y << endl;
+	}
+
+	cout << "FEA body nodes first Index:\n";
+	for (uint i = 0 ; i < problem->simparams()->numfeabodies; ++i) {
+			cout << "\t" << gdata->s_hFeaNodesFirstIndex[i].x << " indexed at " <<   gdata->s_hFeaNodesFirstIndex[i].y << endl;
+	}
+
+
 	// Initialize potential joints if there are floating bodies
 	if (problem->simparams()->numbodies)
 		problem->initializeObjectJoints();
@@ -505,6 +521,10 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 	if (gdata->problem->simparams()->numbodies > 0) {
 		gdata->problem->get_bodies_cg();
 	}
+
+	if (HAS_FEA(_sp->simflags))
+		gdata->problem->SetFeaReady();
+
 
 	if (!resumed && _sp->sph_formulation == SPH_GRENIER)
 		problem->init_volume(gdata->s_hBuffers, gdata->totParticles);
@@ -587,6 +607,7 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 bool GPUSPH::finalize() {
 	// TODO here, when there will be the Integrator
 	// delete Integrator
+
 
 	printf("Deallocating...\n");
 
@@ -874,6 +895,98 @@ void GPUSPH::runCommand<BODY_FORCES_CALLBACK>(CommandStruct const& cmd)
 	problem->bodies_forces_callback(t0, t1, step, gdata->s_hRbAppliedForce, gdata->s_hRbAppliedTorque);
 }
 
+/// Multi-device: collect from the devices the forces applied to the FEA nodes
+template<>
+void GPUSPH::runCommand<REDUCE_FEA_FORCES_HOST>(CommandStruct const& cmd)
+{
+	float4 *forces = gdata->s_hBuffers.getData<BUFFER_FEA_FORCES>(); // contains forces from (FSI)
+
+	const uint numFeaNodes = gdata->problem->get_fea_objects_numnodes();
+	const uint fea_every = gdata->problem->simparams()->feaSph_iterations_ratio;
+	const double t = gdata->t;
+	bool dofea = (t >= gdata->problem->simparams()->t_fea_start) && (gdata->iterations % fea_every == 0);
+
+	if (!dofea) return;
+
+	// Sum up the partial forces computed in each gpu
+	if (MULTI_GPU) {
+
+		//number of devices
+		uint n_devs = gdata->devices;
+
+		for (uint i = 0; i < numFeaNodes; i++) {
+
+			float4 f_sum = forces[i];
+
+			for (uint d = 1; d < n_devs; d++)
+				f_sum += forces[d*numFeaNodes + i];
+
+			forces[i] = f_sum;
+		}
+	}
+
+	// if running multinode, also reduce across nodes
+	if (MULTI_NODE) {
+		// to minimize the overhead, we reduce the whole arrays of forces and torques in one command
+		gdata->networkManager->networkFloatReduction((float*)forces, 4*numFeaNodes, SUM_REDUCTION);
+	}
+}
+
+template<>
+void GPUSPH::runCommand<FEA_APPLY_FORCES>(CommandStruct const& cmd)
+{
+	const uint numFeaNodes = gdata->problem->get_fea_objects_numnodes(); //FIXME the number should be evaluated once, and stored (not just in worker)
+	const int step = cmd.step.number;
+
+	const double t = gdata->t;
+	const uint fea_every = gdata->problem->simparams()->feaSph_iterations_ratio;
+	bool dofea = (t >= gdata->problem->simparams()->t_fea_start) && (gdata->iterations % fea_every == 0);
+
+	if (dofea){
+		problem->fea_init_step(gdata->s_hBuffers, numFeaNodes, t, step);
+	}
+}
+
+template<>
+void GPUSPH::runCommand<FEA_MOVE_BODIES>(CommandStruct const& cmd)
+{
+	const uint numFeaNodes = gdata->problem->get_fea_objects_numnodes(); //FIXME the number should be evaluated once, and stored (not just in worker)
+	const float dt = cmd.dt(gdata);
+	const int step = cmd.step.number;
+
+	const double t = gdata->t;
+	const uint fea_every = gdata->problem->simparams()->feaSph_iterations_ratio;
+	bool dofea = (t >= gdata->problem->simparams()->t_fea_start) && (gdata->iterations % fea_every == 0);
+
+//	fprintf(m_info_stream, "starting FEA step...\n");
+	if (dofea && (step == 1))
+		problem->fea_do_step(dt, fea_every);
+//	fprintf(m_info_stream, "FEA step completed\n");
+
+	problem->transfer_fea_motion(gdata->s_hBuffers, numFeaNodes, dofea && (step == 1));
+}
+
+template<>
+void GPUSPH::runCommand<FEA_WRITE_NODES>(CommandStruct const& cmd)
+{
+	const float dt = cmd.dt(gdata);
+
+	const double t = gdata->t;
+
+	/* writing FEA nodes */
+	float timer = gdata->s_fea_writer_timer;
+
+	// Time from last writing
+	gdata->s_fea_writer_timer += dt;
+
+	if (timer > gdata->problem->simparams()->fea_write_every) {
+		gdata->s_fea_writer_timer = 0.0f;
+	//	cout << "Simulation time t=" << t << ", writing FEM nodes" << endl;
+		problem->write_fea_nodes(t);
+
+	}
+}
+
 template<>
 void GPUSPH::runCommand<MOVE_BODIES>(CommandStruct const& cmd)
 // GPUSPH::move_bodies(flag_t integrator_step)
@@ -981,6 +1094,11 @@ size_t GPUSPH::allocateGlobalHostBuffers()
 		gdata->s_hBuffers.addBuffer<HostBuffer, BUFFER_INTERNAL_ENERGY>();
 	}
 
+	if (HAS_FEA(problem->simparams()->simflags)) {
+		gdata->s_hBuffers.addBuffer<HostBuffer, BUFFER_FEA_FORCES>();
+		gdata->s_hBuffers.addBuffer<HostBuffer, BUFFER_FEA_VEL>();
+	}
+
 	// number of elements to allocate
 	const size_t numparts = gdata->allocatedParticles;
 
@@ -995,6 +1113,8 @@ size_t GPUSPH::allocateGlobalHostBuffers()
 			totCPUbytes += iter->second->alloc(numparts*gdata->problem->simparams()->neiblistsize);
 		else if (iter->first & BUFFERS_CELL)
 			totCPUbytes += iter->second->alloc(gdata->nGridCells);
+		else if (iter->first & FEA_BUFFERS)
+			totCPUbytes += iter->second->alloc(gdata->problem->get_fea_objects_numnodes()*gdata->devices);
 		else
 			totCPUbytes += iter->second->alloc(numparts);
 		++iter;
@@ -1047,6 +1167,16 @@ size_t GPUSPH::allocateGlobalHostBuffers()
 			gdata->s_hRbDeviceTotalForce = gdata->s_hRbTotalForce;
 			gdata->s_hRbDeviceTotalTorque = gdata->s_hRbTotalTorque;
 		}
+	}
+
+	const size_t numfeabodies = gdata->problem->simparams()->numfeabodies;
+	cout << "Numfeabodies : " << numfeabodies << "\n";
+	if (numfeabodies > 0) {
+		gdata->s_hFeaNodesFirstIndex = new int2 [numfeabodies];
+		//fill_n(gdata->s_hFeaNodesFirstIndex, numfeabodies, 0);
+
+		gdata->s_hFeaPartsFirstIndex = new int2 [numfeabodies];
+		//fill_n(gdata->s_hFeaPartsFirstIndex, numfeabodies, 0);
 	}
 
 	const size_t numOpenBoundaries = gdata->problem->simparams()->numOpenBoundaries;
@@ -1135,6 +1265,11 @@ void GPUSPH::deallocateGlobalHostBuffers() {
 			delete [] gdata->s_hRbDeviceTotalForce;
 			delete [] gdata->s_hRbDeviceTotalTorque;
 		}
+	}
+
+	if (gdata->problem->simparams()->numfeabodies > 0) {
+		delete [] gdata->s_hFeaNodesFirstIndex;
+		delete [] gdata->s_hFeaPartsFirstIndex;
 	}
 
 	// planes
@@ -1513,11 +1648,14 @@ void GPUSPH::sortParticlesByHash() {
 		//printf(" p %d has id %u, dev %d\n", p, id(gdata->s_hInfo[p]), gdata->calcDevice(gdata->s_hPos[p]) ); // */
 }
 
-// Swap two particles in all host arrays; used in host sort
+// Swap two particles in all host arrays that hold particle data; used in host sort
 void GPUSPH::particleSwap(uint idx1, uint idx2)
 {
+	static constexpr flag_t no_swap_buffers = BUFFERS_CELL | BUFFER_NEIBSLIST | FEA_BUFFERS;
+
 	BufferList::iterator iter = gdata->s_hBuffers.begin();
 	while (iter != gdata->s_hBuffers.end()) {
+		if (! (iter->first & no_swap_buffers) )
 			iter->second->swap_elements(idx1, idx2);
 		++iter;
 	}
@@ -1967,6 +2105,8 @@ void GPUSPH::runCommand<RUN_CALLBACKS>(CommandStruct const& cmd)
 
 	if (pb->simparams()->gcallback)
 		gdata->s_varGravity = pb->g_callback(t_callback);
+	if (pb->simparams()->fcallback)
+		gdata->s_FeaExtForce = pb->ext_force_callback(t_callback);
 }
 
 void GPUSPH::printStatus(FILE *out)
@@ -2218,7 +2358,7 @@ void GPUSPH::prepareProblem()
 	//nGridCells
 
 	// should write something more meaningful here
-	printf("Preparing the problem...\n");
+	printf("Preparing the problem for %u particles...\n", gdata->totParticles);
 
 	// at the time being, we only need preparation for multi-device simulations
 	if (!MULTI_DEVICE) return;
@@ -2388,9 +2528,29 @@ struct TimerObject
 	}
 };
 
+template<CommandName Cmd>
+void GPUSPH::describeCommand(CommandStruct const& cmd)
+{
+	if (Cmd < NUM_WORKER_COMMANDS) {
+		/* nothing to describe, this is an error condition;
+		 * it will be handled separately in the command dispatch switch
+		 */
+		return;
+	}
+
+	string desc = string(" G H issuing ") + getCommandName(Cmd);
+
+	// TODO Add buffer specification, if needed
+	// TODO Add extra information, if needed
+
+	cout << desc << endl;
+}
+
 // set nextCommand, unlock the threads and wait for them to complete
 void GPUSPH::dispatchCommand(CommandStruct const& cmd)
 {
+	static const bool dbg_step_printf = g_debug.print_step;
+
 	shared_ptr<TimerObject> timer;
 	if (g_debug.benchmark_command_runtimes) {
 		++cmd_calls[cmd.command];
@@ -2415,7 +2575,7 @@ void GPUSPH::dispatchCommand(CommandStruct const& cmd)
 		switch (cmd.command) {
 #define DEFINE_COMMAND(code, ...) \
 			case code: \
-				/* TODO if (dbg_step_printf) describeCommand<code>(cmd); */ \
+				if (dbg_step_printf) describeCommand<code>(cmd); \
 				runCommand<code>(cmd); \
 				break;
 #include "define_host_commands.h"

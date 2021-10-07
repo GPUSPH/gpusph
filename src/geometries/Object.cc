@@ -27,7 +27,24 @@
 
 #include <cstdlib>
 
+// For the automatic name determination
+#include <typeinfo>
+#include <cxxabi.h>
+
 #include "Object.h"
+
+#include "EulerParametersQuaternion.h"
+
+#if USE_CHRONO
+#include "chrono/physics/ChBody.h"
+#include "chrono/physics/ChSystem.h"
+#include "chrono/core/ChQuaternion.h"
+#include "chrono/core/ChVector.h"
+#include "chrono/fea/ChMesh.h"
+#include "chrono/fea/ChNodeFEAxyzD.h"
+#include "chrono/fea/ChLinkPointFrame.h"
+#include "chrono/fea/ChLinkDirFrame.h"
+#endif
 
 int Object::world_dimensions = -1;
 
@@ -114,6 +131,46 @@ void
 Object::SetMass(const double mass)
 {
 	m_mass = mass;
+}
+
+/// Set the Young's modulus of the object
+/*! Set the object Young's modulus.
+ * \param youngModulus: object youngModulus
+ */
+void
+Object::SetYoungModulus(const double youngModulus)
+{
+	m_youngModulus = youngModulus;
+}
+
+/// Set the Poisson ratio of the object
+/*! Set the object Poisson ratio.
+ * \param poissonRatio: object poissonRatio 
+ */
+void
+Object::SetPoissonRatio(const double poissonRatio)
+{
+	m_poissonRatio = poissonRatio;
+}
+
+/// Set the alpha damping of the object
+/*! Set the object alpha.
+ * \param alphaDamping: object alphaDamping 
+ */
+void
+Object::SetAlphaDamping(const double alphaDamping)
+{
+	m_alphaDamping = alphaDamping;
+}
+
+/// Set the density of the object
+/*! Set the object density.
+ * \param density: object density 
+ */
+void
+Object::SetDensity(const double density)
+{
+	m_density = density;
 }
 
 /// Get the mass of the object
@@ -223,6 +280,77 @@ Object::GetParts(void)
 	return m_parts;
 }
 
+/// Return the particle vector associated to fea nodes 
+/*! \return a reference to the particles vector associated with the fea nodes 
+ */
+PointVect&
+Object::GetFeaNodes(void)
+{
+	return m_fea_nodes;
+}
+
+#if USE_CHRONO == 1
+bool
+Object::reduceNodes(std::shared_ptr<::chrono::fea::ChNodeFEAxyz> newNode,
+	::chrono::ChSystem * fea_system,
+	std::vector<std::shared_ptr<::chrono::fea::ChNodeFEAxyz>> & nodes)
+{
+	std::vector<std::shared_ptr<::chrono::fea::ChMesh>> mesh_list = fea_system->Get_meshlist();
+	std::shared_ptr<::chrono::fea::ChNodeFEAxyz> chosen_node = newNode;
+	bool is_new = true;
+
+	/*The offset to the node to consider with respect to the first node of the geometry among all node positions for the geometry*/
+	/*if the nodal position the node to refer to belongs to previously defined geomtries, then offset will be negative, otherwise if
+	 * a new node is defined the offset wil be >= 0*/
+	int offset = - m_previous_nodes;
+
+	for (uint m = 0; m < mesh_list.size(); m++) {
+		auto mesh = mesh_list[m];
+		for (uint n = 0; n < mesh->GetNnodes(); n++) {
+			auto node = std::dynamic_pointer_cast<::chrono::fea::ChNodeFEAxyzD>(mesh->GetNode(n));
+
+			if ((abs(newNode->GetPos().x() - node->GetPos().x()) < FLT_EPSILON) &&
+				(abs(newNode->GetPos().y() - node->GetPos().y()) < FLT_EPSILON) &&
+				(abs(newNode->GetPos().z() - node->GetPos().z()) < FLT_EPSILON)) {
+
+				std::cout << "reusing node" << std::endl;
+
+
+				chosen_node = node;
+				is_new = false;
+				nodes.push_back(node);
+				break;
+
+			}
+
+			offset ++;
+		}
+		if (!is_new)
+			break;
+	}
+
+	if (is_new){
+		offset = m_fea_nodes.size();
+		nodes.push_back(newNode);
+	}
+
+	m_fea_nodes_offset.push_back(offset);
+
+	return is_new;
+}
+
+void
+Object::set_previous_nodes_num(::chrono::ChSystem * fea_system)
+{
+	std::vector<std::shared_ptr<::chrono::fea::ChMesh>> mesh_list = fea_system->Get_meshlist();
+
+	for (uint m = 0; m < mesh_list.size(); m++) {
+		auto mesh = mesh_list[m];
+		m_previous_nodes += mesh->GetNnodes();
+	}
+	std::cout << "initialized m_previous_nodes = " << m_previous_nodes << std::endl;
+}
+#endif
 
 /// Sets the number of particles associated with an object
 void Object::SetNumParts(const int numParts)
@@ -246,6 +374,16 @@ uint Object::GetNumParts()
 		m_numParts = m_parts.size();
 
 	return m_numParts;
+}
+
+/// Get the number of nodes of the mesh associated to the deformable body
+uint Object::GetNumFeaNodes()
+{
+	if (m_numFeaNodes == 0)
+		m_numFeaNodes = m_fea_nodes.size();
+	//std::cout << "m_fea_nodes measured " << m_numFeaNodes << std::endl;
+
+	return m_fea_nodes.size();
 }
 
 /// Fill a disk
@@ -346,6 +484,178 @@ Object::FillDiskBorder(PointVect& points, const EulerParameters& ep, const Point
 	return nparts;
 }
 
+#if USE_CHRONO == 1
+uint Object::JoinFeaNodes(::chrono::ChSystem* ch_system, std::shared_ptr<::chrono::fea::ChMesh> fea_mesh, const double dx)
+{
+	std::shared_ptr<::chrono::fea::ChNodeFEAxyzD> node;
+	uint numnodes = fea_mesh->GetNnodes();
+
+	uint nadded = 0;
+
+	for (uint i = 0; i < numnodes; i++) {
+
+		node = std::dynamic_pointer_cast<::chrono::fea::ChNodeFEAxyzD>(fea_mesh->GetNode(i));
+		if (!node) throw std::runtime_error("Error: impossible to read nodes in JointFeaNode");
+
+		Point ncords;
+
+		ncords(0) = node->GetPos().x();
+		ncords(1) = node->GetPos().y();
+		ncords(2) = node->GetPos().z();
+
+
+		if (IsInside(ncords, dx)){
+			std::cout << "adding node " << node->GetIndex() << " to joint" << std::endl;
+			auto constraint = chrono_types::make_shared<::chrono::fea::ChLinkPointFrame>();
+			constraint->Initialize(node, m_body);
+			ch_system->Add(constraint);
+			auto constraint_rot = chrono_types::make_shared<::chrono::fea::ChLinkDirFrame>();
+			constraint_rot->Initialize(node, m_body);
+			ch_system->Add(constraint_rot);
+			nadded ++;
+		}
+
+	}
+
+	return nadded;
+}
+
+void Object::makeDynamometer(::chrono::ChSystem* ch_system,
+	std::vector<std::shared_ptr<::chrono::fea::ChLinkPointFrame>>& writing_point_constr, // store pointers of nodes to write 
+	std::vector<std::shared_ptr<::chrono::fea::ChLinkDirFrame>>& writing_dir_constr) // store pointers of nodes to write 
+{
+	m_fea_mesh = chrono_types::make_shared<::chrono::fea::ChMesh>();
+
+	auto fixednode = chrono_types::make_shared<::chrono::fea::ChNodeFEAxyzD>(
+		::chrono::ChVector<>(m_center(0), m_center(1), m_center(2)),
+		::chrono::ChVector<>(0, 0, 1));
+
+	fixednode->SetFixed(true);
+	m_fea_mesh->AddNode(fixednode);
+	ch_system->Add(m_fea_mesh);
+
+	auto constraint_disp = chrono_types::make_shared<::chrono::fea::ChLinkPointFrame>();
+	constraint_disp->Initialize(fixednode, m_body);
+	ch_system->Add(constraint_disp);
+	writing_point_constr.push_back(constraint_disp);
+
+	auto constraint_rot = chrono_types::make_shared<::chrono::fea::ChLinkDirFrame>();
+	constraint_rot->Initialize(fixednode, m_body);
+	ch_system->Add(constraint_rot);
+	writing_dir_constr.push_back(constraint_rot);
+
+	std::cout << "Added fea Dynamics measurement point in (" << m_center(0) << ", " << m_center(1) << ", " << m_center(2) << ")" << std::endl;
+}
+
+uint Object::findNodesToJoin(std::shared_ptr<::chrono::fea::ChMesh> fea_mesh,
+	const double dx,
+	std::vector<feaNodeInfo>& included_nodes)
+{
+	std::shared_ptr<::chrono::fea::ChNodeFEAxyz> node;
+	uint numnodes = fea_mesh->GetNnodes();
+
+	uint nadded = 0;
+
+	feaNodeInfo node_info;
+
+	for (uint i = 0; i < numnodes; i++) {
+
+		node = std::dynamic_pointer_cast<::chrono::fea::ChNodeFEAxyz>(fea_mesh->GetNode(i));
+		if (!node) throw std::runtime_error("Error: impossible to read nodes in JointFeaNode");
+
+		node_info.node = node;
+
+		Point ncords;
+
+
+		ncords(0) = node->GetPos().x();
+		ncords(1) = node->GetPos().y();
+		ncords(2) = node->GetPos().z();
+
+		double distance = dist(ncords, m_center);
+		node_info.dist = distance;
+
+		if (IsInside(ncords, dx)){
+
+			included_nodes.push_back(node_info);
+			nadded ++;
+		}
+
+	}
+
+	return nadded;
+}
+
+uint Object::findForceNodes(std::shared_ptr<::chrono::fea::ChMesh> fea_mesh,
+	const double dx,
+	const uint num_prev_nodes,
+	std::vector<bool>& ext_forces_flags) // for each node says if we apply force
+{
+	std::shared_ptr<::chrono::fea::ChNodeFEAxyz> node;
+	uint numnodes = fea_mesh->GetNnodes();
+
+	uint nadded = 0;
+
+	for (uint i = 0; i < numnodes; i++) {
+
+		node = std::dynamic_pointer_cast<::chrono::fea::ChNodeFEAxyz>(fea_mesh->GetNode(i));
+		if (!node) throw std::runtime_error("Error: impossible to read nodes in JointFeaNode");
+
+		Point ncords;
+
+		ncords(0) = node->GetPos().x();
+		ncords(1) = node->GetPos().y();
+		ncords(2) = node->GetPos().z();
+
+		uint glob_idx = node->GetIndex() + num_prev_nodes;
+
+		if (IsInside(ncords, dx)){
+			std::cout << "applying force to node " << glob_idx << std::endl;
+			ext_forces_flags.push_back(true);
+			nadded ++;
+		} else {
+			ext_forces_flags.push_back(false); //TODO alternatively we can initialize everything to false and set true when required
+		}
+	}
+
+	return nadded;
+}
+
+uint Object::findNodesToWrite(std::shared_ptr<::chrono::fea::ChMesh> fea_mesh,
+	const double dx,
+	const uint num_prev_nodes,
+	std::vector<int>& writing_nodes_indices,
+	std::vector<std::shared_ptr<::chrono::fea::ChNodeFEAxyz>>& writing_nodes_pointers) // store pointers of nodes to write 
+{
+	std::shared_ptr<::chrono::fea::ChNodeFEAxyz> node;
+	uint numnodes = fea_mesh->GetNnodes();
+
+	uint nadded = 0;
+
+	for (uint i = 0; i < numnodes; i++) {
+
+		node = std::dynamic_pointer_cast<::chrono::fea::ChNodeFEAxyz>(fea_mesh->GetNode(i));
+		if (!node) throw std::runtime_error("Error: impossible to read nodes in JointFeaNode");
+
+		Point ncords;
+
+		ncords(0) = node->GetPos().x();
+		ncords(1) = node->GetPos().y();
+		ncords(2) = node->GetPos().z();
+
+		uint glob_idx = node->GetIndex() + num_prev_nodes;
+
+		if (IsInside(ncords, dx)){
+			std::cout << "Writing data for node " << glob_idx << std::endl;
+			writing_nodes_indices.push_back(glob_idx);
+			writing_nodes_pointers.push_back(node);
+			nadded ++;
+		}
+	}
+
+	return nadded;
+}
+#endif
 
 /// Remove particles from particle vector
 /*! Remove the particles of particles vector lying inside the object
@@ -420,7 +730,6 @@ void Object::getBoundingBoxOfCube(Point &out_min, Point &out_max,
 	out_max(2) = currMax(2);
 }
 
-#if USE_CHRONO == 1
 /// Create a Chrono body associated to the cube
 /* Create a generic Chrono body inside a specified Chrono physical system.
  *	\param bodies_physical_system : Chrono physical system
@@ -430,35 +739,50 @@ void Object::getBoundingBoxOfCube(Point &out_min, Point &out_max,
  */
 void
 Object::BodyCreate(::chrono::ChSystem * bodies_physical_system, const double dx, const bool collide,
-			const chrono::ChQuaternion<> & orientation_diff)
+			const EulerParameters & orientation_diff)
 {
+#if USE_CHRONO
 	// Check if the physical system is valid
 	if (!bodies_physical_system)
 		throw std::runtime_error("Object::BodyCreate Trying to create a body in an invalid physical system !\n");
 
 	// Creating a new Chrono object
-	m_body = std::make_shared< ::chrono::ChBody >();
+	m_body = chrono_types::make_shared< ::chrono::ChBody >();
 
 	// Assign cube mass and inertial data to the Chrono object
 	m_body->SetMass(m_mass);
 	m_body->SetInertiaXX(::chrono::ChVector<>(m_inertia[0], m_inertia[1], m_inertia[2]));
 	m_body->SetPos(::chrono::ChVector<>(m_center(0), m_center(1), m_center(2)));
-	m_body->SetRot(orientation_diff*m_ep.ToChQuaternion());
+	m_body->SetRot(EulerParametersQuaternion(orientation_diff*m_ep));
 
 	m_body->SetCollide(collide);
 	m_body->SetBodyFixed(m_isFixed);
 
 	// Add the body to the physical system
 	bodies_physical_system->AddBody(m_body);
+#else
+	throw std::runtime_error(std::string(__func__) + ": Trying to create a FEA mesh without USE_CHRONO defined !");
+#endif
 }
 
 void
 Object::BodyCreate(::chrono::ChSystem *bodies_physical_system, const double dx,
 		const bool collide)
 {
-	BodyCreate(bodies_physical_system, dx, collide, ::chrono::ChQuaternion<>(1., 0., 0., 0.));
+	BodyCreate(bodies_physical_system, dx, collide, EulerParameters());
 }
+
+void
+Object::CreateFemMesh(::chrono::ChSystem *fea_system)
+{
+#if USE_CHRONO
+	std::string class_name = abi::__cxa_demangle(typeid(*this).name(), NULL, 0, NULL);
+	std::string error = "CreateFemMesh for " + class_name + " is not supported yet";
+	throw std::runtime_error(error);
+#else
+	throw std::runtime_error(std::string(__func__) + ": Trying to create a FEA mesh without USE_CHRONO defined !");
 #endif
+}
 
 /// Print ODE-related information such as position, CG, geometry bounding box (if any), etc.
 // TODO: could be useful to print also the rotation matrix

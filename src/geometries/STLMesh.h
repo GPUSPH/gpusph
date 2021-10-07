@@ -160,6 +160,8 @@ public:
 
 	static STLMesh *load_stl(const char *fname);
 
+	static STLMesh *load_TetFile(const char *nodes, const char *elems, const double z_frame);
+
 	// load OBJ file only to update bbox
 	void loadObjBounds();
 
@@ -180,11 +182,8 @@ public:
 	void SetInertia(const double*);
 
 #if USE_CHRONO == 1
-		void BodyCreate(::chrono::ChSystem *bodies_physical_system, const double dx, const bool collide,
-			const ::chrono::ChQuaternion<> & orientation_diff);
-#else
-		void BodyCreate(void *p1, const double p2, const bool p3)
-		{ Object::BodyCreate(p1, p2, p3); }
+	void BodyCreate(::chrono::ChSystem *bodies_physical_system, const double dx, const bool collide,
+		const EulerParameters & orientation_diff);
 #endif
 };
 

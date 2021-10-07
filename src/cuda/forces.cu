@@ -504,6 +504,20 @@ setrbstart(const int* rbfirstindex, int numbodies)
 	COPY_TO_SYMBOL(cuforces::d_rbstartindex, rbfirstindex[0], numbodies);
 }
 
+void
+setfeastart(const int2* feanodefirstindex, const int2 *feapartsfirstindex, int numfeabodies)
+{
+	COPY_TO_SYMBOL(cuforces::d_feanodesstartindex, feanodefirstindex[0],  numfeabodies);
+	COPY_TO_SYMBOL(cuforces::d_feapartsstartindex, feapartsfirstindex[0], numfeabodies);
+}
+
+void
+setfeanatcoords(const float4* natcoords, const uint4* nodes, int numfeaparticles)
+{
+	COPY_TO_SYMBOL(cuforces::d_feapartsnatcoords, natcoords[0], numfeaparticles);
+	COPY_TO_SYMBOL(cuforces::d_feapartsownnodes,  nodes[0],     numfeaparticles);
+}
+
 // returns the number of elements in the (starting) fmax array, assuming n particles.
 // this is _exactly_ the number of blocks in the grid launch for the forces kernel over n
 // particles, since the forces kernel pre-reduces the cfl values, producing one value

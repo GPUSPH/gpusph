@@ -104,6 +104,18 @@ DEFINE_COMMAND_NOBUF(CHECK_NEWNUMPARTS)
 /// Dump the particle system state for debugging
 DEFINE_COMMAND_NOBUF(DEBUG_DUMP)
 
+/// Gather FEA forces from devices
+DEFINE_COMMAND_NOBUF(REDUCE_FEA_FORCES_HOST)
+
+/// Process forces and apply to Project Chrono 
+DEFINE_COMMAND_NOBUF(FEA_APPLY_FORCES)
+
+/// Execute Finite Element Analysis
+DEFINE_COMMAND_NOBUF(FEA_MOVE_BODIES)
+
+/// Write out FEA node info
+DEFINE_COMMAND_NOBUF(FEA_WRITE_NODES)
+
 /// Stop criterion of the Jacobi solver used to compute effective pressure (granular rheology)
 /*! Reduce Jacobi backward error and residual, and determine
 whether the solver should stop based one simulation paramters

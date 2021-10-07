@@ -75,6 +75,13 @@ public:
 	virtual void
 	setrbstart(const int* rbfirstindex, int numbodies) = 0;
 
+	/// Initialize the fea variables
+	virtual void
+	setfeastart(const int2* feanodefirstindex, const int2 *feapartsfirstindex,
+		int numfeabodies) = 0;
+	virtual void
+	setfeanatcoords(const float4* feanatcoords, const uint4* nodes, int numfeaparts) = 0;
+
 	/// Compute total force and torque acting on each rigid body
 	virtual void
 	reduceRbForces(	BufferList& bufwrite,

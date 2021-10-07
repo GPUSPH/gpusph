@@ -39,6 +39,8 @@
 #include <cfloat>
 
 #include "CUDAWorker.h"
+#include "NetworkManager.h"
+
 #include "cudautil.h"
 
 #include "cudabuffer.h"
@@ -210,6 +212,18 @@ void CUDAWorker::recordHalfForceEvent()
 void CUDAWorker::syncHalfForceEvent()
 {
 	SAFE_CALL_NOSYNC(cudaEventSynchronize(m_halfForcesEvent));
+}
+
+void CUDAWorker::pinHostBuffer(void *ptr, size_t bytes)
+{
+	if (m_deviceIndex == 0)
+		SAFE_CALL_NOSYNC(cudaHostRegister(ptr, bytes, cudaHostRegisterPortable));
+}
+
+void CUDAWorker::unpinHostBuffer(void *ptr)
+{
+	if (m_deviceIndex == 0)
+		SAFE_CALL_NOSYNC(cudaHostUnregister(ptr));
 }
 
 void CUDAWorker::createEventsAndStreams()

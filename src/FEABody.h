@@ -1,9 +1,10 @@
-/*  Copyright (c) 2011-2019 INGV, EDF, UniCT, JHU
+/*  Copyright (c) 2019 INGV, EDF, UniCT, JHU, NU
 
     Istituto Nazionale di Geofisica e Vulcanologia, Sezione di Catania, Italy
     Électricité de France, Paris, France
     Università di Catania, Catania, Italy
     Johns Hopkins University, Baltimore (MD), USA
+    Northwestern University, Evanston (IL), USA
 
     This file is part of GPUSPH. Project founders:
         Alexis Hérault, Giuseppe Bilotta, Robert A. Dalrymple,
@@ -25,41 +26,37 @@
     along with GPUSPH.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _SPHERE_H
-#define	_SPHERE_H
+/*! \file
+ * FEA body management
+ */
 
+#ifndef _FEA_BODY_H
+#define _FEA_BODY_H
+
+#include "vector_math.h"
 #include "Object.h"
-#include "Point.h"
-#include "Vector.h"
 
+typedef struct FeaBodyData {
+	uint				index;	///< Sequential insertion index (NOTE: NOT index in the array)
+	uint				id;		///< index in the moving bodies list
+	Object				*object;
 
-class Sphere: public Object {
-	private:
-		double	m_r;
-		int FillBorder(PointVect&, const double, const double, const bool fill = true);
-	public:
-		Sphere(void);
-		Sphere(const Point &, const double);
-		virtual ~Sphere(void) {};
+	FeaBodyData(): index(0), id(0), object(NULL) {};
 
-		double Volume(const double) const;
-		void SetInertia(const double);
+	FeaBodyData(const FeaBodyData& feabdata) {
+		index = feabdata.index;
+		object = feabdata.object;
+	};
+/*
+	FeaBodyData& operator = (const FeaBodyData& source) {
+		index = source.index;
+		object = source.object;
+		return *this;
+	};
+		*/
+} FeaBodyData;
 
-		void setEulerParameters(const EulerParameters &ep);
-		void getBoundingBox(Point &output_min, Point &output_max);
-		void shift(const double3 &offset);
+typedef std::vector<FeaBodyData *> FeaBodiesVect;
 
-		void FillBorder(PointVect&, const double);
-		void FillIn(PointVect&, const double, const int);
-		int Fill(PointVect&, const double, const bool fill = true);
-
-		bool IsInside(const Point&, const double) const;
-
-#if USE_CHRONO == 1
-		void BodyCreate(::chrono::ChSystem * bodies_physical_system, const double dx, const bool collide,
-			const EulerParameters & orientation_diff);
 #endif
-};
-
-#endif	/* _SPHERE_H */
 

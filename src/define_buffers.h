@@ -98,11 +98,20 @@ SET_BUFFER_TRAITS(BUFFER_RENORMDENS, float4, 1, "Delta-SPH renormalized density"
 #define BUFFER_FORCES		(BUFFER_RENORMDENS << 1)
 SET_BUFFER_TRAITS(BUFFER_FORCES, float4, 1, "Force");
 
+/* Buffer used to exchange data between host and device for FEA
+ * nodes. It is used to download the forces and upload the velocities.
+ */
+#define BUFFER_FEA_FORCES (BUFFER_FORCES << 1)
+SET_BUFFER_TRAITS(BUFFER_FEA_FORCES, float4, 1, "FEA forces from SPH to FEA");
+
+#define BUFFER_FEA_VEL (BUFFER_FEA_FORCES << 1)
+SET_BUFFER_TRAITS(BUFFER_FEA_VEL, float4, 1, "FEA Vel from FEA to SPH");
+
 /* Forces and torques acting on rigid body particles only
  * Note that these are sized according to the number of object particles,
  * not with the entire particle system
  */
-#define BUFFER_RB_FORCES	(BUFFER_FORCES << 1)
+#define BUFFER_RB_FORCES	(BUFFER_FEA_VEL << 1)
 SET_BUFFER_TRAITS(BUFFER_RB_FORCES, float4, 1, "Object forces");
 #define BUFFER_RB_TORQUES	(BUFFER_RB_FORCES << 1)
 SET_BUFFER_TRAITS(BUFFER_RB_TORQUES, float4, 1, "Object torques");
@@ -276,9 +285,13 @@ SET_BUFFER_TRAITS(BUFFER_PRIVATE4, float4, 1, "Private vector4");
 // all object particle buffers
 #define BUFFERS_RB_PARTICLES (BUFFER_RB_FORCES | BUFFER_RB_TORQUES | BUFFER_RB_KEYS)
 
+// all FEA buffers
+#define FEA_BUFFERS \
+	( BUFFER_FEA_FORCES | BUFFER_FEA_VEL )
+
 // all particle-based buffers
 #define ALL_PARTICLE_BUFFERS	(ALL_DEFINED_BUFFERS & \
-	~(BUFFERS_RB_PARTICLES | BUFFERS_CFL | BUFFERS_CELL | BUFFER_NEIBSLIST| BUFFER_NEIBPLANES))
+	~(BUFFERS_RB_PARTICLES | FEA_BUFFERS | BUFFERS_CFL | BUFFERS_CELL | BUFFER_NEIBSLIST| BUFFER_NEIBPLANES))
 
 // TODO we need a better form of buffer classification, distinguishing:
 // * “permanent” buffers for particle properties (which need to be sorted):
@@ -351,6 +364,7 @@ SET_BUFFER_TRAITS(BUFFER_PRIVATE4, float4, 1, "Private vector4");
 #define EPHEMERAL_BUFFERS \
 	((ALL_PARTICLE_BUFFERS & ~(PARTICLE_PROPS_BUFFERS | PARTICLE_SUPPORT_BUFFERS)) | \
 	 BUFFERS_CFL | \
+	 BUFFER_FEA_FORCES | \
 	 (BUFFERS_RB_PARTICLES & ~BUFFER_RB_KEYS) \
 	)
 

@@ -40,6 +40,8 @@
 
 #include "CPUWorker.h"
 
+#include "NetworkManager.h"
+
 #include "hostbuffer.h"
 
 // round_up

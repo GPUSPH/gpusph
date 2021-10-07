@@ -1,9 +1,10 @@
-/*  Copyright (c) 2011-2019 INGV, EDF, UniCT, JHU
+/*  Copyright (c) 2019 INGV, EDF, UniCT, JHU, NU
 
     Istituto Nazionale di Geofisica e Vulcanologia, Sezione di Catania, Italy
     Électricité de France, Paris, France
     Università di Catania, Catania, Italy
     Johns Hopkins University, Baltimore (MD), USA
+    Northwestern University, Evanston (IL), USA
 
     This file is part of GPUSPH. Project founders:
         Alexis Hérault, Giuseppe Bilotta, Robert A. Dalrymple,
@@ -25,41 +26,22 @@
     along with GPUSPH.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _SPHERE_H
-#define	_SPHERE_H
+#ifndef _ANTOCIGATE_H
+#define	_ANTOCIGATE_H
 
-#include "Object.h"
-#include "Point.h"
-#include "Vector.h"
+#include "XProblem.h"
 
-
-class Sphere: public Object {
+class AntociGate: public XProblem {
 	private:
-		double	m_r;
-		int FillBorder(PointVect&, const double, const double, const bool fill = true);
+		double H; // still water level
+		size_t	water, gum; // fluids references
 	public:
-		Sphere(void);
-		Sphere(const Point &, const double);
-		virtual ~Sphere(void) {};
-
-		double Volume(const double) const;
-		void SetInertia(const double);
-
-		void setEulerParameters(const EulerParameters &ep);
-		void getBoundingBox(Point &output_min, Point &output_max);
-		void shift(const double3 &offset);
-
-		void FillBorder(PointVect&, const double);
-		void FillIn(PointVect&, const double, const int);
-		int Fill(PointVect&, const double, const bool fill = true);
-
-		bool IsInside(const Point&, const double) const;
-
-#if USE_CHRONO == 1
-		void BodyCreate(::chrono::ChSystem * bodies_physical_system, const double dx, const bool collide,
-			const EulerParameters & orientation_diff);
-#endif
+		AntociGate(GlobalData *);
+		//virtual ~AntociGate(void);
+		// override standard split
+		void initializeParticles(BufferList &buffer, const uint numParticles);
+//		void fillDeviceMap();
+		bool need_write(double) const;
 };
-
-#endif	/* _SPHERE_H */
+#endif	/* _ANTOCIGATE_H */
 

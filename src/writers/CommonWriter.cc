@@ -28,6 +28,7 @@
 #include <fstream>
 
 #include "CommonWriter.h"
+#include "ProblemCore.h"
 
 #include "GlobalData.h"
 #include "simflags.h"

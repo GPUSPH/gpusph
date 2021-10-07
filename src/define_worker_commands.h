@@ -101,6 +101,8 @@ DEFINE_COMMAND_DYN(SHARE_BUFFERS)
 
 /// Dump (device) particle data arrays into shared host arrays
 DEFINE_COMMAND_DYN(DUMP)
+/// Upload (host) particle data arrays into device arrays
+DEFINE_COMMAND_DYN(UNDUMP)
 /// Dump (device) cellStart and cellEnd into shared host arrays
 DEFINE_COMMAND_NOBUF(DUMP_CELLS)
 /// Dump device segments to shared host arrays, and update number of internal particles
@@ -258,7 +260,7 @@ DEFINE_COMMAND_BUF(CALC_CSPM_COEFF, true)
 #define FORCES_UPDATE_BUFFERS \
 		(BUFFER_FORCES | BUFFER_XSPH | BUFFER_TAU | BUFFER_DKDE | BUFFER_CFL | \
 		 BUFFER_CFL_GAMMA | BUFFER_CFL_KEPS | BUFFER_CFL_TEMP | \
-		 BUFFER_INTERNAL_ENERGY_UPD)
+		 BUFFER_INTERNAL_ENERGY_UPD | BUFFER_FEA_FORCES)
 
 	/// Compute forces, blocking; this runs the whole forces sequence (texture bind, kernele execution, texture
 	/// unbinding, dt reduction) and only proceeds on completion
@@ -281,7 +283,7 @@ DEFINE_COMMAND_BUF(FORCES_COMPLETE, true)
 		(BUFFER_POS | BUFFER_HASH | BUFFER_VOLUME | BUFFER_VEL | BUFFER_INTERNAL_ENERGY | BUFFER_EULERVEL | \
 		 BUFFER_BOUNDELEMENTS /* only if has moving */ | \
 		 BUFFER_TKE | BUFFER_EPSILON | BUFFER_INFO | BUFFER_NEIBSLIST /* why? */ | BUFFER_VERTPOS | \
-		 BUFFER_FORCES | BUFFER_INTERNAL_ENERGY_UPD | BUFFER_DKDE | BUFFER_XSPH)
+		 BUFFER_FORCES | BUFFER_INTERNAL_ENERGY_UPD | BUFFER_DKDE | BUFFER_XSPH | BUFFER_FEA_VEL)
 
 #define EULER_OUTPUT_BUFFERS \
 		(BUFFER_POS | BUFFER_VEL | BUFFER_VOLUME | BUFFER_INTERNAL_ENERGY | BUFFER_EULERVEL | BUFFER_TKE | \

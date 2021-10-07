@@ -142,6 +142,17 @@ typedef struct SimParams {
 	 */
 	double			tend;					///< Simulation end time (0 means run forever)
 
+	/** \name FEA-related parameterp
+	 * TODO need UI parameters
+	 * @{ */
+	double			t_fea_start;					///<  FEM analysis starting time
+	uint			fea_smoothing_samples;				///<  Number of samples used in FEA forces smoothing
+	float			fea_write_every;				///<  FEM nodes written to file every
+	int			numNodesToWrite;				///<  Number of FEM nodes to write
+	int			numConstraintsToWrite;				///<  Number of FEM constraints for which to write force and torque
+	uint			feaSph_iterations_ratio;	///<  FEM analysis is computed every feaSph_iterations_ratio sph iterations
+	/** @} */
+
 	/*! \inpsection{variable_dt, enable}
 	 * \label{DT_FACTOR}
 	 * \default{0.3}
@@ -193,9 +204,11 @@ typedef struct SimParams {
 
 	/** \name Call back and post-processing related parameters
 	 * @{ */
-	bool			gcallback;		///< True if using a variable gravity set trough a callback function
-	bool			calc_energy;		///< True if we want to compute system energy at save time
+	bool			gcallback;		///< True if using a variable gravity set through a callback function
+	bool			calc_energy;	///< True if we want to compute system energy at save time
 	GageList		gage;			///< Water gages list
+	bool			fcallback;		///< True if using a GT_FEA_FORCE set through a callback function
+	uint			numForceNodes;			///< number of nodes with force applied by GT_FEA_FORCE TODO here we are assuming only one force box is used. To define more this should be an array
 	/** @} */
 
 	/** \name Floating/moving bodies related parameters
@@ -203,6 +216,11 @@ typedef struct SimParams {
 	uint			numODEbodies;			///< Number of bodies which movement is computed by ODE
 	uint			numforcesbodies;		///< Number of moving bodies on which we need to compute the forces on (includes ODE bodies)
 	uint			numbodies;				///< Total number of bodies (ODE + forces + moving)
+	/** @} */
+
+	/** \name Deformable bodies related parameters
+	 * @{ */
+	uint			numfeabodies;			///< Number of bodies on which we perform FEA 
 	/** @} */
 
 	/** \name I/O boundaries related parameters
@@ -300,6 +318,12 @@ typedef struct SimParams {
 
 		dt(0),
 		tend(0),
+		t_fea_start(0),
+		fea_smoothing_samples(600),
+		fea_write_every(NAN),
+		numNodesToWrite(0),
+		numConstraintsToWrite(0),
+		feaSph_iterations_ratio(1),
 		dtadaptfactor(0.3f),
 
 		densityDiffCoeff(NAN),
@@ -307,9 +331,12 @@ typedef struct SimParams {
 
 		gcallback(false),
 		calc_energy(true),
+		fcallback(false),
+		numForceNodes(0),
 		numODEbodies(0),
 		numforcesbodies(0),
 		numbodies(0),
+		numfeabodies(0),
 		numOpenBoundaries(0),
 		epsilon(5e-5f),
 		ccsph_min_det(0.6),

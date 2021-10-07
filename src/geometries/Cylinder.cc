@@ -35,9 +35,18 @@
 #include "chrono_select.opt"
 #if USE_CHRONO == 1
 #include "chrono/physics/ChBodyEasy.h"
+#include "chrono/physics/ChSystem.h"
+#include "chrono/fea/ChElementHexa_8.h"
+#include "chrono/fea/ChElementShellANCF.h"
+#include "chrono/fea/ChElementCableANCF.h"
+#include "chrono/fea/ChNodeFEAxyz.h"
+#include "chrono/fea/ChNodeFEAxyzD.h"
 #endif
+#include "EulerParametersQuaternion.h"
 
 #include "Cylinder.h"
+
+using namespace std;
 
 Cylinder::Cylinder(void)
 {
@@ -53,6 +62,7 @@ Cylinder::Cylinder(const Point& origin, const double radius, const Vector& heigh
 	m_origin = origin;
 	m_center = m_origin + 0.5*height;
 	m_r = radius;
+	m_ri = 0;
 	m_h = height.norm();
 
 	Vector v(0, 0, 1);
@@ -66,11 +76,14 @@ Cylinder::Cylinder(const Point& origin, const double radius, const Vector& heigh
 }
 
 
-Cylinder::Cylinder(const Point& origin, const double radius, const double height, const EulerParameters& ep)
+Cylinder::Cylinder(const Point& origin, const double radius, const double inner_radius, const double height, uint nelst, uint nelsc, uint nelsh, const EulerParameters& ep)
 {
 	m_origin = origin;
 	m_h = height;
 	m_r = radius;
+	m_ri = inner_radius;
+
+	m_nels = make_uint3(nelst, nelsc, nelsh);
 
 	setEulerParameters(ep);
 }
@@ -164,8 +177,9 @@ Cylinder::Fill(PointVect& points, const double dx, const bool fill)
 	int nparts = 0;
 	const int nz = (int) ceil(m_h/dx);
 	const double dz = m_h/nz;
+	printf(" ********************************************* %g  %g\n", m_r, 0.5*dx);
 	for (int i = 0; i <= nz; i++)
-		nparts += FillDisk(points, m_ep, m_origin, m_r, i*dz, dx, fill);
+		nparts += FillDisk(points, m_ep, m_origin, m_r - (0.5*dx), i*dz, dx, fill);
 
 	return nparts;
 }
@@ -189,8 +203,9 @@ Cylinder::FillIn(PointVect& points, const double dx, const int _layers, const bo
 
 	m_origin(3) = m_center(3);
 
-	if (layers*dx > m_r) {
-		std::cerr << "WARNING: Cylinder FillIn with " << layers << " layers and " << dx << " stepping > radius " << m_r << " replaced by Fill" << std::endl;
+	double rdummy  = m_r - dx;
+	if (layers*dx > rdummy) {
+		std::cerr << "WARNING: Cylinder FillIn with " << layers << " layers and " << dx << " stepping > radius " << rdummy << " replaced by Fill" << std::endl;
 		Fill(points, dx, true);
 		return;
 	}
@@ -204,7 +219,7 @@ Cylinder::FillIn(PointVect& points, const double dx, const int _layers, const bo
 
 	for (uint l = 0; l < layers; l++) {
 
-		const double smaller_r = m_r - l * dx;
+		const double smaller_r = rdummy - l * dx; //subtract 0.5 dt for DUMMY_BOUNDARY FIXME make it automatic
 		const double smaller_h = m_h - l * 2 * dx;
 
 		const int nz = (int) ceil(smaller_h/dx);
@@ -245,16 +260,16 @@ Cylinder::IsInside(const Point& p, const double dx) const
  */
 void
 Cylinder::BodyCreate(::chrono::ChSystem * bodies_physical_system, const double dx, const bool collide,
-	const ::chrono::ChQuaternion<> & orientation_diff)
+	const EulerParameters & orientation_diff)
 {
 	// Check if the physical system is valid
 	if (!bodies_physical_system)
 		throw std::runtime_error("Cube::BodyCreate Trying to create a body in an invalid physical system!\n");
 
 	// Creating a new Chrono object
-	m_body = std::make_shared< ::chrono::ChBodyEasyCylinder >( m_r + dx/2.0, m_h + dx, m_mass/Volume(dx), collide );
+	m_body = chrono_types::make_shared< ::chrono::ChBodyEasyCylinder >( m_r + dx/2.0, m_h + dx, m_mass/Volume(dx), collide );
 	m_body->SetPos(::chrono::ChVector<>(m_center(0), m_center(1), m_center(2)));
-	m_body->SetRot(orientation_diff*m_ep.ToChQuaternion());
+	m_body->SetRot(EulerParametersQuaternion(orientation_diff*m_ep));
 
 	m_body->SetCollide(collide);
 	m_body->SetBodyFixed(m_isFixed);
@@ -263,4 +278,207 @@ Cylinder::BodyCreate(::chrono::ChSystem * bodies_physical_system, const double d
 	// Add the body to the physical system
 	bodies_physical_system->AddBody(m_body);
 }
+
+
+/*Returns the nodes associated to the element that a given point is contained in.
+ * The obtained nodes are used to move deformable particles and to get forces from the SPH system, using shaping functions
+*/
+int4 Cylinder::getOwningNodes(const double4 abs_coords)
+{
+	// get relative position of the point inside the cylinder
+	double4 rel_coords = make_double4(abs_coords.x - m_origin(0), abs_coords.y - m_origin(1), abs_coords.z - m_origin(2), 0);
+
+	//get cylindrical coordinates
+	double alpha = atan2(rel_coords.y, rel_coords.x);
+	double rad = sqrt(rel_coords.x*rel_coords.x + rel_coords.y*rel_coords.y);
+
+	if (alpha < 0.0)
+		alpha += M_PI*2.0;
+
+
+	double3 cyl_coords = make_double3(rad, alpha, rel_coords.z);
+	cyl_coords.x = m_r - cyl_coords.x; // start from the cells
+
+	// get size of the elements
+	double dx = (m_r - m_ri)/m_nels.x;
+	double dy = 2*M_PI/m_nels.y;
+	double dz = m_h/m_nels.z;
+
+	/*IMPORTANT: the following works in association to the order by which the elements are created*/
+	// the order is in the directions x, then y and then z.
+
+	// for the cell recognition we subtract a small quantity ( half dp would be enough,
+	// but we should pass dt here) so the last layer of a cell is still considered to 
+	// belong to the closer contiguous element. This works as long as dp is larger than
+	// machine epsilon for double
+	double3 cyl_coordsc = cyl_coords - make_double3(DBL_EPSILON, DBL_EPSILON, DBL_EPSILON);
+
+	// ... and we take every value with positive sign
+	cyl_coordsc.x = abs(cyl_coordsc.x);
+	cyl_coordsc.y = abs(cyl_coordsc.y);
+	cyl_coordsc.z = abs(cyl_coordsc.z);
+
+	//number of nodes per side
+	uint3 nnodes = m_nels + make_uint3(0, 0, 1);
+
+	// get the local index of the first node associated to the element
+	int node_index =  floor(cyl_coordsc.z/dz);
+
+	int NA = node_index;
+	int NE = NA + 1;
+
+	// return the offset of the nodes with respect to the first node of the geometry.
+	// This will be added to the global index of the first node to get the global index
+	// of the nodes. The offset is negative when reusing nodes previously created.
+	NA = m_fea_nodes_offset[NA];
+	NE = m_fea_nodes_offset[NE];
+
+
+	return make_int4(NA, NE, 0, 0);
+}
+
+// Get natural coordinates of a point, inside the geometry, with respect to the element the point is associated to.
+// The associated element is recalled by means of its nodes using the function getOwningNodes
+float4 Cylinder::getNaturalCoords(const double4 abs_coords)
+{
+	// get relative position of the point inside the geometry
+	double4 rel_coords = make_double4(abs_coords.x - m_origin(0), abs_coords.y - m_origin(1), abs_coords.z - m_origin(2), 0);
+
+	//get cylindrical coordinates
+
+	double alpha = atan2(rel_coords.y, rel_coords.x);
+	double rad = sqrt(rel_coords.x*rel_coords.x + rel_coords.y*rel_coords.y);
+
+	if (alpha < 0.0)
+		alpha += M_PI*2.0;
+
+	double3 cyl_coords = make_double3(rad, alpha, rel_coords.z);
+
+	// get size of the elements
+	double dx = (m_r - m_ri)/m_nels.x;
+	double dy = 2*M_PI/m_nels.y;
+	double dz = m_h/m_nels.z;
+
+	/*IMPORTANT: the following works in association to the order by which the elements are created*/
+	// the order is in the directions x, then y and then z.
+
+	// for the cell recognition we subtract a small quantity ( half dp would be enough, but we should pass dt here)
+	// so the last layer of a cell is still considered to belong to the closer contiguous element.
+	// This works as long as dp is larger than machine epsilon for double
+	double3 cyl_coordsc = cyl_coords - make_double3(DBL_EPSILON, DBL_EPSILON, DBL_EPSILON);
+
+	// ... and we take every value with positive sign
+	cyl_coordsc.x = abs(cyl_coordsc.x);
+	cyl_coordsc.y = abs(cyl_coordsc.y);
+	cyl_coordsc.z = abs(cyl_coordsc.z);
+
+	// natural coordinates have origin in the center of the element
+	float nat_coord_x =  (m_r - cyl_coords.x - floor((m_r - cyl_coordsc.x)/dx)*dx - dx*0.5)/(dx*0.5);
+	float nat_coord_y =  (cyl_coords.y - floor(cyl_coordsc.y/dy)*dy - dy*0.5)/(dy*0.5);
+	float nat_coord_z =  (cyl_coords.z - floor(cyl_coordsc.z/dz)*dz - dz*0.5)/(dz*0.5);
+
+	// to use shaping functions we need to know what is the type of element we are referring to: we use
+	// code 0 for shell elements 
+	const int el_type_id = 1;
+
+	return make_float4(nat_coord_x, nat_coord_y, nat_coord_z, el_type_id);
+}
+
+
+/*Build a Mesh of ANCF cables elements to discretize a Cylinder*/
+void
+Cylinder::CreateFemMesh(::chrono::ChSystem *fea_system)
+{
+	if (!fea_system)
+		throw std::runtime_error("Cylinder::CreateFEMMesh: Trying to create a body in an invalid physical system!\n");
+
+	// to keep track of the global index for the nodes that we are going to create,
+	// let us set compute the number of nodes already created for previous geometries
+	set_previous_nodes_num(fea_system);
+
+	cout << "Creating ANCF cables FEM mesh for Cylinder" << endl;
+
+	// create a new Chrono mesh associated to this geometry
+	m_fea_mesh = chrono_types::make_shared<::chrono::fea::ChMesh>();
+
+	// vector that will store the New nodes created for this mesh
+	std::vector<std::shared_ptr<::chrono::fea::ChNodeFEAxyz>> nodes;
+
+	// size of the elements that will constite the mesh
+	const double lel_z = m_h/m_nels.z;
+
+	const uint nodes_num = m_nels.z + 1;
+	uint n_counter = 0;
+
+	for (int j = 0; j <= m_nels.z; j++) {
+
+		// Node postion
+		Point coords = m_origin + Point(0, 0, lel_z*j);
+
+		// Node direction
+		double3 direction = make_double3(0, 0, 1);
+
+		// create the node
+		auto node = chrono_types::make_shared<::chrono::fea::ChNodeFEAxyzD>(
+			::chrono::ChVector<>(coords(0), coords(1), coords(2)),
+			::chrono::ChVector<>(direction.x, direction.y, direction.z));
+
+		node->SetMass(0);
+
+		// Check if the node would be in the place of a previously defined node
+		// and in case use that one. This function can be used to join two meshes.
+		// The nodes, new and reused, that compose the grid are stored in the vector "nodes"
+		bool is_new = reduceNodes(node, fea_system, nodes);
+
+		if (is_new) {
+			m_fea_mesh->AddNode(node);
+			m_fea_nodes.push_back(coords);
+
+			n_counter ++;
+		}
+
+	}
+
+	auto msection_cable = chrono_types::make_shared<::chrono::fea::ChBeamSectionCable>();
+	msection_cable->SetArea((m_r*m_r - m_ri*m_ri)*3.14);
+
+	// We model a hollow cylinder by means of the momentum of inertia.
+	// Compute and assign momentum of inertia of a hollow cylinder:
+	double dext = 2*m_r;
+	double dext4 = dext*dext*dext*dext;
+	double dint = 2*m_ri;
+	double dint4 = dint*dint*dint*dint;
+	msection_cable->SetI(M_PI/64.0*(dext4 - dint4));
+
+	msection_cable->SetYoungModulus(m_youngModulus);
+	msection_cable->SetDensity(m_density);
+	msection_cable->SetBeamRaleyghDamping(10.0);
+
+	// Now we walk through the grid of nodes previously created and we apply elements
+	uint n = -1;// nodes indices explorer
+
+	for (int j = 0; j <= m_nels.z; j++) {
+
+		n++;
+
+		if (j == m_nels.z) continue;
+
+		int NA = n;
+		int NB = n + 1;
+
+		// create the new element
+		auto cable = chrono_types::make_shared<::chrono::fea::ChElementCableANCF>();
+
+		// attach the element to the nodes
+		cable->SetNodes(std::dynamic_pointer_cast<::chrono::fea::ChNodeFEAxyzD>(nodes[NA]),
+			std::dynamic_pointer_cast<::chrono::fea::ChNodeFEAxyzD>(nodes[NB]));
+
+		cable->SetSection(msection_cable);
+		cable->SetAlphaDamp(m_alphaDamping);
+
+		// Add element to mesh
+		m_fea_mesh->AddElement(cable);
+	}
+}
+
 #endif

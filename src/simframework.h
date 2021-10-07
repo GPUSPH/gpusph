@@ -47,6 +47,7 @@
 // TODO this should be set by the integration scheme, when we have it
 #include "buffer_alloc_policy.h"
 
+class SimParams;
 
 //< Map of filter types to actual filter engines
 typedef std::map<FilterType, AbstractFilterEngine *> FilterEngineSet;

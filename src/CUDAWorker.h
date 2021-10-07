@@ -91,6 +91,9 @@ private:
 	// copy from device to host
 	void memcpyDeviceToHost(void *dst, const void *src, size_t bytes) override;
 
+	void pinHostBuffer(void *ptr, size_t bytes) override;
+	void unpinHostBuffer(void *ptr) override;
+
 	void createEventsAndStreams() override;
 	void destroyEventsAndStreams() override;
 

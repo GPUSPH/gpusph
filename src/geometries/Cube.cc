@@ -27,6 +27,7 @@
 
 #include <cstdio>
 #include <cstdlib>
+#include <cfloat>
 #include <iostream>
 #include <climits>
 
@@ -35,8 +36,14 @@
 
 #include "chrono_select.opt"
 #if USE_CHRONO == 1
+#include "chrono/physics/ChSystem.h"
 #include "chrono/physics/ChBodyEasy.h"
+#include "chrono/fea/ChNodeFEAxyzD.h"
+#include "chrono/fea/ChNodeFEAxyz.h"
+#include "chrono/fea/ChElementShellANCF.h"
+#include "chrono/fea/ChElementHexa_8.h"
 #endif
+#include "EulerParametersQuaternion.h"
 
 #include "Cube.h"
 #include "Rect.h"
@@ -52,6 +59,7 @@ Cube::Cube(void):m_lx(0), m_ly(0), m_lz(0)
 	m_vx = Vector(0, 0, 0);
 	m_vy = Vector(0, 0, 0);
 	m_vz = Vector(0, 0, 0);
+	m_nels = make_uint3(1, 1, 1);
 	m_ep = EulerParameters();
 }
 
@@ -71,13 +79,15 @@ Cube::Cube(void):m_lx(0), m_ly(0), m_lz(0)
  *
  *  If the orientation is not specified, it is assumed that the local axes are parallel to the system one.
  */
-Cube::Cube(const Point &origin, const double lx, const double ly, const double lz, const EulerParameters &ep)
+Cube::Cube(const Point &origin, const double lx, const double ly, const double lz, int nelsx, int nelsy, int nelsz, const EulerParameters &ep)
 {
 	m_origin = origin;
 
 	m_lx = lx;
 	m_ly = ly;
 	m_lz = lz;
+
+	m_nels = make_uint3(nelsx, nelsy, nelsz);
 
 	// set the EulerParameters and update sizes, center
 	setEulerParameters(ep);
@@ -700,6 +710,148 @@ void Cube::shift(const double3 &offset)
 	m_center += poff;
 }
 
+/*Returns the nodes associated to the element that a given point is contained in.
+ * The obtained nodes are used to move deformable particles and to get forces from the SPH system, using shaping functions
+*/
+int4 Cube::getOwningNodes(const double4 abs_coords)
+{
+#if USE_CHRONO == 1
+	// get relative position of the point inside the geometry
+	double4 rel_coords = make_double4(abs_coords.x - m_origin(0), abs_coords.y - m_origin(1), abs_coords.z - m_origin(2), 0);
+
+
+	Point rot_coords = m_ep.TransposeRot(Point(rel_coords.x, rel_coords.y, rel_coords.z));
+
+	rel_coords.x = rot_coords(0);
+	rel_coords.y = rot_coords(1);
+	rel_coords.z = rot_coords(2);
+
+
+	// get size of the elements
+	double dx = m_lx/m_nels.x;
+	double dy = m_ly/m_nels.y;
+	double dz = m_lz/m_nels.z;
+
+	/*IMPORTANT: the following works in association to the order by which the elements are created*/
+	// the order is in the directions x, then y and then z.
+
+	// for the cell recognition we subtract a small quantity ( half dp would be enough, but we should pass dt here)
+	// so the last layer of a cell is still considered to belong to the closer contiguous element.
+	// This works as long as dp is larger than machine epsilon for double (then always...)
+	double4 rel_coordsc = rel_coords - make_double4(DBL_EPSILON, DBL_EPSILON, DBL_EPSILON, 0);
+
+	// ... and we take every value with positive sign
+	rel_coordsc.x = abs(rel_coordsc.x);
+	rel_coordsc.y = abs(rel_coordsc.y);
+	rel_coordsc.z = abs(rel_coordsc.z);
+
+	//number of nodes per side
+	//uint3 nnodes = m_nels + make_uint3(1, 1, 1); //for solids
+	uint3 nnodes = m_nels + make_uint3(1, 1, 0); // for shells
+
+	/*
+	// for solids
+	int element_index =  floor(rel_coordsc.z/dz)*(nnodes.x*nnodes.y) + // elements in the layers below
+		floor(rel_coordsc.y/dy)*(nnodes.x) +			// elements in the previus rows in the same layer
+		floor(rel_coordsc.x/dx);				// previous elements in the same row
+		*/
+	// for shells
+	int node_index = floor(rel_coordsc.y/dy)*(nnodes.x) +	// nodes in the previus rows in the same layer
+		floor(rel_coordsc.x/dx);				// previous nodes in the same row
+
+	// get nodes indices. NB we don't need to store all of the 8 nodes, since 4 of them are consecutive to the each of the
+	// four other nodes.
+
+/*
+ //for solids
+	// TODO we should find a better way to store nodes. e.g, if we pass n_in_layer the last two nodes are obtained
+	// from the previous ones. Ans so on, we could pass just one node, but this means to have more computation at runtime.
+	uint NA = node_index;
+	uint NC = node_index + (m_nels.x + 1);
+	// upper layer
+	uint n_in_layer = (m_nels.x + 1)*(m_nels.y + 1);
+	uint NE = NA + n_in_layer;
+	uint NG = NC + n_in_layer;
+	*/
+
+	//for shells
+	// TODO we should find a better way to store nodes. e.g, if we pass n_in_layer the last two nodes are obtained
+	// from the previous ones. Ans so on, we could pass just one node, but this means to have more computation at runtime.
+	int NA = node_index;
+	int NC = node_index + 1;
+	// upper layer
+	int n_in_layer = m_nels.x + 1;
+	int NE = NA + n_in_layer;
+	int NG = NC + n_in_layer;
+
+
+	// return the offset of the nodes with respect to the first node of the geometry. This will be added to the
+	// global index of the first node to get the global index of the nodes. The offset is negative when reusing
+	// nodes previously created.
+	NA = m_fea_nodes_offset[NA];
+	NC = m_fea_nodes_offset[NC];
+	NE = m_fea_nodes_offset[NE];
+	NG = m_fea_nodes_offset[NG];
+
+	return make_int4(NA, NC, NE, NG);
+#else
+	return make_int4(-1, -1, -1, -1);
+#endif
+}
+
+// Get natural coordinates of a point, inside the geometry, with respect to the element the point is associated to.
+// The associated element is recalled by means of its nodes using the function getOwningNodes
+float4 Cube::getNaturalCoords(const double4 abs_coords)
+{
+#if USE_CHRONO == 1
+	// get relative position of the point inside the geometry
+	double4 rel_coords = make_double4(abs_coords.x - m_origin(0), abs_coords.y - m_origin(1), abs_coords.z - m_origin(2), 0);
+
+	Point rot_coords = m_ep.TransposeRot(Point(rel_coords.x, rel_coords.y, rel_coords.z));
+
+	rel_coords.x = rot_coords(0);
+	rel_coords.y = rot_coords(1);
+	rel_coords.z = rot_coords(2);
+
+	// get size of the elements
+	double dx = m_lx/m_nels.x;
+	double dy = m_ly/m_nels.y;
+	double dz = m_lz/m_nels.z;
+
+	/*IMPORTANT: the following works in association to the order by which the elements are created*/
+	// the order is in the directions x, then y and then z.
+
+	// for the cell recognition we subtract a small quantity ( half dp would be enough, but we should pass dt here)
+	// so the last layer of a cell is still considered to belong to the closer contiguous element.
+	// This works as long as dp is larger than machine epsilon for double
+	double4 rel_coordsc = rel_coords - make_double4(DBL_EPSILON, DBL_EPSILON, DBL_EPSILON, 0);
+
+	// ... and we take every value with positive sign
+	rel_coordsc.x = abs(rel_coordsc.x);
+	rel_coordsc.y = abs(rel_coordsc.y);
+	rel_coordsc.z = abs(rel_coordsc.z);
+/*
+	int element_index =  floor(rel_coordsc.z/dz)*(m_nels.x*m_nels.y) + // elements in the layers below
+		floor(rel_coordsc.y/dy)*(m_nels.x) +			// elements in the previus rows in the same layer
+		floor(rel_coordsc.x/dx);				// previous elements in the same row
+*/
+
+	// natural coordinates have origin in the center of the element
+	float nat_coord_x =  (rel_coords.x - floor(rel_coordsc.x/dx)*dx - dx*0.5)/(dx*0.5);
+	float nat_coord_y =  (rel_coords.y - floor(rel_coordsc.y/dy)*dy - dy*0.5)/(dy*0.5);
+	float nat_coord_z =  (rel_coords.z - floor(rel_coordsc.z/dz)*dz - dz*0.5)/(dz*0.5);
+
+
+	// to use shaping functions we need to know what is the type of element we are referring to: we use
+	// code 1 for cable elements
+	const int el_type_id = 0;
+
+	return make_float4(nat_coord_x, nat_coord_y, nat_coord_z, el_type_id);
+#else
+	return make_float4(NAN, NAN, NAN, NAN);
+#endif
+}
+
 
 ostream& operator<<(ostream& out, const Cube& cube) // output
 {
@@ -715,16 +867,16 @@ ostream& operator<<(ostream& out, const Cube& cube) // output
  */
 void
 Cube::BodyCreate(::chrono::ChSystem * bodies_physical_system, const double dx, const bool collide,
-	const ::chrono::ChQuaternion<> & orientation_diff)
+	const EulerParameters & orientation_diff)
 {
 	// Check if the physical system is valid
 	if (!bodies_physical_system)
 		throw std::runtime_error("Cube::BodyCreate Trying to create a body in an invalid physical system!\n");
 
 	// Creating a new Chrono object
-	m_body = std::make_shared< ::chrono::ChBodyEasyBox > ( m_lx + dx, m_ly + dx, m_lz + dx, m_mass/Volume(dx), collide );
+	m_body = chrono_types::make_shared< ::chrono::ChBodyEasyBox > ( m_lx + dx, m_ly + dx, m_lz + dx, m_mass/Volume(dx), collide );
 	m_body->SetPos(::chrono::ChVector<>(m_center(0), m_center(1), m_center(2)));
-	m_body->SetRot(orientation_diff*m_ep.ToChQuaternion());
+	m_body->SetRot(EulerParametersQuaternion(orientation_diff*m_ep));
 
 	m_body->SetCollide(collide);
 	m_body->SetBodyFixed(m_isFixed);
@@ -733,4 +885,227 @@ Cube::BodyCreate(::chrono::ChSystem * bodies_physical_system, const double dx, c
 	// Add the body to the physical system
 	bodies_physical_system->AddBody(m_body);
 }
+
+/* Mesh for cube can be created using 2 types of elements
+ *
+ * Define MESH_TYPE = :
+ *  - 0. for Hexagons: first order accurate, good for cubes with size not predominant in some directions
+ *  - 1. for Shell elements: for flat geometries give higher accuracy than solid elements using a smaller 
+ *       number of elements.
+ * */
+#define MESH_TYPE 1 //TODO FIXME choose mesh type from the problem file
+
+
+#if MESH_TYPE == 0
+// Create a mesh for hexagonal geometry using a 3D grid of Hexagonal elements
+// (FIXME need a change in the defineCube function, that needs the third gird dimension)
+void
+Cube::CreateFemMesh(::chrono::ChSystem * fea_system)
+{
+	if (!fea_system)
+		throw std::runtime_error("Cube::CreateFEMMesh: Trying to create a body in an invalid physical system!\n");
+
+	cout << "Creating FEM mesh for Cube" << endl;
+	m_fea_mesh = chrono_types::make_shared<::chrono::fea::ChMesh>();
+
+	const double lel_x = m_lx/m_nels.x;
+	const double lel_y = m_ly/m_nels.y;
+	const double lel_z = m_lz/m_nels.z;
+
+	double dir_x = -1;
+	double dir_y = 0;
+	double dir_z = 0;
+
+	const int nodes_num = (m_nels.x	+ 1)*(m_nels.y + 1)*(m_nels.z + 1);
+	m_fea_nodes.resize(nodes_num);
+	uint n_counter = 0;
+
+	for (int j = 0; j <= m_nels.z; j++)
+		for (int i = 0; i <= m_nels.y; i++)
+			for (int l = 0; l <= m_nels.x; l++) {
+				Point coords = m_origin + Point(lel_x*l, lel_y*i, lel_z*j);
+				auto node = chrono_types::make_shared<::chrono::fea::ChNodeFEAxyzD>(::chrono::ChVector<>
+					(coords(0), coords(1), coords(2)));
+
+				node->SetMass(0);
+
+				m_fea_mesh->AddNode(node);
+				m_fea_nodes[n_counter] = coords;
+				n_counter ++;
+			}
+
+	// Set material properties
+	auto mmaterial = chrono_types::make_shared<::chrono::fea::ChContinuumElastic>();
+	mmaterial->Set_E(m_youngModulus);
+	mmaterial->Set_v(m_poissonRatio);
+	mmaterial->Set_density(m_density);
+	mmaterial->Set_RayleighDampingK(0.001);
+
+
+	uint n = -1;// nodes indices explorer
+	for (int j = 0; j <= m_nels.z; j++)
+		for (int i = 0; i <= m_nels.y; i++)
+			for (int l = 0; l <= m_nels.x; l++) {
+
+				n++;
+
+				if ((j == m_nels.z) || (i == m_nels.y) || (l == m_nels.x)) continue;
+
+				cout << n << " " << i << " " << j << endl;
+				// nodes indices for the new element
+				// lower layer
+				int NA = n;
+				int NB = n + 1;
+				int NC = n + (m_nels.x + 1);
+				int ND = n + (m_nels.x + 2);
+				// upper layer
+				int n_in_layer = (m_nels.x + 1)*(m_nels.y + 1);
+				int NE = NA + n_in_layer;
+				int NF = NB + n_in_layer;
+				int NG = NC + n_in_layer;
+				int NH = ND + n_in_layer;
+
+				auto cube = chrono_types::make_shared<::chrono::fea::ChElementHexa_8>();
+
+				cube->SetNodes(std::dynamic_pointer_cast<::chrono::fea::ChNodeFEAxyzD>(m_fea_mesh->GetNode(NA)),
+					std::dynamic_pointer_cast<::chrono::fea::ChNodeFEAxyzD>(m_fea_mesh->GetNode(NB)),
+					std::dynamic_pointer_cast<::chrono::fea::ChNodeFEAxyzD>(m_fea_mesh->GetNode(ND)),
+					std::dynamic_pointer_cast<::chrono::fea::ChNodeFEAxyzD>(m_fea_mesh->GetNode(NC)),
+					std::dynamic_pointer_cast<::chrono::fea::ChNodeFEAxyzD>(m_fea_mesh->GetNode(NE)),
+					std::dynamic_pointer_cast<::chrono::fea::ChNodeFEAxyzD>(m_fea_mesh->GetNode(NF)),
+					std::dynamic_pointer_cast<::chrono::fea::ChNodeFEAxyzD>(m_fea_mesh->GetNode(NH)),
+					std::dynamic_pointer_cast<::chrono::fea::ChNodeFEAxyzD>(m_fea_mesh->GetNode(NG)));
+
+
+				cube->SetMaterial(mmaterial);
+				// Add element to mesh
+				m_fea_mesh->AddElement(cube);
+		}
+}
+
+#endif
+
+
+#if MESH_TYPE == 1
+// Create a mesh for FLAT Hexagonal geometry using a 2D grid of Hexagonal elements
+void
+Cube::CreateFemMesh(::chrono::ChSystem * fea_system)
+{
+	if (!fea_system)
+		throw std::runtime_error("Cube::CreateFEMMesh: Trying to create a body in an invalid physical system!\n");
+
+	// to keep track of the global index for the nodes that we are going to create,
+	// let us set compute the number of nodes already created for previous geometries
+	set_previous_nodes_num(fea_system);
+
+	cout << "Creating ANCF FEM mesh for Cube" << endl;
+
+	// create a new Chrono mesh associated to this geometry
+	m_fea_mesh = chrono_types::make_shared<::chrono::fea::ChMesh>();
+
+	// vector that will store the New nodes created for this mesh
+	std::vector<std::shared_ptr<::chrono::fea::ChNodeFEAxyz>> nodes;
+
+	// WE are creating a horizontal plane TODO allow rotation of the geometry
+
+
+	// size of the elements that will constite the mesh
+	const double lel_x = m_lx/m_nels.x;
+	const double lel_y = m_ly/m_nels.y;
+	const double lel_z = m_lz;
+
+	// Shell elements use ChNodeFEAxyzD that have a Direction assigned.
+	// Let us define the three components of the direction, that must
+	// be (Chrono spec.) normal to the surface.
+	Vector shell_dir = m_vz/m_lz;
+
+	std::cout << shell_dir(0) << ' ' << shell_dir(1) << ' ' <<  shell_dir(2) << std::endl;
+
+	const int nodes_num = (m_nels.x	+ 1)*(m_nels.y + 1);
+	uint n_counter = 0;
+
+	// Create the grid of nodes
+	for (int i = 0; i <= m_nels.y; i++)		// move along y
+		for (int l = 0; l <= m_nels.x; l++) {	// move along x
+
+			// we place the grid of nodes in the middle of the box thickness
+			//Point coords = m_origin + Point(lel_x*l, lel_y*i, lel_z*0.5); //OLD: no rotation
+			Point coords = m_origin + l*(1 + 0.0*i)*m_vx/m_nels.x + i*m_vy/m_nels.y + m_vz/2.0;
+
+			// create the node
+			auto node = chrono_types::make_shared<::chrono::fea::ChNodeFEAxyzD>(
+				::chrono::ChVector<>(coords(0), coords(1), coords(2)),
+				::chrono::ChVector<>(shell_dir(0), shell_dir(1), shell_dir(2)));
+
+
+			node->SetMass(0);
+
+			// Check if the node would be in the place of a previously defined node
+			// and in case use that one. This function can be used to join two meshes.
+			// The nodes, new and reused, that compose the grid are stored in the vector "nodes"
+			// FIXME check also node direction?
+			bool is_new = reduceNodes(node, fea_system, nodes);
+
+			if (is_new) {
+				m_fea_mesh->AddNode(node);
+				m_fea_nodes.push_back(coords);
+
+				n_counter ++;
+			}
+		}
+
+
+	// Set material properties
+	const double shearModulus = m_youngModulus/(2*(1 + m_poissonRatio)); // TODO users may want to have control on this parameter
+	::chrono::ChVector<> G(shearModulus, shearModulus, shearModulus);
+
+	auto mmaterial = chrono_types::make_shared<::chrono::fea::ChMaterialShellANCF>(m_density, m_youngModulus, m_poissonRatio, G);
+
+	// Now we walk through the grid of nodes previously created and we apply elements
+	uint n = -1;// nodes indices explorer
+
+	for (int i = 0; i <= m_nels.y; i++)
+		for (int l = 0; l <= m_nels.x; l++) {
+
+			n++;
+
+			if ((i == m_nels.y) || (l == m_nels.x)) continue;
+
+			// nodes indices for the new element
+			int NA = n;
+			int NB = n + 1;
+
+			int n_in_row = m_nels.x + 1; // nodes in one x row
+
+			int NC = NA + n_in_row;
+			int ND = NB + n_in_row;
+
+
+			// create the new element
+			auto shell = chrono_types::make_shared<::chrono::fea::ChElementShellANCF>();
+
+			// attach the element to the nodes
+			shell->SetNodes(std::dynamic_pointer_cast<::chrono::fea::ChNodeFEAxyzD>(nodes[NA]),
+				std::dynamic_pointer_cast<::chrono::fea::ChNodeFEAxyzD>(nodes[NB]),
+				std::dynamic_pointer_cast<::chrono::fea::ChNodeFEAxyzD>(nodes[ND]),
+				std::dynamic_pointer_cast<::chrono::fea::ChNodeFEAxyzD>(nodes[NC]));
+
+			// set dimensions for the element
+			shell->SetDimensions(lel_x, lel_y); // TODO how do I know which of the two sides I am specifying ?
+
+			// shell elements can be multilayer. We define a single uniform layer with thickness lel_z
+			shell->AddLayer(lel_z, 0, mmaterial);
+
+			shell->SetAlphaDamp(m_alphaDamping);
+
+			shell->SetGravityOn(false); // gravity of the single element (sort of volume forces)
+
+
+			// Add element to mesh
+			m_fea_mesh->AddElement(shell);
+		}
+}
+
+#endif
+
 #endif

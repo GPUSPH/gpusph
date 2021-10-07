@@ -566,6 +566,7 @@ neibsInCell(
 			float3			pos,		// current particle position
 			uint*			neibs_num,	// number of neighbors for the current particle
 			const bool		segment,	// true if the current particle belongs to a segment
+			const bool		fea,	// true if the current particle belongs to a FEA body
 			const bool		boundary)	// true if the current particle is a boundary particle
 {
 	// Compute the grid position of the current cell, and return if it's
@@ -617,7 +618,7 @@ neibsInCell(
 		// With dynamic boundaries, boundary parts don't interact with other boundary parts
 		// except for Grenier's formulation, where the sigma computation needs all neighbors
 		// to be enumerated
-		if (boundarytype == DYN_BOUNDARY && sph_formulation != SPH_GRENIER) {
+		if (boundarytype == DYN_BOUNDARY && sph_formulation != SPH_GRENIER && !DEFORMABLE(neib_info) && !fea) {
 			if (boundary && BOUNDARY(neib_info))
 				continue;
 		}
@@ -713,7 +714,7 @@ struct calcHashDevice
 
 	// We compute new hash only for fluid and moving not fluid particles (object, moving boundaries),
 	// and surface boundaries in case of repacking
-	if (FLUID(info) || MOVING(info) || (SURFACE(info) && !FLUID(info))) {
+	if (FLUID(info) || MOVING(info) || (SURFACE(info) && !FLUID(info)) || DEFORMABLE(info) || FEA_NODE(info)) {
 		// Getting new pos relative to old cell
 		pos_mass pdata = posArray[index];
 
@@ -1320,7 +1321,7 @@ struct buildNeibsListDevice : params_t
 		//	* For dynamic boundaries :
 		//		we construct a neighbors list for all particles.
 		//TODO: optimze test. (Alexis).
-		bool build_nl = FLUID(info) || TESTPOINT(info) || FLOATING(info) || COMPUTE_FORCE(info);
+		bool build_nl = FLUID(info) || TESTPOINT(info) || FLOATING(info) || COMPUTE_FORCE(info) || DEFORMABLE(info);
 		if (boundarytype == SA_BOUNDARY)
 			build_nl = build_nl || VERTEX(info) || BOUNDARY(info);
 		if (boundarytype == DYN_BOUNDARY || boundarytype == DUMMY_BOUNDARY)
@@ -1354,6 +1355,7 @@ struct buildNeibsListDevice : params_t
 						pdata.pos,
 						neibs_num,
 						BOUNDARY(info),
+						FEA_NODE(info),
 						BOUNDARY(info));
 				}
 			}

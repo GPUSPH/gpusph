@@ -38,6 +38,7 @@
 #include "GPUSPH.h"
 #include "Options.h"
 #include "GlobalData.h"
+#include "Synchronizer.h"
 #include "NetworkManager.h"
 
 #include "debugflags.h"
@@ -111,7 +112,7 @@ void print_usage() {
 	cout << "Syntax: " << endl;
 	cout << "\tGPUSPH [--device n[,n...]] [--dem dem_file] [--deltap VAL] [--tend VAL] [--dt VAL] [--ccsph-min-det VAL]\n";
 	cout << "\t       [--resume fname] [--checkpoint-every VAL] [--checkpoints VAL]\n";
-	cout << "\t       [--dir directory] [--nosave] [--striping] [--gpudirect [--asyncmpi]]\n";
+	cout << "\t       [--dir directory] [--(no-)pin-fea-buffers] [--nosave] [--striping] [--gpudirect [--asyncmpi]]\n";
 	cout << "\t       [--num-hosts VAL [--byslot-scheduling]]\n";
 	cout << "\t       [--display [--display-every VAL] --display-script VAL]\n";
 	cout << "\t       [--debug FLAGS]\n";
@@ -128,6 +129,9 @@ void print_usage() {
 	cout << " --csph-min-det : Use given minimum determnant for CCSPH (VAL is cast to float)\n";
 	cout << " --maxiter : Break after this many iterations (integer VAL)\n";
 	cout << " --dir : Use given directory for dumps instead of date-based one\n";
+	cout << " --pin : Use given directory for dumps instead of date-based one\n";
+	cout << " --pin-fea-buffers : Force pinning of FEA buffers (default)\n";
+	cout << " --no-pin-fea-buffers : Disable pinning of FEA buffers\n";
 	cout << " --nosave : Disable all file dumps but the last\n";
 	cout << " --gpudirect: Enable GPUDirect for RDMA (requires a CUDA-aware MPI library)\n";
 	cout << " --striping : Enable computation/transfer overlap  in multi-GPU (usually convenient for 3+ devices)\n";
@@ -227,6 +231,10 @@ int parse_options(int argc, char **argv, GlobalData *gdata)
 			_clOptions->dir = string(*argv);
 			argv++;
 			argc--;
+		} else if (!strcmp(arg, "--pin-fea-buffers")) {
+			_clOptions->pin_fea_buffers = true;
+		} else if (!strcmp(arg, "--no-pin-fea-buffers")) {
+			_clOptions->pin_fea_buffers = false;
 		} else if (!strcmp(arg, "--nosave")) {
 			_clOptions->nosave = true;
 		} else if (!strcmp(arg, "--gpudirect")) {
@@ -428,6 +436,10 @@ void simulate(GlobalData *gdata, RunMode repack_or_run)
 }
 
 int main(int argc, char** argv) {
+	static_assert(FG_LAST_FLAG < USHRT_MAX, "Too many flags!");
+	// TODO convert this to a static assert
+	//              |
+	//              v
 	if (!check_short_length()) {
 		printf("Fatal: this architecture does not have uint = 2 short\n");
 		exit(1);

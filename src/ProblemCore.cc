@@ -60,9 +60,16 @@
 // COORD1, COORD2, COORD3
 #include "linearization.h"
 
+#include "EulerParametersQuaternion.h"
 #if USE_CHRONO
+#include "chrono/physics/ChSystem.h"
 #include "chrono/physics/ChSystemNSC.h"
 #include "chrono/solver/ChSolver.h"
+#include "chrono/solver/ChIterativeSolverLS.h"
+#include "chrono/solver/ChDirectSolverLS.h"
+#include "chrono/fea/ChNodeFEAxyzD.h"
+#include "chrono/fea/ChLinkPointFrame.h"
+#include "chrono/fea/ChLinkDirFrame.h"
 #endif
 
 // Enable to get/set envelop and margin (mainly debug)
@@ -80,6 +87,7 @@ ProblemCore::ProblemCore(GlobalData *_gdata) :
 	m_dem(NULL),
 	m_physparams(NULL),
 	m_simframework(NULL),
+	m_chrono_system(NULL),
 	m_size(make_double3(NAN, NAN, NAN)),
 	m_origin(make_double3(NAN, NAN, NAN)),
 	m_out_of_bounds_count(0),
@@ -88,10 +96,12 @@ ProblemCore::ProblemCore(GlobalData *_gdata) :
 	m_hydrostaticFilling(true),
 	gdata(_gdata),
 	m_options(_gdata->clOptions),
+	m_fea_ring_index(0),
+	m_total_fea_force(make_float3(0.0f)),
 	m_bodies_storage(NULL)
 {
 #if USE_CHRONO == 1
-	m_bodies_physical_system = NULL;
+	m_chrono_system = NULL;
 #endif
 }
 
@@ -239,34 +249,78 @@ void
 ProblemCore::InitializeChrono()
 {
 #if USE_CHRONO == 1
-	m_bodies_physical_system = new ::chrono::ChSystemNSC();
-	m_bodies_physical_system->Set_G_acc(::chrono::ChVector<>(physparams()->gravity.x, physparams()->gravity.y,
-		physparams()->gravity.z));
-#if CH_VERSION < 0x00050000
-	m_bodies_physical_system->SetSolverType(::chrono::ChSolver::Type::SOR);
-	m_bodies_physical_system->SetMaxItersSolverSpeed(100);
-#else
-	m_bodies_physical_system->SetSolverType(::chrono::ChSolver::Type::PSOR);
-	m_bodies_physical_system->SetSolverMaxIterations(100);
-#endif
-	// For debug purposes
-	/*
-	const double chronoSuggEnv = ::chrono::collision::ChCollisionModel::GetDefaultSuggestedEnvelope();
-	const double chronoSuggMarg = ::chrono::collision::ChCollisionModel::GetDefaultSuggestedMargin();
-	printf("Default envelop: %g, default margin: %g\n", chronoSuggEnv, chronoSuggMarg);
-	::chrono::collision::ChCollisionModel::SetDefaultSuggestedEnvelope(chronoSuggEnv / 10.0);
-	::chrono::collision::ChCollisionModel::SetDefaultSuggestedMargin(chronoSuggMarg / 10.0);
-	*/
+
+	cout << "Initializing Chrono FEA... " << endl;
+
+	// initialize FEA system
+	m_chrono_system = new ::chrono::ChSystemNSC(); // FIXME NOT necessary the NSC
+
+	m_chrono_system->Set_G_acc(::chrono::ChVector<>(m_physparams->gravity.x, m_physparams->gravity.y,
+		m_physparams->gravity.z));
+
+	initializeChronoSystem(m_chrono_system);
 #else
 	throw runtime_error ("ProblemCore::InitializeChrono Trying to use Chrono without USE_CHRONO defined !\n");
+#endif
+}
+
+void
+ProblemCore::initializeChronoSystem(::chrono::ChSystem *chrono_system)
+{
+#if USE_CHRONO
+	// The default Chrono solver and timesteppers depend on whether FEA is enabled or not
+	if (HAS_FEA(simparams()->simflags)) {
+		auto solver = chrono_types::make_shared<::chrono::ChSolverSparseQR>();
+		solver->UseSparsityPatternLearner(true);
+		solver->LockSparsityPattern(true);
+		solver->SetVerbose(false);
+		chrono_system->SetSolver(solver);
+		chrono_system->SetTimestepperType(::chrono::ChTimestepper::Type::EULER_IMPLICIT);
+		cout << "FEA enabled: defaulting to Sparse QR solver with EULER_IMPLICIT timestepper" << endl;
+	} else {
+		chrono_system->SetSolverType(::chrono::ChSolver::Type::PSOR);
+		chrono_system->SetSolverMaxIterations(100);
+		cout << "FEA disabled: defaulting to PSOR solver with default timestepper" << endl;
+	}
+#else
+	throw runtime_error(string(__func__) + ": trying to initialize Chrono System without USE_CHRONO");
+#endif
+}
+
+void
+ProblemCore::SetFeaReady()
+{
+#if USE_CHRONO == 1
+
+	const int numFeaParts = get_fea_objects_numparts();
+
+	m_fea_average_forces.resize(numFeaParts);
+	m_fea_forces_ring.resize(numFeaParts);
+	for (int i = 0 ; i < numFeaParts; ++i) {
+		m_fea_forces_ring[i].resize(simparams()->fea_smoothing_samples);
+	}
+
+	//m_chrono_system->SetupInitial();
+
+	// If there are nodes to write create the output file
+
+	//m_chrono_system->Update();
+
+	if (simparams()->numNodesToWrite)
+		create_fea_nodes_file();
+	if (simparams()->numConstraintsToWrite)
+		create_fea_constr_file();
+
 #endif
 }
 
 void ProblemCore::FinalizeChrono(void)
 {
 #if USE_CHRONO == 1
-	if (m_bodies_physical_system)
-		delete m_bodies_physical_system;
+	if (m_chrono_system)
+		delete m_chrono_system;
+	if (m_fea_nodes_file)
+		m_fea_nodes_file.close();
 #else
 	throw runtime_error ("ProblemCore::FinalizeChrono Trying to use Chrono without USE_CHRONO defined !\n");
 #endif
@@ -327,7 +381,6 @@ ProblemCore::add_moving_body(Object* object, const MovingBodyType mbtype)
 			mbdata->adata.lvel_dt = make_double3(vec.x(), vec.y(), vec.z());
 			vec = body->GetWacc_par();
 			mbdata->adata.avel_dt = make_double3(vec.x(), vec.y(), vec.z());
-			::chrono::ChQuaternion<> quat = body->GetRot();
 			m_bodies.insert(m_bodies.begin() + simparams()->numODEbodies, mbdata);
 			simparams()->numODEbodies++;
 			simparams()->numforcesbodies++;
@@ -355,6 +408,72 @@ ProblemCore::add_moving_body(Object* object, const MovingBodyType mbtype)
 
 	simparams()->numbodies = m_bodies.size();
 }
+
+// Add a body to the fea system (so far used as joint)
+void
+ProblemCore::add_fea_body(Object* object)
+{
+	cout << "adding fea object " << endl;
+
+	const uint index = m_bodies.size();
+	if (index >= MAX_BODIES) // FIXME do we need an independent  MAX_FEA_BODIES?
+		throw runtime_error ("ProblemCore::add_fea_body Number of fea bodies superior to MAX_BODIES. Increase MAXBODIES\n");
+
+	FeaBodyData *feadata = new FeaBodyData;
+	feadata->index = index;
+	feadata->object = object;
+
+	m_fea_bodies.push_back(feadata);
+
+	// Setting body id after insertion
+	for (uint id = 0; id < m_fea_bodies.size(); id++) {
+		m_fea_bodies[id]->id = id;
+	}
+
+	simparams()->numfeabodies++;
+}
+
+#if USE_CHRONO == 1
+// Simulate a ground where to attach FEA structures: defined the ground (a plane, analytically) set
+// fixed all the nodes that are in the negative side of the plane
+void
+ProblemCore::groundFeaNodes(std::shared_ptr<::chrono::fea::ChMesh> fea_mesh)
+{
+	// four coefficients of the plane equation
+	float4 plane = physparams()->feaGround;
+
+	if ((plane.x != 0)  && (plane.y != 0) && (plane.z != 0) && (plane.w != 0)) // no ground defined
+		return;
+
+	cout << "grounding FEA body using a = " << plane.x << " b = " << plane.y << " c = " << plane.z << " d = " << plane.w << endl;
+
+	uint nodes_num = fea_mesh->GetNnodes();
+	shared_ptr<::chrono::fea::ChNodeFEAxyzD> node;
+	Point p;
+
+	//TODO give the possibility to set more planes as grounds
+
+	// iterate over the FEA nodes in the current mesh (a single GPUSPH geometry)
+	for (int i = 0; i < nodes_num; ++i) {
+
+		// get node
+		node = dynamic_pointer_cast<::chrono::fea::ChNodeFEAxyzD>(fea_mesh->GetNode(i));
+
+		// get coordinates of the node
+		p(0) = node->GetPos().x();
+		p(1) = node->GetPos().y();
+		p(2) = node->GetPos().z();
+
+		/*Any point in the negative side of the plane is grounded*/
+		const float prod = (plane.x * p(0) + plane.y * p(1) + plane.z * p(2) - plane.w);
+
+		if (prod < 0) {
+			node->SetFixed(true);
+			cout << "grounded (mesh local index) " << i << endl;
+		}
+	}
+}
+#endif
 
 //- debug
 void
@@ -406,7 +525,7 @@ ProblemCore::restore_moving_body(const MovingBodyData & saved_mbdata, const uint
 #if USE_CHRONO == 1
 		std::shared_ptr< ::chrono::ChBody > body = mbdata->object->GetBody();
 		body->SetPos(::chrono::ChVector<>(mbdata->kdata.crot.x, mbdata->kdata.crot.y, mbdata->kdata.crot.z));
-		body->SetRot(mbdata->kdata.orientation.ToChQuaternion());
+		body->SetRot(EulerParametersQuaternion(mbdata->kdata.orientation));
 		body->SetPos_dt(::chrono::ChVector<>(mbdata->kdata.lvel.x, mbdata->kdata.lvel.y, mbdata->kdata.lvel.z));
 		body->SetPos_dtdt(::chrono::ChVector<>(mbdata->adata.lvel_dt.x, mbdata->adata.lvel_dt.y, mbdata->adata.lvel_dt.z));
 		body->SetWvel_par(::chrono::ChVector<>(mbdata->kdata.avel.x, mbdata->kdata.avel.y, mbdata->kdata.avel.z));
@@ -468,6 +587,47 @@ ProblemCore::get_forces_bodies_numparts(void)
 	return total_parts;
 }
 
+size_t
+ProblemCore::get_fea_objects_numparts(void)
+{
+	size_t total_parts = 0;
+	for (vector<FeaBodyData *>::iterator it = m_fea_bodies.begin() ; it != m_fea_bodies.end(); ++it) {
+		total_parts += (*it)->object->GetNumParts();
+	}
+
+	//FIXME all this should not stay here, should have a proper location
+	if (gdata->iterations == 0 && total_parts && gdata->s_hFeaNatCoords == NULL) {
+		gdata->s_hFeaNatCoords = new float4 [total_parts];
+		cout << "Created host buffer for Nat coords (" << total_parts <<" particles)" << endl;
+	}
+
+	//FIXME all this should not stay here, should have a proper location
+	if (gdata->iterations == 0 && total_parts && gdata->s_hFeaOwningNodes == NULL) {
+		gdata->s_hFeaOwningNodes = new uint4 [total_parts];
+		cout << "Created host buffer for owning nodes (" << total_parts <<" particles)" << endl;
+	}
+
+	return total_parts;
+}
+
+size_t
+ProblemCore::get_fea_objects_numnodes(void)
+{
+	size_t total_parts = 0;
+
+#if USE_CHRONO == 1
+	for (vector<FeaBodyData *>::iterator it = m_fea_bodies.begin() ; it != m_fea_bodies.end(); ++it) {
+		total_parts += (*it)->object->GetNumFeaNodes();
+	}
+
+	//FIXME all this should not stay here, should have a proper location
+	if (gdata->iterations == 0 && total_parts) {
+		m_old_fea_vel.resize(total_parts);
+	}
+#endif
+
+	return total_parts;
+}
 
 size_t
 ProblemCore::get_body_numparts(const int index)
@@ -489,6 +649,219 @@ ProblemCore::calc_grid_and_local_pos(double3 const& globalPos, int3 *gridPos, fl
 	*gridPos = _gridPos;
 	*localPos = make_float3(globalPos - m_origin -
 		(make_double3(_gridPos) + 0.5)*m_cellsize);
+}
+
+/*This is the writer for the FEA nodes. We don't use a regular GPUSPH writer
+ * since running a writer causes the dumping of the data from device. FEA nodes
+ * are already stored on host, so no dumping needed.*/
+void
+ProblemCore::write_fea_nodes(const double t)
+{
+#if USE_CHRONO
+	// Printing position of nodes in a GT_FEA_WRITE
+	m_fea_nodes_file << t;
+	for (int i = 0; i < simparams()->numNodesToWrite; ++i) {
+
+		shared_ptr<::chrono::fea::ChNodeFEAxyz> node;
+
+		/*We read from the array of nodes to be wirtten. This array
+		 * is set at the beginning of the simulation in ProblemAPI_1
+		 * when defining GT_FEA_WRITE geometries*/
+		node = m_WriteFeaNodesPointers[i];
+
+		// print nodes position to file
+		m_fea_nodes_file << '\t' <<
+		node->GetPos().x() << '\t' <<
+		node->GetPos().y() << '\t' <<
+		node->GetPos().z();
+	}
+	m_fea_nodes_file << endl;
+
+	// Printing reactions on constraints
+	m_fea_constr_file << t;
+	for (int i = 0; i < simparams()->numConstraintsToWrite; ++i) {
+
+		::chrono::ChVector<> force = m_WriteFeaPointConstrPointers[i]->Get_react_force();
+		::chrono::ChVector<> torque = m_WriteFeaDirConstrPointers[i]->Get_react_torque();
+
+		m_fea_constr_file << '\t' <<
+		force.x() << '\t' <<
+		force.y() << '\t' <<
+		force.z() << '\t' <<
+		torque.x() << '\t' <<
+		torque.y() << '\t' <<
+		torque.z() << '\t';
+	}
+
+	m_fea_constr_file << m_total_fea_force.x << '\t' <<
+	m_total_fea_force.y << '\t' <<
+	m_total_fea_force.z;
+
+	m_fea_constr_file << endl;
+#endif
+}
+
+// Set external forces and Fluid-Solid Interaction (FSI) forces to FEM nodes
+void
+ProblemCore::fea_init_step(BufferList &buffers, const uint numFeaParts, const double t,  const int step)
+{
+#if USE_CHRONO == 1
+
+	const float4 *forces = buffers.getConstData<BUFFER_FEA_FORCES>(); // contains forces from FSI now
+	const particleinfo *info = buffers.getConstData<BUFFER_INFO>();
+	const uint smoothing_samples = simparams()->fea_smoothing_samples;
+
+
+	shared_ptr<::chrono::fea::ChNodeFEAxyzD> node;
+
+	/* In Project Chrono, nodes are locally indexed within each mesh
+	 * (we associate a mesh to each deformable object)*/
+	uint n = 0; // node index within an individual mesh
+	uint o = 0; // index of meshes (associated to defomable objects) starting from the one with index 0
+
+	/* We perform a temporal averaging of the forces in order to reduce noise
+	 * therefore we store the previous forces in a matrix.*/
+	uint av_idx = m_fea_ring_index; // Index of the current sample in the averager matrix
+
+	/* Sum up all the forces applied to the FEM system for printing purpose */
+	float3 total_force = make_float3(0.0, 0.0, 0.0);
+
+	for(uint i = 0; i < numFeaParts; ++i) {
+
+		// get number of nodes in the current mesh
+		uint nnodes = m_fea_bodies[o]->object->GetNumFeaNodes();
+		// get nth node within the current mesh
+		node = dynamic_pointer_cast<::chrono::fea::ChNodeFEAxyzD>
+			(m_fea_bodies[o]->object->GetFeaMesh()->GetNode(n));
+
+
+		/* -- Time averaging -- */
+		// Divide the new force by the number of samples in the averaging time window
+		// TODO FIXME: pre-dividing means that in the first smoothing_samples iterations
+		// the total force will be underestimated.
+		// For the moment we accept this as this is usually shorter than the settling phase for the fluid.
+		float3 new_f  = make_float3(forces[i])/smoothing_samples;
+
+		// Retrieve the last computed running average
+		float3 node_f = m_fea_average_forces[i];
+
+		auto& part_forces = m_fea_forces_ring[i];
+
+		// Update the running average by subtracting the oldest force to update the
+		// average.
+		// NOTE: this is numerically suboptimal, since it loses accuracy,
+		// but since the intent is to smooth things out, this is normally acceptable.
+		// TODO FIXME: check if there are cases of catastrophic cancellation.
+		// Maybe compute the running average in double precision?
+		node_f += (new_f - part_forces[av_idx]);
+
+		// Replace the oldest value with the most recent one
+		// (av_idx will be updated at the end of the loop over all particles)
+		part_forces[av_idx] = new_f;
+
+		// Store the new averaged value
+		m_fea_average_forces[i] = node_f;
+
+		/* -- End of averaging -- */
+
+
+		// Add external forces (from ext_force_callback), if any
+		// (s_hFeaExtForce[i] is true if node i has an external force applied)
+		//
+		if (simparams()->fcallback && gdata->s_hFeaExtForce[i])
+			node_f += gdata->s_FeaExtForce;
+
+		// Apply the force to the FEM node
+		node->SetForce(::chrono::ChVector<>(node_f.x, node_f.y, node_f.z));
+
+		// Add the force for the current node to the total forces computation
+		total_force += node_f;
+
+		// tracking the nodes in the current mesh
+		n++;
+
+		// reset mesh nodes tacking when we reach the nuber of nodes in the mesh
+		// and pass to next mesh
+		// TODO FIXME check how this complies with node recycling
+		if (n == nnodes) {
+			n = 0;
+			o ++;
+		}
+	}
+
+	m_total_fea_force = total_force;
+
+	// Manage averaging index
+	av_idx ++;
+	if (av_idx == smoothing_samples) av_idx = 0;
+	m_fea_ring_index = av_idx;
+
+#endif
+}
+
+/* Do FEA and get displacements during timestep */
+void
+ProblemCore::fea_do_step(const  double dt, const uint fea_every)
+{
+#if USE_CHRONO == 1
+	// - we perform FEA during the predictor, where dt is half the complete
+	//   time-step, then we use 2*dt
+	// - we perform FEA every fea_every SPH steps, then (assuming dt constant
+	//   over this time) we perform FEA using a factor fea_every on the time-step
+	m_chrono_system->DoStepDynamics(2*dt*fea_every);
+#endif
+}
+
+void
+ProblemCore::transfer_fea_motion(BufferList &buffers, const uint numFeaParts, const bool dofea)
+{
+#if USE_CHRONO == 1
+
+	const particleinfo *info = buffers.getConstData<BUFFER_INFO>();
+	float4 *fea_vel = buffers.getData<BUFFER_FEA_VEL>();
+
+	if (dofea) {
+		shared_ptr<::chrono::fea::ChNodeFEAxyzD> node;
+		float4 node_vel = make_float4(0.0); //FIXME it could be float3
+
+		/*In Project Chrono, nodes are locally indexed within each mesh (each deformable object)*/
+		uint n = 0; //node in the object
+		uint o = 0; // we go through all the meshes (defomable objects) starting from the one with index 0
+
+
+		for(uint i = 0; i < numFeaParts; ++i) {
+
+			uint nnodes = m_fea_bodies[o]->object->GetNumFeaNodes();
+			node = dynamic_pointer_cast<::chrono::fea::ChNodeFEAxyzD>
+				(m_fea_bodies[o]->object->GetFeaMesh()->GetNode(n));
+
+			// get updated node velocity from Chrono
+			node_vel.x = node->GetPos_dt().x();
+			node_vel.y = node->GetPos_dt().y();
+			node_vel.z = node->GetPos_dt().z();
+
+			// to be sent to the SPH particle system
+			fea_vel[i] = node_vel;
+
+			// store the most recent fea vel to be used dusing the fea_every SPH steps
+			// TODO we could send it once and reuse in the gpu, but we would apply a 
+			// conditional in gpu side and we should keep track of the current iteration.
+			// SEE WHAT IS CONVENIENT
+			m_old_fea_vel[i] = node_vel;
+
+			// tracking the nodes in the current mesh
+			n++;
+
+			// reset mesh nodes tacking when we reach the nuber of nodes in the mesh
+			// and pass to next mesh
+			// TODO FIXME check how this complies with node recycling
+			if (n == nnodes) {
+				n = 0;
+				o++;
+			}
+		}
+	}
+#endif
 }
 
 void
@@ -595,6 +968,7 @@ ProblemCore::bodies_timestep(const float3 *forces, const float3 *torques, const 
 	//#define _DEBUG_OBJ_FORCES_
 #if USE_CHRONO == 1
 	bool there_is_at_least_one_chrono_body = false;
+	bool fea_is_enabled = HAS_FEA(simparams()->simflags);
 #endif
 	// For Chrono bodies apply forces and torques
 	for (size_t i = 0; i < m_bodies.size(); i++) {
@@ -614,11 +988,11 @@ ProblemCore::bodies_timestep(const float3 *forces, const float3 *torques, const 
 			std::shared_ptr< ::chrono::ChBody > body = mbdata->object->GetBody();
 			// For step 2 restore cg, lvel and avel to the value at the beginning of
 			// the timestep
-			if (step == 2) {
+			if (step == 2 && !fea_is_enabled) {
 				body->SetPos(::chrono::ChVector<>(mbdata->kdata.crot.x, mbdata->kdata.crot.y, mbdata->kdata.crot.z));
 				body->SetPos_dt(::chrono::ChVector<>(mbdata->kdata.lvel.x, mbdata->kdata.lvel.y, mbdata->kdata.lvel.z));
 				body->SetWvel_par(::chrono::ChVector<>(mbdata->kdata.avel.x, mbdata->kdata.avel.y, mbdata->kdata.avel.z));
-				body->SetRot(mbdata->kdata.orientation.ToChQuaternion());
+				body->SetRot(EulerParametersQuaternion(mbdata->kdata.orientation));
 			}
 
 			body->Empty_forces_accumulators();
@@ -637,8 +1011,8 @@ ProblemCore::bodies_timestep(const float3 *forces, const float3 *torques, const 
 
 #if USE_CHRONO == 1
 	// Call Chrono solver. Should it be called only if there are floating ones?
-	if (there_is_at_least_one_chrono_body) {
-		m_bodies_physical_system->DoStepDynamics(dt1);
+	if (there_is_at_least_one_chrono_body && !fea_is_enabled) {
+		m_chrono_system->DoStepDynamics(dt1);
 	}
 #endif
 
@@ -667,8 +1041,7 @@ ProblemCore::bodies_timestep(const float3 *forces, const float3 *torques, const 
 			mbdata->adata.lvel_dt = make_double3(vec.x(), vec.y(), vec.z());
 			vec = body->GetWacc_par();
 			mbdata->adata.avel_dt = make_double3(vec.x(), vec.y(), vec.z());
-			::chrono::ChQuaternion<> quat = body->GetRot();
-			const EulerParameters new_orientation = EulerParameters(quat.e0(), quat.e1(), quat.e2(), quat.e3());
+			const EulerParameters new_orientation( body->GetRot() );
 			dr = new_orientation*mbdata->kdata.orientation.Inverse();
 			mbdata->kdata.orientation = new_orientation;
 		}
@@ -1242,6 +1615,71 @@ ProblemCore::create_problem_dir(void)
 }
 
 void
+ProblemCore::create_fea_nodes_file(void)
+{
+#if USE_CHRONO
+	string filename = m_problem_dir + "/data/fea_nodes.txt";
+
+	std::cout << "Opening: " << filename << endl;
+	m_fea_nodes_file.open(filename);
+
+	// add columns description
+	m_fea_nodes_file << "time";
+
+	for (int n = 0; n < simparams()->numNodesToWrite; ++n) {
+		int node_id = m_WriteFeaNodesIndices[n];
+		m_fea_nodes_file <<
+			"\tNode_" << node_id << "_x[m]"
+#if 1 //write only x component
+			<<
+			"\tNode_" << node_id << "_y [m]"
+			<<
+			"\tNode_" << node_id << "_z [m]"
+#endif
+			;
+	}
+	m_fea_nodes_file << endl;
+#endif
+}
+
+void
+ProblemCore::create_fea_constr_file(void)
+{
+#if USE_CHRONO
+	string filename = m_problem_dir + "/data/fea_dynamometer.txt";
+
+	std::cout << "Opening: " << filename << endl;
+	m_fea_constr_file.open(filename);
+
+	// add columns description
+	m_fea_constr_file << "time[s]";
+
+	for (int n = 0; n < simparams()->numConstraintsToWrite; ++n) {
+		m_fea_constr_file <<
+			"\tF_" << n << "_x[N]"
+			<<
+			"\tF_" << n  << "_y[N]"
+			<<
+			"\tF_" << n << "_z[N]"
+			<<
+			"\tT_" << n << "_x[N*m]"
+			<<
+			"\tT_" << n  << "_y[N*m]"
+			<<
+			"\tT_" << n << "_z[N*m]"
+			<<
+			"\tFapp_" << n  << "_x[N]"
+			<<
+			"\tFapp_" << n  << "_y[N]"
+			<<
+			"\tFapp_" << n  << "_z[N]"
+			;
+	}
+	m_fea_constr_file << endl;
+#endif
+}
+
+void
 ProblemCore::add_writer(WriterType wt, double freq)
 {
 	m_writers.push_back(make_pair(wt, freq));
@@ -1275,6 +1713,11 @@ ProblemCore::finished(double t) const
 	return tend && (t > tend);
 }
 
+float3
+ProblemCore::ext_force_callback(const double t)
+{
+	throw std::runtime_error("default ext_force_callback invoked! did you forget to override ext_force_callback(double)");
+}
 
 float3
 ProblemCore::g_callback(const double t)

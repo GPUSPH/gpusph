@@ -37,13 +37,18 @@ class Cylinder: public Object {
 	private:
 		Point	m_origin;
 		double	m_r;
+		double	m_ri;
 		double	m_h;
+
+		uint3	m_nels;		///< number of fea elements in thickness, circumference and height 
 
 	public:
 		Cylinder(void);
 		Cylinder(const Point&, const double, const Vector&);
 		Cylinder(const Point&, const Vector&, const Vector&);
-		Cylinder(const Point&, const double, const double, const EulerParameters& = EulerParameters());
+		Cylinder(const Point& origin, const double outer_r, const double inner_r, const double height, uint nelst, uint nelsc, uint nelsh, const EulerParameters& = EulerParameters());
+		Cylinder(const Point& o, const double r, const double h, const EulerParameters& ep = EulerParameters()) :
+			Cylinder(o, r, 0, h, 1, 1, 1, ep) {}
 		virtual ~Cylinder(void) {};
 
 		double Volume(const double) const;
@@ -68,8 +73,12 @@ class Cylinder: public Object {
 		bool IsInside(const Point&, const double) const;
 
 #if USE_CHRONO == 1
+		float4 getNaturalCoords(const double4 abs_coords);
+		int4 getOwningNodes(const double4 abs_coords);
+
 		void BodyCreate(::chrono::ChSystem * bodies_physical_system, const double dx, const bool collide,
-			const ::chrono::ChQuaternion<> & orientation_diff);
+			const EulerParameters & orientation_diff);
+		void CreateFemMesh(::chrono::ChSystem * fea_system);
 #endif
 };
 #endif	/* _CYLINDER_H */

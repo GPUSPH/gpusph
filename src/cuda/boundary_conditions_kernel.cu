@@ -2682,7 +2682,9 @@ struct ComputeDummyParticlesDevice
 
 		const float4 neib_vel = velArray[neib_index];
 
-		const float neib_pressure = P(neib_vel.w, fluid_num(neib_info)); // neib_vel.w = rho_tilde
+		float neib_pressure = P(neib_vel.w, fluid_num(neib_info)); // neib_vel.w = rho_tilde
+
+		neib_pressure *= (neib_pressure >= 0.0f);
 
 		const float w = W<kerneltype>(r, slength);
 
@@ -2695,7 +2697,11 @@ struct ComputeDummyParticlesDevice
 
 		// the depth correction for the pressure is only added if it's positive
 		float rho_g_h = physical_density(neib_vel.w, fluid_num(neib_info))*dot3(accel_delta, neib.relPos);
+#if REPULSIVE_DUMMY
+		neib_contrib.w += fabsf(rho_g_h);
+#else
 		neib_contrib.w += fmaxf(rho_g_h, 0.0f);
+#endif
 
 		// weight
 		neib_contrib *= w;

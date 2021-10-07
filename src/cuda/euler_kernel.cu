@@ -53,6 +53,12 @@ __constant__ float3	d_rblinearvel[MAX_BODIES];
 __constant__ float3	d_rbangularvel[MAX_BODIES];
 __constant__ float	d_rbsteprot[9*MAX_BODIES];
 
+// FEA bodies data
+using cuforces::d_feanodesstartindex;
+using cuforces::d_feapartsstartindex;
+using cuforces::d_feapartsnatcoords;
+using cuforces::d_feapartsownnodes;
+
 using namespace cusph;
 using namespace cuphys;
 using namespace cuneibs;

@@ -31,6 +31,11 @@
 
 #include "Cone.h"
 
+#if USE_CHRONO
+#include "chrono/physics/ChBody.h"
+#endif
+#include "EulerParametersQuaternion.h"
+
 
 Cone::Cone(void)
 {
@@ -228,7 +233,7 @@ Cone::IsInside(const Point& p, const double dx) const
 void
 Cone::BodyCreate(::chrono::ChSystem *bodies_physical_system, const double dx, const bool collide)
 {
-	Object::BodyCreate(bodies_physical_system, dx, collide, Q_from_AngAxis(::chrono::CH_C_PI/2., ::chrono::VECT_X));
+	Object::BodyCreate(bodies_physical_system, dx, collide, EulerParameters(Q_from_AngAxis(::chrono::CH_C_PI/2., ::chrono::VECT_X)));
 	if (collide)
 		GeomCreate(dx);
 }
@@ -245,9 +250,11 @@ Cone::GeomCreate(const double dx) {
 	const double rb = m_rb + dx/2.;
 	const double rt = m_rt + dx/2.;
 	const double h = m_h + dx;
+	/*
 	m_body->GetCollisionModel()->AddCone(rb, rt, h);
 	m_body->GetCollisionModel()->BuildModel();
 	m_body->SetCollide(true);
+	*/
 #else
 	throw std::runtime_error("Chrono not active, cannot create geometry for Cone");
 #endif

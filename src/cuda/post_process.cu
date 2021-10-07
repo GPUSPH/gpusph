@@ -34,11 +34,15 @@
 #include "simflags.h"
 #include "multi_gpu_defines.h"
 #include "Writer.h"
+#include "NetworkManager.h"
 
 #include "utils.h"
 #include "safe_call.h"
 
 #include "define_buffers.h"
+
+#include "ProblemCore.h"
+#include "simparams.h"
 
 #include "post_process_kernel.cu"
 

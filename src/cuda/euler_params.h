@@ -151,6 +151,17 @@ struct dummy_euler_params
 	{}
 };
 
+/// Additional parameters passed only to kernels with ENABLE_FEA
+struct fea_euler_params
+{
+	const	float4	* __restrict__ fea_velocities; // velocity to be applied to fem particles 
+
+	// Constructor / initializer
+	fea_euler_params(BufferList const&	bufread):
+		fea_velocities(bufread.getData<BUFFER_FEA_VEL>())
+	{}
+};
+
 /// The actual euler_params struct, which concatenates all of the above, as appropriate.
 template<KernelType _kerneltype,
 	SPHFormulation _sph_formulation,
@@ -180,6 +191,7 @@ struct euler_params :
 	COND_STRUCT(_has_keps, keps_euler_params),
 	grenier_params,
 	COND_STRUCT(HAS_INTERNAL_ENERGY(_simflags), energy_euler_params),
+	COND_STRUCT(HAS_FEA(_simflags), fea_euler_params),
 	COND_STRUCT(_boundarytype == DUMMY_BOUNDARY, dummy_euler_params)
 {
 	static constexpr KernelType kerneltype = _kerneltype;
@@ -211,6 +223,7 @@ struct euler_params :
 		COND_STRUCT(has_keps, keps_euler_params)(bufread, bufwrite),
 		grenier_params(bufread, bufwrite),
 		COND_STRUCT(HAS_INTERNAL_ENERGY(simflags), energy_euler_params)(bufread, bufwrite),
+		COND_STRUCT(HAS_FEA(simflags), fea_euler_params)(bufread),
 		COND_STRUCT(boundarytype == DUMMY_BOUNDARY, dummy_euler_params)(bufread, bufwrite)
 	{}
 };

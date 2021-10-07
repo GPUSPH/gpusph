@@ -52,6 +52,9 @@
 // the particle system, cum suis
 #include "ParticleSystem.h"
 
+// SimFramework and engine-related defines
+#include "simframework.h"
+
 // Bursts handling
 #include "bursts.h"
 
@@ -109,6 +112,10 @@ protected:
 	uint m_numInternalParticles;
 	// Total number of particles belonging to rigid bodies on which we compute forces
 	uint		m_numForcesBodiesParticles;
+	// Total number of particles belonging to objcts on which we perform Finite Elements Analysis
+	uint		m_numFeaParts;
+	// Total number of particles associated to Finite Elements nodes
+	uint		m_numFeaNodes;
 
 	// range of particles the kernels should write to
 	uint m_particleRangeBegin; // inclusive
@@ -153,6 +160,11 @@ protected:
 		m_dBuffers.addBuffer<BufferType, BUFFER_VEL>();
 		m_dBuffers.addBuffer<BufferType, BUFFER_INFO>();
 		m_dBuffers.addBuffer<BufferType, BUFFER_FORCES>(0);
+
+		if (HAS_FEA(m_simparams->simflags)) {
+			m_dBuffers.addBuffer<BufferType, BUFFER_FEA_FORCES>(0);
+			m_dBuffers.addBuffer<BufferType, BUFFER_FEA_VEL>(0);
+		}
 
 		if (m_simparams->numforcesbodies) {
 			m_dBuffers.addBuffer<BufferType, BUFFER_RB_FORCES>(0);
@@ -342,6 +354,12 @@ protected:
 	size_t allocateDeviceBuffers();
 	void deallocateHostBuffers();
 	void deallocateDeviceBuffers();
+
+	void pinGlobalHostBuffers();
+	void unpinGlobalHostBuffers();
+
+	virtual void pinHostBuffer(void *ptr, size_t bytes) = 0;
+	virtual void unpinHostBuffer(void *ptr) = 0;
 
 	virtual void createEventsAndStreams() = 0;
 	virtual void destroyEventsAndStreams() = 0;

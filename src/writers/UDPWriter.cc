@@ -39,6 +39,7 @@
 
 #include "UDPWriter.h"
 #include "GlobalData.h"
+#include "ProblemCore.h"
 #include "ptp.h"
 
 //#define DEBUG

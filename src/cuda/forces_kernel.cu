@@ -116,6 +116,11 @@ __constant__ int3	d_rbcgGridPos[MAX_BODIES]; //< cell of the center of gravity
 __constant__ float3	d_rbcgPos[MAX_BODIES]; //< in-cell coordinate of the center of gravity
 __constant__ int	d_rbstartindex[MAX_BODIES];
 /*  @} */
+// FEA bodies data
+__constant__ int2	d_feanodesstartindex[MAX_BODIES];
+__constant__ int2	d_feapartsstartindex[MAX_BODIES];
+__device__ float4 d_feapartsnatcoords[400000]; //FIXME use cudaMalloc
+__device__ uint4 d_feapartsownnodes[400000]; //FIXME use cudaMalloc
 
 __constant__ float	d_ccsph_min_det; ///< Minimum determinant for CCSPH corection
 

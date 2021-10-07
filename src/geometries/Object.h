@@ -29,17 +29,30 @@
 #define	OBJECT_H
 
 #include <stdexcept>
+#include <memory>
 
 #include "Point.h"
 #include "EulerParameters.h"
 
 #include "chrono_select.opt"
-#if USE_CHRONO == 1
-#include "chrono/physics/ChBody.h"
-#include "chrono/physics/ChSystem.h"
-#include "chrono/core/ChQuaternion.h"
-#include "chrono/core/ChVector.h"
-#endif
+// Forward declaration to avoid including Chrono headers
+namespace chrono {
+class ChBody;
+class ChSystem;
+namespace fea {
+class ChMesh;
+class ChNodeFEAxyz;
+class ChLinkPointFrame;
+class ChLinkDirFrame;
+}
+}
+
+//! Auxiliary type for joints between FEA nodes
+struct feaNodeInfo {
+	double dist; //distance from the center of the joint geometry
+	std::shared_ptr<::chrono::fea::ChNodeFEAxyz> node; //pointer to node
+};
+
 
 //! Object container class
 /*!
@@ -68,13 +81,22 @@ class Object {
 		double				m_inertia[3];	///< Inertia matrix in the principal axes of inertia frame
 		double				m_mass;			///< Mass of the object
 		PointVect			m_parts;		///< Particles belonging to the object
+		PointVect			m_fea_nodes;	///< FEA mesh nodes belonging to the object
 		uint				m_numParts;		///< Number of particles belonging to the object
+		uint				m_numFeaNodes;	///< Number of nodes of the FEA mesh associated to the object
 		bool				m_isFixed;		///< Is it fixed in space?
-#if USE_CHRONO == 1
+
+
+		double				m_youngModulus;		///< Young's modulus for deformable objects
+		double				m_poissonRatio;		///< Poisson ratio for deformable objects
+		double				m_alphaDamping;		///< alpha damping for deformable objects
+		double				m_density;		///> object density
+
 		std::shared_ptr< ::chrono::ChBody >		m_body;		///< Chrono body linked to the object
-#else
-		void				*m_body;
-#endif
+		std::shared_ptr< ::chrono::fea::ChMesh>	m_fea_mesh;	///< Chrono mesh linked to the object
+
+		std::vector<int>		m_fea_nodes_offset;     ///< when reusing previous nodes here we store the offset between the used and replaced node 
+		uint				m_previous_nodes;      ///< number of nodes already defined in the previous geometries
 
 		// auxiliary function for computing the bounding box
 		void getBoundingBoxOfCube(Point &out_min, Point &out_max,
@@ -84,12 +106,12 @@ class Object {
 		static void set_world_dimensions(int dim);
 
 		Object(void) {
-#if !(USE_CHRONO == 1)
 			m_body = NULL;
-#endif
+			m_fea_mesh = NULL;
 			m_mass = 0.0;
 			m_center = Point(0,0,0);
 			m_numParts = 0;
+			m_previous_nodes = 0;
 			m_isFixed = false;
 			m_inertia[0] = NAN;
 			m_inertia[1] = NAN;
@@ -107,6 +129,10 @@ class Object {
 		double GetPartMass();
 		virtual double SetMass(const double dx, const double rho);
 		virtual void SetMass(const double mass);
+		virtual void SetYoungModulus(const double);
+		virtual void SetPoissonRatio(const double);
+		virtual void SetAlphaDamping(const double);
+		virtual void SetDensity(const double); // TODO FIXME verify consistency with setPartMassByDensity in new Problem API
 		double GetMass();
 		virtual double Volume(const double dx) const = 0;
 		//@}
@@ -135,6 +161,12 @@ class Object {
 
 		/// Returns the particle vector associated with the object
 		PointVect& GetParts(void);
+		/// Returns the particle vector associated with the fea nodes 
+		PointVect& GetFeaNodes(void);
+
+		bool reduceNodes(std::shared_ptr<::chrono::fea::ChNodeFEAxyz> newNode, ::chrono::ChSystem * fea_system, std::vector<std::shared_ptr<::chrono::fea::ChNodeFEAxyz>>&);
+
+		void set_previous_nodes_num(::chrono::ChSystem * fea_system);
 
 		/// Sets the number of particles associated with an object
 		void SetNumParts(const int numParts);
@@ -144,16 +176,18 @@ class Object {
 		 */
 		uint GetNumParts();
 
+		/// Gets the number of nodes of the mesh associated with an object
+		uint GetNumFeaNodes();
+
 		/// \name Chrono rigid body related functions
 		/* These are not pure virtual in order to allow new GPUSPH Objects to be defined without
 		 * needing a Chrono counterpart, but the default implementation will just throw
 		 * an exception.
 		 */
 		//@{
-#if USE_CHRONO == 1
 		/// Create a Chrono body in the specified Chrono physical system
 		virtual void BodyCreate(::chrono::ChSystem * bodies_physical_system, const double dx, const bool collide,
-			const ::chrono::ChQuaternion<> & orientation_diff);
+			const EulerParameters & orientation_diff);
 		void BodyCreate(::chrono::ChSystem * bodies_physical_system, const double dx, const bool collide);
 		std::shared_ptr< ::chrono::ChBody > GetBody(void)
 		{	if (!m_body)
@@ -162,11 +196,22 @@ class Object {
 		}
 		// just check, without throwing
 		bool HasBody() { return (!!m_body); }
-#else
-		void BodyCreate(void *, const double, const bool)
-		{ throw std::runtime_error("Object::BodyCreate Trying to create a Chrono body without USE_CHRONO defined !\n"); }
-		void * GetBody(void) { return m_body;}
-#endif
+
+		std::shared_ptr<::chrono::fea::ChMesh> GetFeaMesh(void)
+		{
+			if (!m_fea_mesh)
+				throw std::runtime_error("Object::GetFeaMesh called but no FEA meshes associated with a Chrono body !");
+
+			return m_fea_mesh;
+		}
+
+		bool HasFeaMesh() { return (!! m_fea_mesh); }
+		virtual void CreateFemMesh(::chrono::ChSystem *fea_system);
+		virtual float4 getNaturalCoords(double4 global_pos)
+		{ throw std::runtime_error("Calling getNaturalCoords for a geometry that doesn't support FEA meshes yet"); }
+		virtual int4 getOwningNodes(double4 global_pos)
+		{ throw std::runtime_error("Calling getowningNodes for a geometry that doesn't support FEA meshes yet"); }
+
 		/// Print body-related information such as position, CG, geometry bounding box (if any), etc.
 		void BodyPrintInformation(const bool print_geom = true);
 		//@}
@@ -216,6 +261,29 @@ class Object {
 		void Unfill(PointVect&, const double) const;
 		void Intersect(PointVect&, const double) const;
 		//@}
+
+#if USE_CHRONO == 1
+		/// Handle joining of FEA nodes
+		//@{
+		uint JoinFeaNodes(::chrono::ChSystem* fea_system, std::shared_ptr<::chrono::fea::ChMesh>, const double dx);
+		virtual void makeDynamometer(::chrono::ChSystem* fea_system,
+			std::vector<std::shared_ptr<::chrono::fea::ChLinkPointFrame>>&,
+			std::vector<std::shared_ptr<::chrono::fea::ChLinkDirFrame>>&);
+
+		uint findNodesToJoin(std::shared_ptr<::chrono::fea::ChMesh>,
+			const double dx,
+			std::vector<feaNodeInfo>& included_nodes);
+		uint findForceNodes(std::shared_ptr<::chrono::fea::ChMesh>,
+			const double dx,
+			const uint num_prev_nodes,
+			std::vector<bool>& ext_forces_flags);
+		uint findNodesToWrite(std::shared_ptr<::chrono::fea::ChMesh>,
+			const double dx,
+			const uint num_prev_nodes,
+			std::vector<int>& writing_nodes_indices,
+			std::vector<std::shared_ptr<::chrono::fea::ChNodeFEAxyz>>& writing_nodes_pointers);
+		//@}
+#endif
 
 		/// Detect if a particle is inside an object
 		/*!	Detect if a particle is located inside the object or at a distance inferior

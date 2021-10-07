@@ -38,6 +38,11 @@
 
 #include "ProblemAPI_1.h"
 
+#if USE_CHRONO == 1
+#include "chrono/physics/ChSystem.h"
+#include "chrono/fea/ChLinkPointTriface.h"
+#endif
+
 #include "Rect.h"
 #include "Disk.h"
 #include "Cube.h"
@@ -62,6 +67,7 @@ ProblemAPI<1>::ProblemAPI(GlobalData *_gdata) : ProblemCore(_gdata)
 	m_numActiveGeometries = 0;
 	m_numForcesBodies = 0;
 	m_numFloatingBodies = 0;
+	m_numFEAObjects = 0;
 	m_numPlanes = 0;
 	m_numOpenBoundaries = 0;
 
@@ -120,7 +126,7 @@ double ProblemAPI<1>::preferredDeltaP(GeometryType type)
 ProblemAPI<1>::~ProblemAPI<1>()
 {
 	release_memory();
-	if (m_numFloatingBodies > 0)
+	if (m_numFloatingBodies || m_numFEAObjects)
 		cleanupChrono();
 }
 
@@ -443,7 +449,7 @@ bool ProblemAPI<1>::initialize()
 	}
 
 	// only init Chrono if there are floating bodies
-	if (m_numFloatingBodies)
+	if (m_numFloatingBodies || m_numFEAObjects)
 		initializeChrono();
 
 	// check open boundaries consistency
@@ -516,36 +522,43 @@ GeometryID ProblemAPI<1>::addGeometry(const GeometryType otype, const FillType f
 			geomInfo->handle_collisions = false;
 			geomInfo->handle_dynamics = false;
 			geomInfo->measure_forces = false;
+			geomInfo->fea = false;
 			break;
 		case GT_FIXED_BOUNDARY:
 			geomInfo->handle_collisions = true; // optional
 			geomInfo->handle_dynamics = false;
 			geomInfo->measure_forces = false;
+			geomInfo->fea = false;
 			break;
 		case GT_OPENBOUNDARY:
 			geomInfo->handle_collisions = false; // TODO: make optional?
 			geomInfo->handle_dynamics = false;
 			geomInfo->measure_forces = false; // TODO: make optional?
+			geomInfo->fea = false;
 			break;
 		case GT_FLOATING_BODY:
 			geomInfo->handle_collisions = true; // optional
 			geomInfo->handle_dynamics = true;
 			geomInfo->measure_forces = true;
+			geomInfo->fea = false;
 			break;
 		case GT_MOVING_BODY:
 			geomInfo->handle_collisions = true; // optional
 			geomInfo->handle_dynamics = false; // optional
 			geomInfo->measure_forces = false; // optional
+			geomInfo->fea = false;
 			break;
 		case GT_PLANE:
 			geomInfo->handle_collisions = true; // optional
 			geomInfo->handle_dynamics = false;
 			geomInfo->measure_forces = false;
+			geomInfo->fea = false;
 			break;
 		case GT_TESTPOINTS:
 			geomInfo->handle_collisions = false;
 			geomInfo->handle_dynamics = false;
 			geomInfo->measure_forces = false;
+			geomInfo->fea = false;
 			break;
 		case GT_FREE_SURFACE:
 			// free-surface particles for repacking behave like a fixed boundary
@@ -554,6 +567,22 @@ GeometryID ProblemAPI<1>::addGeometry(const GeometryType otype, const FillType f
 			geomInfo->handle_dynamics = false;
 			geomInfo->measure_forces = false;
 			geomInfo->enabled = false;
+			geomInfo->fea = false;
+			break;
+		case GT_DEFORMABLE_BODY:
+			geomInfo->handle_collisions = false;
+			geomInfo->handle_dynamics = false;
+			geomInfo->measure_forces = false;
+			geomInfo->fea = true;
+			break;
+		case GT_FEA_RIGID_JOINT:
+		case GT_FEA_FLEXIBLE_JOINT:
+		case GT_FEA_FORCE:
+			geomInfo->handle_collisions = false;
+			geomInfo->handle_dynamics = false;
+			geomInfo->measure_forces = false;
+			geomInfo->fea = false;
+			break;
 	}
 
 	// --- Default intersection type
@@ -584,6 +613,9 @@ GeometryID ProblemAPI<1>::addGeometry(const GeometryType otype, const FillType f
 		default:
 			geomInfo->erase_operation = ET_ERASE_ALL;
 	}
+
+	if (geomInfo->fea)
+		m_numFEAObjects++;
 
 	// NOTE: we don't need to check handle_collisions at all if there are no bodies
 	if (geomInfo->handle_dynamics)
@@ -674,13 +706,21 @@ GeometryID ProblemAPI<1>::addCube(const GeometryType otype, const FillType ftype
 
 	return addGeometry(otype, ftype,
 		make_shared<Cube>( Point( origin(0) + offsetXY, origin(1) + offsetXY, origin(2) + offsetZ ),
-			side, side, side, EulerParameters() )
+			side, side, side, 1, 1, 1, EulerParameters() )
 	);
 }
 
 GeometryID ProblemAPI<1>::addBox(const GeometryType otype, const FillType ftype, const Point &origin,
 			const double side1, const double side2, const double side3)
 {
+	return addBox(otype, ftype, origin, side1, side2, side3, 1, 1);
+}
+
+GeometryID ProblemAPI<1>::addBox(const GeometryType otype, const FillType ftype, const Point &origin,
+			//const double side1, const double side2, const double side3, int nelsx, int nelsy, int nelsz) // we are using ANCF shells, then by default we have one element over the thickness
+			const double side1, const double side2, const double side3, int nelsx, int nelsy)
+{
+	int nelsz = 1;
 	double offsetX = 0, offsetY = 0, offsetZ = 0;
 	if (m_positioning == PP_CENTER || m_positioning == PP_BOTTOM_CENTER) {
 		offsetX = - side1 / 2.0;
@@ -691,23 +731,33 @@ GeometryID ProblemAPI<1>::addBox(const GeometryType otype, const FillType ftype,
 
 	return addGeometry(otype, ftype,
 		make_shared<Cube>( Point( origin(0) + offsetX, origin(1) + offsetY, origin(2) + offsetZ ),
-			side1, side2, side3, EulerParameters() )
+			side1, side2, side3, nelsx, nelsy, nelsz, EulerParameters())
 	);
 }
 
 GeometryID ProblemAPI<1>::addCylinder(const GeometryType otype, const FillType ftype, const Point &origin,
-			const double radius, const double height)
+			const double outer_radius, const double height)
 {
+	return addCylinder(otype, ftype, origin, outer_radius, outer_radius, height, 1);
+}
+
+GeometryID ProblemAPI<1>::addCylinder(const GeometryType otype, const FillType ftype, const Point &origin,
+			const double outer_radius, const double inner_radius, const double height,
+			//const uint nelst, const uint nelsc, const uint nelsh) we are using ANCF cable, then no elements over the circumference and the thickness
+			const uint nelsh) // just elements over height
+{
+	uint nelsc = 1;
+	uint nelst = 1;
 	double offsetXY = 0, offsetZ = 0;
 	if (m_positioning == PP_CORNER)
-		offsetXY = radius;
+		offsetXY = outer_radius;
 	else
 	if (m_positioning == PP_CENTER)
 		offsetZ = - height / 2.0;
 
 	return addGeometry(otype, ftype,
 		make_shared<Cylinder>( Point( origin(0) + offsetXY, origin(1) + offsetXY, origin(2) + offsetZ ),
-			radius, height, EulerParameters() )
+			outer_radius, inner_radius, height, nelst, nelsc, nelsh, EulerParameters() )
 	);
 }
 
@@ -916,6 +966,56 @@ GeometryID ProblemAPI<1>::addHDF5File(const GeometryType otype, const Point &ori
 		fname_obj		// STL filename
 	);
 }
+
+// NOTE: "origin" has a slightly different meaning than for the other primitives: here it is actually
+// an offset to shift the STL coordinates. Use 0 to import STL coords as they are.
+// If positioning is PP_NONE and origin is (0,0,0), mesh coordinates are imported unaltered.
+GeometryID ProblemAPI<1>::addTetFile(const GeometryType otype, const FillType ftype, const Point &origin,
+	const char *nodes_file, const char *elems_file, const double z_frame) //FIXME instead of z_frame define a plane in 3D space
+{
+
+	const double corr_z_frame = z_frame - origin(2); // apply correction due to mesh translation
+	STLMesh *stlmesh = STLMesh::load_TetFile(nodes_file, elems_file, corr_z_frame);
+
+
+	double offsetX = 0, offsetY = 0, offsetZ = 0;
+/* // FIXME try to understand what this does and in case it is useful for fea mesh fix it, because makes particles disappear
+	// handle positioning
+	if (m_positioning != PP_NONE) {
+
+		// Make the origin coincide with the lower corner of the mesh bbox.
+		// Now the positioning is PP_CORNER
+		stlmesh->shift( - stlmesh->get_minbounds() );
+
+		// NOTE: STLMesh::get_meshsize() returns #triangles instead
+		const double3 mesh_size = stlmesh->get_maxbounds() - stlmesh->get_minbounds();
+
+		if (m_positioning == PP_CENTER || m_positioning == PP_BOTTOM_CENTER) {
+			offsetX = - mesh_size.x / 2.0;
+			offsetY = - mesh_size.y / 2.0;
+		}
+
+		if (m_positioning == PP_CENTER) {
+			offsetZ = - mesh_size.z / 2.0;
+		}
+
+	} // if positioning is PP_NONE
+*/
+	// shift STL origin to given point
+	stlmesh->shift( make_double3(origin(0) + offsetX, origin(1) + offsetY, origin(2) + offsetZ) );
+
+	cout << "handled STL mesh position" << endl;
+	return addGeometry(
+		otype,
+		ftype,
+		shared_ptr<STLMesh>(stlmesh),
+		NULL,			// HDF5 filename
+		NULL,			// XYZ filename
+		nodes_file		// STL filename
+	);
+}
+
+
 
 // NOTE: particles loaded from XYZ files will not be erased!
 // To enable erase-like interaction we need to copy them to the global particle vectors, by passing an
@@ -1297,6 +1397,50 @@ void ProblemAPI<1>::setMass(const GeometryID gid, const double mass)
 	m_geometries[gid]->mass_was_set = true;
 }
 
+void ProblemAPI<1>::setYoungModulus(const GeometryID gid, const double youngModulus)
+{
+	if (!validGeometry(gid)) return;
+
+	if (m_geometries[gid]->type != GT_DEFORMABLE_BODY)
+		printf("WARNING: setting Young's modulus of a non-deformable body\n");
+	m_geometries[gid]->ptr->SetYoungModulus(youngModulus);
+}
+
+void ProblemAPI<1>::setDynamometer(const GeometryID gid, const bool isDynamometer)
+{
+	if (!validGeometry(gid)) return;
+	if (m_geometries[gid]->type != GT_FEA_RIGID_JOINT)
+		printf("WARNING: Only GT_FEA_RIGID_JOINT bodies can be set Dynamometer\n");
+	m_geometries[gid]->is_dynamometer = isDynamometer;
+}
+
+void ProblemAPI<1>::setAlphaDamping(const GeometryID gid, const double alphaDamping)
+{
+	if (!validGeometry(gid)) return;
+
+	if (m_geometries[gid]->type != GT_DEFORMABLE_BODY)
+		printf("WARNING: setting Alpha damping of a non-deformable body\n");
+	m_geometries[gid]->ptr->SetAlphaDamping(alphaDamping);
+}
+
+void ProblemAPI<1>::setPoissonRatio(const GeometryID gid, const double poissonRatio)
+{
+	if (!validGeometry(gid)) return;
+
+	if (m_geometries[gid]->type != GT_DEFORMABLE_BODY)
+		printf("WARNING: setting Poisson ratio of a non-deformable body\n");
+	m_geometries[gid]->ptr->SetPoissonRatio(poissonRatio);
+}
+
+void ProblemAPI<1>::setDensity(const GeometryID gid, const double density)
+{
+	if (!validGeometry(gid)) return;
+
+	if (m_geometries[gid]->type != GT_DEFORMABLE_BODY)
+		printf("WARNING: setting density of a non-deformable body\n");
+	m_geometries[gid]->ptr->SetDensity(density);
+}
+
 double ProblemAPI<1>::setMassByDensity(const GeometryID gid, const double density)
 {
 	if (!validGeometry(gid)) return NAN;
@@ -1359,7 +1503,7 @@ void ProblemAPI<1>::setUnfillRadius(const GeometryID gid, double unfillRadius)
 	m_geometries[gid]->unfill_radius = unfillRadius;
 }
 
-const GeometryInfo* ProblemAPI<1>::getGeometryInfo(GeometryID gid)
+const GeometryInfo* ProblemAPI<1>::getGeometryInfo(GeometryID gid) const
 {
 	// NOTE: not checking validGeometry() to allow for deleted geometries
 
@@ -1371,6 +1515,20 @@ const GeometryInfo* ProblemAPI<1>::getGeometryInfo(GeometryID gid)
 
 	// return geometry even if deleted
 	return m_geometries[gid];
+}
+
+const ObjectPtr ProblemAPI<1>::getGeometryObject(GeometryID gid) const
+{
+	const GeometryInfo *gi = getGeometryInfo(gid);
+	if (gi) return gi->ptr;
+	throw runtime_error("Requested objected for null geometry");
+}
+
+ObjectPtr ProblemAPI<1>::getGeometryObject(GeometryID gid)
+{
+	if (gid >=m_geometries.size())
+		throw runtime_error("Requested objected for null geometry");
+	return m_geometries[gid]->ptr;
 }
 
 // set the positioning policy for geometries added after the call
@@ -1519,6 +1677,31 @@ void ProblemAPI<1>::setDynamicBoundariesLayers(const uint numLayers)
 	m_numDynBoundLayers = numLayers;
 }
 
+
+#if USE_CHRONO == 1
+
+/*********** Utility functions for GT_FEA_DEFORMABLE_JOINT ******************/
+// function to sort nodes according to the distance from the center of the joint
+bool compareDistance(const feaNodeInfo d1, const feaNodeInfo d2)
+{
+	return (d1.dist > d2.dist);
+}
+
+// function to determine which triangle a node should be associated to
+bool is_above(::chrono::ChVector<> p1, ::chrono::ChVector<> p2, ::chrono::ChVector<> point)
+{
+	/*difference between the point y coord and the y value obtained from the point x coordinate, using the 
+	 * equation of the line passing by the two reference points*/
+
+	double y_diff = point.y() - (p1.y() + (p1.y() - p2.y())/(p1.x() - p2.x())*(point.x() - p1.x()));
+
+	return y_diff > 0;
+}
+/******************************************************************************/
+
+#endif
+
+
 uint ProblemAPI<1>::getDynamicBoundariesLayers()
 {
 	if (m_numDynBoundLayers == 0) {
@@ -1539,10 +1722,13 @@ int ProblemAPI<1>::fill_parts(bool fill)
 		dGeomPlanePointDepth(m_box_planes[0], probe_point.x, probe_point.y, probe_point.z)
 	*/
 
+	cout << "running fill_parts " << endl;
 	//uint particleCounter = 0;
 	uint bodies_parts_counter = 0;
 	uint hdf5file_parts_counter = 0;
 	uint xyzfile_parts_counter = 0;
+	uint tetfile_parts_counter = 0;
+	cout << "Update " << tetfile_parts_counter << endl;
 
 	for (size_t g = 0, num_geoms = m_geometries.size(); g < num_geoms; g++) {
 		PointVect* parts_vector = NULL;
@@ -1558,8 +1744,12 @@ int ProblemAPI<1>::fill_parts(bool fill)
 				parts_vector = &m_fluidParts;
 				break;
 			case GT_TESTPOINTS:
+			case GT_FEA_RIGID_JOINT: // TODO FIXME for joints use moving particles or remove particles at all
+			case GT_FEA_FLEXIBLE_JOINT:
+			case GT_FEA_FORCE:
 				parts_vector = &m_testpointParts;
 				break;
+			case GT_DEFORMABLE_BODY:
 			case GT_FLOATING_BODY:
 			case GT_MOVING_BODY:
 				parts_vector = &(m_geometries[g]->ptr->GetParts());
@@ -1665,6 +1855,14 @@ int ProblemAPI<1>::fill_parts(bool fill)
 		if (m_geometries[g]->has_xyz_file)
 			xyzfile_parts_counter += m_geometries[g]->xyz_reader->getNParts();
 
+		if (m_geometries[g]->type == GT_DEFORMABLE_BODY) {// FIXME make a has_tet file? 
+			cout << "adding " << m_geometries[g]->ptr->GetNumParts() << endl;
+			tetfile_parts_counter += m_geometries[g]->ptr->GetNumParts();
+			cout << "update " << tetfile_parts_counter << endl;
+		}
+
+
+
 #if 0
 		// dbg: fill horizontal XY planes with particles, only within the world domain
 		if (m_geometries[g]->type == GT_PLANE) {
@@ -1736,12 +1934,214 @@ int ProblemAPI<1>::fill_parts(bool fill)
 			if (m_geometries[g]->type == GT_FIXED_BOUNDARY)
 				m_geometries[g]->ptr->SetFixed();
 			// NOTE: could use SetNoSpeedNoAcceleration() for MOVING chrono bodies?
-			m_geometries[g]->ptr->BodyCreate(m_bodies_physical_system, m_deltap, m_geometries[g]->handle_collisions);
+			m_geometries[g]->ptr->BodyCreate(m_chrono_system, m_deltap, m_geometries[g]->handle_collisions);
 
 			// recap object info such as bounding box, mass, inertia matrix, etc.
 			// NOTE: BodyPrintInformation() would be meaningless on planes (excluded above) but harmless anyway
 			m_geometries[g]->ptr->BodyPrintInformation();
 		} // if m_numFloatingBodies > 0
+
+		if ( (m_numFEAObjects) && m_geometries[g]->fea) {
+			m_geometries[g]->ptr->CreateFemMesh(m_chrono_system);
+			groundFeaNodes(m_geometries[g]->ptr->GetFeaMesh());
+			m_chrono_system->Add(m_geometries[g]->ptr->GetFeaMesh()); //TODO FIXME this should be done inside the CreateFemMesh and inside the load_tet for STLMesh
+		}
+
+		// geometry to confine a region where to apply force to FEA nodes
+		if ( m_geometries[g]->type == GT_FEA_FORCE) {
+
+			/* Here we fill a vector of booleans relative to all the FEA nodes in the system.
+			 * The boolean will be true if we want to apply the force to the corresponding node.*/
+			uint nodes_with_force = 0; // number of nodes the force will be applied to
+
+			// The indexing in the vector is global. Since geometries with associated FEA object are not 
+			// necessarily defined in sequence we need to take trace of the current number of visited nodes
+			uint num_prev_nodes = 0; // current number of visited nodes
+
+			for (size_t k = 0, num_geoms = m_geometries.size(); k < num_geoms; k++) {
+				if (m_geometries[k]->ptr->HasFeaMesh()){
+
+					std::shared_ptr<::chrono::fea::ChMesh> fea_mesh = m_geometries[k]->ptr->GetFeaMesh();
+
+					nodes_with_force += m_geometries[g]->ptr->findForceNodes(
+						fea_mesh,
+						m_deltap,
+						num_prev_nodes,
+						gdata->s_hFeaExtForce);
+
+					num_prev_nodes += fea_mesh->GetNnodes();
+				}
+			}
+
+			// The force is distributed over all the nodes contained in the geometry.
+			// We need to save the number of nodes we are applying the force to in order
+			// to compute the force per node.
+			simparams()->numForceNodes = nodes_with_force;
+		}
+
+
+		//TODO we could do a GT_FEA_SELECTION that selects a bunch of nodes, and then we decide what to
+		// do on these nodes: e.g. apply force, print, ground, etc.. so we avoid having too many types
+
+		// geometry to confine a region where nodes are written to file
+		if ( m_geometries[g]->type == GT_FEA_WRITE) {
+
+			/* Here we fill a vector of booleans relative to all the FEA nodes in the system.
+			 * The boolean will be true if we want to write the position of the corresponding node.*/
+			uint nodes_to_write = 0; // number of nodes to write
+
+			// The indexing in the vector is global. Since geometries with associated FEA object are not 
+			// necessarily defined in sequence we need to take trace of the current number of visited nodes
+			uint num_prev_nodes = 0; // current number of visited nodes
+
+			for (size_t k = 0, num_geoms = m_geometries.size(); k < num_geoms; k++) {
+				if (m_geometries[k]->ptr->HasFeaMesh()){
+
+					std::shared_ptr<::chrono::fea::ChMesh> fea_mesh = m_geometries[k]->ptr->GetFeaMesh();
+
+					nodes_to_write += m_geometries[g]->ptr->findNodesToWrite(
+						fea_mesh,
+						m_deltap,
+						num_prev_nodes,
+						m_WriteFeaNodesIndices,
+						m_WriteFeaNodesPointers);
+
+					num_prev_nodes += fea_mesh->GetNnodes();
+				}
+			}
+
+			// The force is distributed over all the nodes contained in the geometry.
+			// We need to save the number of nodes we are applying the force to in order
+			// to compute the force per node.
+			simparams()->numNodesToWrite = nodes_to_write;
+		}
+
+		/*Add a rigid body and attach all the nodes to the rigid body.
+		As a rigid body, this kind of joint can have pjysical properties associated,
+		for example mass and inertia tensor*/
+		if ( m_geometries[g]->type == GT_FEA_RIGID_JOINT) {
+			m_geometries[g]->ptr->BodyCreate(m_chrono_system, m_deltap, false);
+
+			uint nodes_in_truss = 0;
+
+			for (size_t k = 0, num_geoms = m_geometries.size(); k < num_geoms; k++) {
+				if (m_geometries[k]->ptr->HasFeaMesh()){
+
+					nodes_in_truss += m_geometries[g]->ptr->JoinFeaNodes( m_chrono_system, m_geometries[k]->ptr->GetFeaMesh(), m_deltap);
+				}
+			}
+
+			if (!nodes_in_truss) throw std::runtime_error("Error: Adding a FEA Joint with no intersecting nodes");
+
+			if (m_geometries[g]->is_dynamometer == true) {
+				m_geometries[g]->ptr->makeDynamometer(m_chrono_system,
+					m_WriteFeaPointConstrPointers,
+					m_WriteFeaDirConstrPointers);
+				simparams()->numConstraintsToWrite += 1;
+			}
+		}
+
+		/* Join elements by means of ChLink
+		 * this kind of joint is obtained as a constrain among nodes, then misses the
+		 * physical properties that can be associated to a GT_FEA_RIGID_JOINT
+		 * but is designed to have minor impact on the simulation performances*/
+		if ( m_geometries[g]->type == GT_FEA_FLEXIBLE_JOINT) {
+
+
+			std::vector<feaNodeInfo> included_nodes;
+
+			uint nodes_in_truss = 0;
+
+			for (size_t k = 0, num_geoms = m_geometries.size(); k < num_geoms; k++) {
+				if (m_geometries[k]->ptr->HasFeaMesh()){
+
+					nodes_in_truss += m_geometries[g]->ptr->findNodesToJoin(m_geometries[k]->ptr->GetFeaMesh(), m_deltap, included_nodes);
+				}
+			}
+
+			if (!nodes_in_truss) throw std::runtime_error("Error: Adding a FEA Joint with no intersecting nodes");
+
+			/* Now we create links among nodes. The four furthest nodes from the center of the geometry
+			 * will be used as vertices of the triangular surfaces. This should help guaranteeing that
+			 * all the other nodes will be inside the covered area but FIXME it is not guaranteed.
+			 */
+
+			std::sort(included_nodes.begin(), included_nodes.end(), compareDistance);
+
+
+			included_nodes.resize(nodes_in_truss);
+
+
+			/*For the time being the geometry of the Joint will be limited to a box.
+			 * the box will be covered by two triangular areas, associated to the four furthest nodes.
+			 * from the latter nodes we fix a spatial limit (a plane) that separates the nodes that
+			 * will be assigned respectively to the two triangles*/
+
+
+			/* We need to nodes to track the diagonal of the Joint, that will be the separation of the two triangles
+			 * let us consider the first of the nodes in the sorted vector. The second node used to track the diagonal
+			 * separating the two triangles is the furthest form the first.
+			 */
+
+			feaNodeInfo first_node = included_nodes[0];
+			::chrono::ChVector<> ref_pos = first_node.node->GetPos();
+			std::vector<feaNodeInfo> ref_nodes;
+			Point dist_from_ref;
+
+			for (uint i = 1; i < 4; i++) {
+
+				feaNodeInfo ref_node;
+
+				dist_from_ref(0) = included_nodes[i].node->GetPos().x() - ref_pos.x();
+				dist_from_ref(1) = included_nodes[i].node->GetPos().y() - ref_pos.y();
+				dist_from_ref(2) = included_nodes[i].node->GetPos().z() - ref_pos.z();
+
+				//TODO use a function to compute modulus
+				//ref_node.dist = Dist(dist_from_ref);
+				ref_node.dist = sqrt(dist_from_ref(0)*dist_from_ref(0) +
+					dist_from_ref(1)*dist_from_ref(1) +
+					dist_from_ref(2)*dist_from_ref(2));
+
+
+				ref_node.node = included_nodes[i].node;
+
+				ref_nodes.push_back(ref_node);
+			}
+
+			std::sort(ref_nodes.begin(), ref_nodes.end(), compareDistance);
+
+			ref_nodes.resize(3);
+			std::cout << "reference nodes: " << std::endl;
+			for (uint s = 0; s < 3; s++) {
+				std::cout << ref_nodes[s].node->GetIndex() << std::endl;
+			}
+
+			// let us see which of the remaining nodes is above the line
+			uint above = is_above(first_node.node->GetPos(), ref_nodes[0].node->GetPos(), ref_nodes[1].node->GetPos()) ? 1 : 2;
+			uint below = is_above(first_node.node->GetPos(), ref_nodes[0].node->GetPos(), ref_nodes[1].node->GetPos()) ? 2 : 1;
+			std::cout << "above is : " << ref_nodes[above].node->GetIndex()<< std::endl;
+
+
+			/*TODO FIXME now we consider the case of triangles lying in horizontal planes, then we consider a
+			 * line between the two reference nodes. To estend the concept use a plane containing the first two
+			 * reference nodes and orthogonal to the rect passing from the other two reference nodes*/
+
+			for (uint i = 4; i < nodes_in_truss; i++) {
+
+				uint j = is_above(first_node.node->GetPos(), ref_nodes[0].node->GetPos(), included_nodes[i].node->GetPos()) ? above : below;
+				auto constraint = std::make_shared<::chrono::fea::ChLinkPointTriface>();
+				constraint->Initialize(included_nodes[i].node,
+					first_node.node, //first node
+					ref_nodes[0].node, // second node
+					ref_nodes[j].node);
+				m_chrono_system->Add(constraint);
+				std::cout << "linked " << included_nodes[i].node->GetIndex() << " to " << first_node.node->GetIndex()<< " " << ref_nodes[0].node->GetIndex() << " " << ref_nodes[j].node->GetIndex() << std::endl ;
+			}
+
+
+		}
+
+
 #endif
 
 		// tell Problem to add the proper type of body
@@ -1758,13 +2158,104 @@ int ProblemAPI<1>::fill_parts(bool fill)
 				add_moving_body(m_geometries[g]->ptr.get(), MB_MOVING);
 		}
 
+		if (m_geometries[g]->type == GT_DEFORMABLE_BODY) {// FIXME make a has_tet file? 
+			add_fea_body(m_geometries[g]->ptr.get()); // TODO use shared_ptrs also in FeaBodyData
+			tetfile_parts_counter += m_geometries[g]->ptr->GetNumFeaNodes();
+			cout << "Adding " << m_geometries[g]->ptr->GetNumFeaNodes() << endl;
+			cout << "Update " << tetfile_parts_counter << endl;
+
+
+			// the following code was creating a link between two nodes sharig the coordinates. In the newest version
+			// if several nodes would share the coordinate we create just one of them and reuse it for the other meshes
+			// The latter approach has a much higher complexity but makes a lighter mesh
+#if 0
+			/*temporary to joint nodes: liks two nodes of different geometries, that share the coordinates*/
+			std::shared_ptr<::chrono::fea::ChNodeFEAxyz> node;
+			std::shared_ptr<::chrono::fea::ChNodeFEAxyz> node2;
+			uint numnodes = m_geometries[g]->ptr->GetNumFeaNodes();
+
+			std::shared_ptr<::chrono::fea::ChMesh> fea_mesh_g;
+			fea_mesh_g = m_geometries[g]->ptr->GetFeaMesh();
+
+			if (g > 0) { // check on previous geoms, then must be > 0
+				for (uint j = 0; j < numnodes; j++) {
+
+					node = std::dynamic_pointer_cast<::chrono::fea::ChNodeFEAxyzD>(fea_mesh_g->GetNode(j));
+
+					if (!node) throw std::runtime_error("Error: impossible to read nodes in JointFeaNode");
+
+					Point ncords;
+
+					ncords(0) = node->GetPos().x();
+					ncords(1) = node->GetPos().y();
+					ncords(2) = node->GetPos().z();
+
+					for (size_t k = 0; k < g; k++) {
+
+						if (m_geometries[k]->ptr->HasFeaMesh()){
+
+							uint numnodes2 = m_geometries[k]->ptr->GetNumFeaNodes();
+							std::shared_ptr<::chrono::fea::ChMesh> fea_mesh_k;
+							fea_mesh_k = m_geometries[k]->ptr->GetFeaMesh();
+
+							for (uint i = 0; i < numnodes2; i++) {
+
+								node2 = std::dynamic_pointer_cast<::chrono::fea::ChNodeFEAxyzD>(fea_mesh_k->GetNode(i));
+								if (!node2) throw std::runtime_error("Error: impossible to read nodes in JointFeaNode");
+
+								Point ncords2;
+
+								ncords2(0) = node2->GetPos().x();
+								ncords2(1) = node2->GetPos().y();
+								ncords2(2) = node2->GetPos().z();
+
+								if (abs(ncords2(0) - ncords(0)) < m_deltap &&
+									abs(ncords2(1) - ncords(1)) < m_deltap &&
+									abs(ncords2(2) - ncords(2)) < m_deltap) {
+
+									auto constraint = std::make_shared<::chrono::fea::ChLinkPointPoint>();
+									constraint->Initialize(node, node2);
+									m_chrono_system->Add(constraint);
+									cout << "linked nodes " << node << " and " << node2 << endl;
+								}
+
+							}
+						}
+					}
+
+				}
+			}
+			/*-------------------------------------*/
+
+#endif
+
+
+		}
+
 	} // iterate on geometries
 
 	// call user-set filtering routine, if any
 	filterPoints(m_fluidParts, m_boundaryParts);
 
+	static const string sep = string(18, '-') + "+";
+	printf("| %72s%58s |\n", "Particle count", "");
+	printf("+");
+	for (int i = 0; i < 7; ++i) cout << sep;
+	cout << endl;
+	printf("| %16s | %16s | %16s | %16s | %16s | %16s | %16s |\n",
+		"fluid", "boundary", "testpoints", "bodies", "HDF5", "XYZ", "TeT");
+	printf("| %16zu | %16zu | %16zu | %16u | %16u | %16u | %16u |\n",
+		m_fluidParts.size(),
+		m_boundaryParts.size(),
+		m_testpointParts.size(),
+		bodies_parts_counter,
+		hdf5file_parts_counter,
+		xyzfile_parts_counter,
+		tetfile_parts_counter);
+
 	return m_fluidParts.size() + m_boundaryParts.size() + m_testpointParts.size() +
-		bodies_parts_counter + hdf5file_parts_counter + xyzfile_parts_counter;
+		bodies_parts_counter + hdf5file_parts_counter + xyzfile_parts_counter +
+		tetfile_parts_counter;
 }
 
 void ProblemAPI<1>::copy_planes(PlaneList &planes)
@@ -1921,6 +2412,10 @@ void ProblemAPI<1>::copy_to_array(BufferList &buffers)
 	uint floating_bodies_incremental = 0;
 	uint forces_nonFloating_bodies_incremental = 0;
 	uint moving_nonForces_bodies_incremental = 0;
+
+	// fea bodies are counted as objects independently in their list.
+	uint fea_bodies_incremental = 0;
+
 	// finally, a counter of all forces bodies (either floating or not), only for printing information
 	uint forces_bodies_incremental = 0;
 	// Open boundaries are orthogonal to any kind of bodies, so their object_id will be simply
@@ -1935,6 +2430,17 @@ void ProblemAPI<1>::copy_to_array(BufferList &buffers)
 	// object, and we will use it at the end of the filling process to fill s_hRbLastIndex[] (and
 	// fix s_hRbFirstIndex - see comments later).
 	uint *body_particle_counters = new uint[m_numForcesBodies];
+
+
+	/*for every object we detect the nodes associated to the elements considering index 0
+	 * for the first node in the object. The number of nodes previously added must be considered
+	 * to get the global value.*/
+	uint nodes_offset = 0;
+
+	// counts fea particles
+	uint fea_parts_tracker = 0;
+	// countr fea nodes
+	uint fea_nodes_tracker = 0;
 
 	// Until now we copied fluid and boundary particles not belonging to floating objects and/or not to be loaded
 	// from HDF5 files. Now we iterate on the geometries with the aim to
@@ -1978,7 +2484,127 @@ void ProblemAPI<1>::copy_to_array(BufferList &buffers)
 			object_id = open_boundaries_counter++;
 		// now update the forces bodies counter, which includes floating ones, only for printing info later
 		if (m_geometries[g]->measure_forces)
-			forces_bodies_incremental++;
+			forces_bodies_incremental++; //FIXME does not assign it to object_id?
+
+		// load fea mesh. // FIXME now we do this way since we only use STL files. after we must consider that a
+		// fea mesh can come from any file
+
+		cout << "Looking for deformable bodies... " << endl;
+		if (m_geometries[g]->type == GT_DEFORMABLE_BODY) {
+
+			//FIXME FIXME ACHTUNG!! this is just to compute the number of fea particles and allocate s_hFeaNatCoords
+			//very temporary solution.. find something better
+			get_fea_objects_numparts();
+			get_fea_objects_numnodes();
+
+			cout << "Copying deformable bodies particles... " << endl;
+
+			const std::vector<Point> TetVector = m_geometries[g]->ptr->GetParts();
+			current_geometry_particles = m_geometries[g]->ptr->GetNumParts();
+
+			// Copying FG_DEFORMABLE particles, i.e. boundary of deformable bodies
+			for (uint i = tot_parts; i < tot_parts + current_geometry_particles; i++) {
+
+				info[i] = make_particleinfo_by_ids(PT_BOUNDARY, 0, fea_bodies_incremental, i);
+				calc_localpos_and_hash(TetVector[i - tot_parts], info[i], pos[i], hash[i]);
+				globalPos[i] = TetVector[i - tot_parts].toDouble4();
+
+
+				// Assigning particle properties
+				float rho = atrest_density(0);
+				if (m_hydrostaticFilling && simparams()->boundarytype == DYN_BOUNDARY)
+					rho = hydrostatic_density(m_waterLevel - globalPos[i].z, 0);
+				vel[i] = make_float4(0, 0, 0, rho);
+
+				if (eulerVel)
+					eulerVel[i] = make_float4(0);
+
+				if (i == tot_parts)
+					boundary_part_mass = pos[i].w;
+
+				SET_FLAG(info[i], FG_DEFORMABLE);
+
+
+				// natural coordinates: coordinates of the particle within the associated element
+				gdata->s_hFeaNatCoords[i - tot_parts + fea_parts_tracker] = m_geometries[g]->ptr->getNaturalCoords(globalPos[i]);
+
+				// nodes associated to the element the FG_DEFORMABLE particle belongs to
+				int4 nodes = m_geometries[g]->ptr->getOwningNodes(globalPos[i]);
+
+				// the indices of the owning nodes provided by the function are relative to the
+				// object mesh (it can also be negative, if the node belongs to a previously defined object)
+				// Here we add an offset, being the sum of nodes already defined for the other geometries)
+				// in order to retrieve the global indices
+				nodes.x += nodes_offset;
+				nodes.y += nodes_offset;
+				nodes.z += nodes_offset;
+				nodes.w += nodes_offset;
+
+				uint4 casting; //TODO FIXME ... a fancier (or better, clever) way?
+				casting.x = (uint) nodes.x;
+				casting.y = (uint) nodes.y;
+				casting.z = (uint) nodes.z;
+				casting.w = (uint) nodes.w;
+
+				gdata->s_hFeaOwningNodes[i - tot_parts + fea_parts_tracker] = casting;
+
+				if (current_geometry_first_boundary_id == UINT_MAX)
+					current_geometry_first_boundary_id = id(info[i]);
+			}
+
+			// FIXME manage body offset as done for floating bodies
+			gdata->s_hFeaPartsFirstIndex[fea_bodies_incremental] = make_int2(-(int) current_geometry_first_boundary_id, -fea_parts_tracker);
+
+			boundary_parts += current_geometry_particles;
+			fea_parts_tracker += current_geometry_particles;
+
+			current_geometry_first_boundary_id = UINT_MAX;
+
+
+
+
+			// Copying FG_FEA_NODES: particles with no SPH meaning. Follow the motion of FEA nodes and
+			// gather forces from deformable boundary particles.
+			cout << "Copying deformable bodies nodes... " << endl;
+			const std::vector<Point> NodesVector = m_geometries[g]->ptr->GetFeaNodes();
+			uint num_fea_nodes = m_geometries[g]->ptr->GetNumFeaNodes();
+
+			uint already_added = tot_parts + current_geometry_particles;
+			for (uint i = already_added; i < already_added + num_fea_nodes; i++) {
+
+				// Addigning particle properties
+				info[i] = make_particleinfo_by_ids(PT_BOUNDARY, 0, fea_bodies_incremental, i); //FIXME classifying as boundary: see if something else is better
+				calc_localpos_and_hash(NodesVector[i - already_added], info[i], pos[i], hash[i]);
+				globalPos[i] = NodesVector[i - already_added].toDouble4();
+
+				float rho = atrest_density(0);
+				if (m_hydrostaticFilling && simparams()->boundarytype == DYN_BOUNDARY)
+					rho = hydrostatic_density(m_waterLevel - globalPos[i].z, 0);
+				vel[i] = make_float4(0, 0, 0, rho);
+
+				if (eulerVel)
+					eulerVel[i] = make_float4(0);
+
+				if (i == already_added)
+					boundary_part_mass = pos[i].w;
+
+				SET_FLAG(info[i], FG_FEA_NODE);
+
+				if (current_geometry_first_boundary_id == UINT_MAX)
+					current_geometry_first_boundary_id = id(info[i]);
+			}
+
+			boundary_parts += num_fea_nodes;
+			fea_nodes_tracker += num_fea_nodes;
+			current_geometry_particles += num_fea_nodes;
+
+			gdata->s_hFeaNodesFirstIndex[fea_bodies_incremental] = make_int2(- (int)current_geometry_first_boundary_id, - nodes_offset);
+
+			nodes_offset += num_fea_nodes;
+			fea_bodies_incremental ++;
+
+		}
+
 
 		// load from HDF5 file, whether fluid, boundary, floating or else
 		if (m_geometries[g]->has_hdf5_file) {
