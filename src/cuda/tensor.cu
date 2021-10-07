@@ -31,6 +31,8 @@
 #include "vector_math.h"
 #include "kahan.h"
 
+#include "particledefine.h"
+
 #define __spec __device__ __forceinline__
 
 __spec
@@ -78,17 +80,15 @@ set_identity(symtensor4& T)
 	T.xy = T.xz = T.xw = T.yz = T.yw = T.zw = 0;
 }
 
+#define TEMPLATE_DIM \
+	template<Dimensionality dimensions = R3, int dims = space_dimensions_for(dimensions)>
+
 // determinant of a 3x3 symmetric tensor
-template<Dimensionality dimensions = R3, int dims = space_dimensions_for(dimensions)>
+TEMPLATE_DIM
 __spec
-float
+enable_if_t<dims == 3, float>
 det(symtensor3 const& T)
 {
-	if (dims == 2)
-	{
-		return(T.xx*T.yy - T.xy*T.xy);
-	}
-
 	float ret = 0;
 	ret += T.xx*(T.yy*T.zz - T.yz*T.yz);
 	ret -= T.xy*(T.xy*T.zz - T.xz*T.yz);
@@ -96,9 +96,29 @@ det(symtensor3 const& T)
 	return ret;
 }
 
-template<Dimensionality dimensions = R3, int dims = space_dimensions_for(dimensions)>
+// determinant of a 2x2 symmetric tensor
+// (we use the XY part of a 3x3 tensor
+TEMPLATE_DIM
 __spec
-float
+enable_if_t<dims == 2, float>
+det(symtensor3 const& T)
+{
+	return (T.xx*T.yy - T.xy*T.xy);
+}
+
+// 1x1 case
+TEMPLATE_DIM
+__spec
+enable_if_t<dims == 1, float>
+det(symtensor3 const& T)
+{
+	return T.xx;
+}
+
+// Determinant of a 3x3 symmetric tensor, computed using KBN
+TEMPLATE_DIM
+__spec
+enable_if_t<dims == 3, float>
 kbn_det(symtensor3 const& T)
 {
 	if (dims == 2)
@@ -111,6 +131,26 @@ kbn_det(symtensor3 const& T)
 	ret = kbn_add(ret, -T.xy*(T.xy*T.zz - T.xz*T.yz), kahan);
 	ret = kbn_add(ret,  T.xz*(T.xy*T.yz - T.xz*T.yy), kahan);
 	return ret + kahan;
+}
+
+// Determinant of a 2x2 symmetric tensor, computed using KBN
+// (this is the same as the non-KBN case)
+TEMPLATE_DIM
+__spec
+enable_if_t<dims == 2, float>
+kbn_det(symtensor3 const& T)
+{
+	return (T.xx*T.yy - T.xy*T.xy);
+}
+
+// Determinant of a 1x1 symmetric tensor, computed using KBN
+// (this is the same as the non-KBN case)
+TEMPLATE_DIM
+__spec
+enable_if_t<dims == 1, float>
+kbn_det(symtensor3 const& T)
+{
+	return T.xx;
 }
 
 // determinant of a 4x4 symmetric tensor
