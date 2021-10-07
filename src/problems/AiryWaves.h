@@ -15,15 +15,13 @@
 #ifndef _AIRYWAVES_H
 #define	_AIRYWAVES_H
 
-#include "XProblem.h"
-#include "Point.h"
-#include "Cube.h"
-#include "Cylinder.h"
+#define PROBLEM_API 1
+#include "Problem.h"
+
 #include "Rect.h"
-#include "Vector.h"
 
 
-class AiryWaves2D: public XProblem {
+class AiryWaves: public Problem {
 	private:
 		bool		use_cyl, use_bottom_plane;
 		double		paddle_length;
@@ -34,14 +32,14 @@ class AiryWaves2D: public XProblem {
                 double		stroke;	// paddle stroke length
 		double		lx, ly, lz;		// dimension of experiment box
 		bool		m_usePlanes; // use planes or boundaries
-		Rect*		paddle;					
+		Rect*		paddle;
 		// Moving boundary data
 		double		paddle_amplitude, paddle_omega;
 		double3         paddle_origin;
 		double		paddle_tstart, paddle_tend;
 
 	public:
-		AiryWaves2D(GlobalData *);
+		AiryWaves(GlobalData *);
 		void copy_planes(PlaneList &);
 		void fillDeviceMap();
 		void moving_bodies_callback(const uint, Object*, const double, const double, const float3&,
@@ -50,5 +48,5 @@ class AiryWaves2D: public XProblem {
 		virtual void initializeParticles(BufferList &buffers, const uint numParticles);
 		bool need_write(double t) const;
 };
-#endif	/* _AIRYWAVES2D_H */
+#endif	/* _AIRYWAVES_H */
 

@@ -14,7 +14,7 @@
 #include <iostream>
 #include <stdexcept>
 
-#include "AiryWaves2D.h"
+#include "AiryWaves.h"
 #include "particledefine.h"
 #include "GlobalData.h"
 #include "cudasimframework.cu"
@@ -67,7 +67,7 @@ class LinearWaveFDPKA4 {
       return k;
   }
 
-AiryWaves2D::AiryWaves2D(GlobalData *_gdata) : XProblem(_gdata)
+AiryWaves::AiryWaves(GlobalData *_gdata) : Problem(_gdata)
 {
 	m_usePlanes = get_option("use-planes", true); // --use-planes true to enable use of planes for boundaries
 
@@ -226,7 +226,7 @@ AiryWaves2D::AiryWaves2D(GlobalData *_gdata) : XProblem(_gdata)
 
 
 void
-AiryWaves2D::moving_bodies_callback(const uint index, Object* object, const double t0, const double t1,
+AiryWaves::moving_bodies_callback(const uint index, Object* object, const double t0, const double t1,
 			const float3& force, const float3& torque, const KinematicData& initial_kdata,
 			KinematicData& kdata, double3& dx, EulerParameters& dr)
 {
@@ -253,7 +253,7 @@ AiryWaves2D::moving_bodies_callback(const uint index, Object* object, const doub
 	}
 }
 
-void AiryWaves2D::copy_planes(PlaneList &planes)
+void AiryWaves::copy_planes(PlaneList &planes)
 {
 	const double l = horizontal_flat + slope_length;
 
@@ -269,14 +269,14 @@ void AiryWaves2D::copy_planes(PlaneList &planes)
 }
 
 
-void AiryWaves2D::fillDeviceMap()
+void AiryWaves::fillDeviceMap()
 {
 	fillDeviceMapByAxisBalanced(X_AXIS);
 }
 
 // Mass and density initialization
 void
-AiryWaves2D::initializeParticles(BufferList &buffers, const uint numParticles)
+AiryWaves::initializeParticles(BufferList &buffers, const uint numParticles)
 {
 
 	// 1. warn the user if this is expected to take much time
@@ -297,7 +297,7 @@ AiryWaves2D::initializeParticles(BufferList &buffers, const uint numParticles)
 	}
 }
 
-bool AiryWaves2D::need_write(double time) const
+bool AiryWaves::need_write(double time) const
 {
 	return false;
 }
