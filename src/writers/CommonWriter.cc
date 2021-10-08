@@ -556,9 +556,11 @@ CommonWriter::write_options(ostream &out)
 void
 CommonWriter::write_summary(void)
 {
+	const string& dir = m_problem->get_dirname();
+
 	ofstream out;
 	out.exceptions(ofstream::failbit | ofstream::badbit);
-	out.open((m_problem->get_dirname() + "/summary.txt").c_str());
+	out.open((dir + "/summary.txt").c_str());
 
 	write_simparams(out);
 	out << endl;
@@ -568,13 +570,21 @@ CommonWriter::write_summary(void)
 	out.close();
 
 	// Writing out make show result
-	out.open((m_problem->get_dirname() + "/make_show.txt").c_str());
+	out.open((dir + "/make_show.txt").c_str());
 	out << MAKE_SHOW_OUTPUT << endl;
 	out.close();
 
-	out.open((m_problem->get_dirname() + "/git_branch.txt").c_str());
+	out.open((dir + "/git_branch.txt").c_str());
 	out << GPUSPH_VERSION << endl << GIT_INFO_OUTPUT << endl;
 	out.close();
+
+	// write out note if present
+	const string& note = gdata->clOptions->note;
+	if (!note.empty()) {
+		out.open((dir + "/note.txt").c_str());
+		out << note << endl;
+		out.close();
+	}
 }
 
 

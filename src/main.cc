@@ -116,6 +116,7 @@ void print_usage() {
 	cout << "\t       [--num-hosts VAL [--byslot-scheduling]]\n";
 	cout << "\t       [--display [--display-every VAL] --display-script VAL]\n";
 	cout << "\t       [--debug FLAGS]\n";
+	cout << "\t       [--note TEXT]\n";
 	cout << "\tGPUSPH --help\n\n";
 	cout << " --resume : resume from the given file (HotStart file saved by HotWriter)\n";
 	cout << " --checkpoint-every : HotStart checkpoints will be created every VAL seconds\n";
@@ -151,6 +152,7 @@ void print_usage() {
 	cout << " --repack-only : run the repacking and stop\n";
 	cout << " --repack-maxiter : repacking breaks after this many iterations (integer VAL)\n";
 	cout << " --from-repack : run from a previous repack file\n";
+	cout << " --note TEXT: Add a note to the output directory with the specified TEXT as content\n";
 	cout << " --help: Show this help and exit\n";
 }
 
@@ -296,6 +298,10 @@ int parse_options(int argc, char **argv, GlobalData *gdata)
 		} else if (!strcmp(arg, "--help")) {
 			print_usage();
 			return 0;
+		} else if (!strcmp(arg, "--note")) {
+			_clOptions->note = string(*argv);
+			argv++;
+			argc--;
 		} else if (!strncmp(arg, "--", 2)) {
 			// TODO bool options would need to be treated specially,
 			// currently they require a following 1 or 0

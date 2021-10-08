@@ -90,6 +90,7 @@ public:
 	bool repack; ///< if true, run the repacking before the simulation
 	bool repack_only; ///< if true, run the repacking only and quit
 	std::string repack_fname; ///< repack file to resume simulation from
+	std::string note; ///< note for this run, to be added with --note
 	//! @}
 
 	Options(void) :
@@ -120,7 +121,8 @@ public:
 		pipeline_fpath(),
 		repack(false),
 		repack_only(false),
-		repack_fname()
+		repack_fname(),
+		note()
 	{};
 
 	//! set an arbitrary option
