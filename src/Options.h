@@ -132,12 +132,16 @@ public:
 		m_options[key] = value;
 	}
 
+	//! return an iterator to the given key if present, with normalization
+	//! (currently normalization means allowing both - and _ in the name)
+	OptionMap::const_iterator find_option(std::string const& key) const;
+
 	//! get the value of an option, providing default if option is not set
 	template<typename T> T
 	get(std::string const& key, T const& _default) const
 	{
 		T ret(_default);
-		OptionMap::const_iterator found(m_options.find(key));
+		OptionMap::const_iterator found(find_option(key));
 		if (found != m_options.end()) {
 			std::istringstream extractor(found->second);
 			extractor >> ret;

@@ -68,12 +68,35 @@ std::vector<int> get_default_devices()
 	return parse_devices_string(env_spec);
 }
 
+OptionMap::const_iterator
+Options::find_option(string const& key) const
+{
+	OptionMap::const_iterator found(m_options.find(key));
+	if (found != m_options.end()) return found;
+	// not found: replace all _ with -
+	string norm = key;
+	string::size_type pos = 0;
+	while ( (pos = norm.find("_", pos)) != string::npos ) {
+		norm.replace(pos, 1, "-");
+		++pos;
+	}
+	found = m_options.find(norm);
+	if (found != m_options.end()) return found;
+	// not found: replace all - with _
+	pos = 0;
+	while ( (pos = norm.find("-", pos)) != string::npos ) {
+		norm.replace(pos, 1, "_");
+		++pos;
+	}
+	return m_options.find(norm);
+}
+
 //! get a string value
 template<>
 string
 Options::get(string const& key, string const& _default) const
 {
-	OptionMap::const_iterator found(m_options.find(key));
+	OptionMap::const_iterator found(find_option(key));
 	if (found != m_options.end()) {
 		return found->second;
 	}
@@ -112,7 +135,7 @@ template<>
 bool
 Options::get(string const& key, bool const& _default) const
 {
-	OptionMap::const_iterator found(m_options.find(key));
+	OptionMap::const_iterator found(find_option(key));
 	if (found != m_options.end()) {
 		string const& value = found->second;
 		if (is_true_value(value))
