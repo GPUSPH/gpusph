@@ -208,9 +208,17 @@ class Object {
 		bool HasFeaMesh() { return (!! m_fea_mesh); }
 		virtual void CreateFemMesh(::chrono::ChSystem *fea_system);
 		virtual float4 getNaturalCoords(double4 global_pos)
+#if USE_CHRONO
 		{ throw std::runtime_error("Calling getNaturalCoords for a geometry that doesn't support FEA meshes yet"); }
+#else
+		{ throw std::runtime_error("Calling getNaturalCoords without USE_CHRONO"); }
+#endif
 		virtual int4 getOwningNodes(double4 global_pos)
-		{ throw std::runtime_error("Calling getowningNodes for a geometry that doesn't support FEA meshes yet"); }
+#if USE_CHRONO
+		{ throw std::runtime_error("Calling getOwningNodes for a geometry that doesn't support FEA meshes yet"); }
+#else
+		{ throw std::runtime_error("Calling getOwningNodes without USE_CHRONO"); }
+#endif
 
 		/// Print body-related information such as position, CG, geometry bounding box (if any), etc.
 		void BodyPrintInformation(const bool print_geom = true);
