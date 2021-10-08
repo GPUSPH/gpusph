@@ -2439,11 +2439,15 @@ mass_continuity_density_ratio
 /*! This is the function template that gathers all contributions
  * to the mass continuity equation.
  *
- * It will be skipped if we are using density summation instead.
+ * It will be skipped if we are using density summation,
+ * or if the central particle is a DUMMY_BOUNDARY boundary particle.
  */
 template<typename FP, typename P, typename N, typename OP, typename ON>
 __device__ __forceinline__
-enable_if_t<!HAS_DENSITY_SUM(FP::simflags)>
+enable_if_t<
+	!HAS_DENSITY_SUM(FP::simflags) &&
+	!(FP::cptype == PT_BOUNDARY && FP::boundarytype == DUMMY_BOUNDARY)
+>
 compute_density_derivative
 (FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
 {
@@ -2453,9 +2457,13 @@ compute_density_derivative
 
 	pout.force.w += nout.DrDt;
 }
+
 template<typename FP, typename P, typename N, typename OP, typename ON>
 __device__ __forceinline__
-enable_if_t<HAS_DENSITY_SUM(FP::simflags)>
+enable_if_t<
+	HAS_DENSITY_SUM(FP::simflags) ||
+	(FP::cptype == PT_BOUNDARY && FP::boundarytype == DUMMY_BOUNDARY)
+>
 compute_density_derivative
 (FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
 { /* do nothing */ }
@@ -4081,18 +4089,21 @@ compute_pp_interaction(FP const& params, P const& pdata, N const & ndata, OP & p
 
 /// Particle-particle interaction
 /** Specialization in case of fluid neighbors to boundary particles,
- * with DYN_BOUNDARY model. In this case we always evolve the particle
- * density, and in the case of force feedback we also compute the
- * momentum equation contributions
+ * with DYN_BOUNDARY and DUMMY_BOUNDARY models.
+ * In this case we computed the momentum equation contributions
+ * in the case of force feedback, energy computation or deformable bodies.
+ * For DYN_BOUNDARY we also compute the density derivative.
  */
 template<typename FP, typename P, typename N, typename OP, typename ON>
 __device__ __forceinline__
 enable_if_t<
-	(FP::boundarytype == DYN_BOUNDARY) &&
+	(FP::boundarytype == DYN_BOUNDARY || FP::boundarytype == DUMMY_BOUNDARY) &&
 	FP::cptype == PT_BOUNDARY && FP::nptype == PT_FLUID
 >
 compute_pp_interaction(FP const& params, P const& pdata, N const & ndata, OP & pout, ON & nout)
 {
+	// This will do something only in the DYN_BOUNDARY case, since for cptype PT_BOUNDARY
+	// and DUMMY_BOUNDARY this is a no-op
 	compute_density_derivative(params, pdata, ndata, pout, nout);
 
 	// We need to compute force on boundary particles only when we have floating bodies or force feedback
@@ -4115,42 +4126,6 @@ compute_pp_interaction(FP const& params, P const& pdata, N const & ndata, OP & p
 		add_internal_energy(params, pdata, ndata, pout, nout);
 	}
 }
-
-/// Particle-particle interaction
-/** Specialization in case of fluid neighbors to boundary particles,
- * with DUMMY_BOUNDARY model. In this case we always evolve the particle
- * density, and in the case of force feedback we also compute the
- * momentum equation contributions
- */
-template<typename FP, typename P, typename N, typename OP, typename ON>
-__device__ __forceinline__
-enable_if_t<
-	(FP::boundarytype == DUMMY_BOUNDARY) &&
-	FP::cptype == PT_BOUNDARY && FP::nptype == PT_FLUID
->
-compute_pp_interaction(FP const& params, P const& pdata, N const & ndata, OP & pout, ON & nout)
-{
-	// We need to compute force on boundary particles only when we have floating bodies or force feedback
-	if (COMPUTE_FORCE(pdata.info) || HAS_INTERNAL_ENERGY(FP::simflags) || DEFORMABLE(pdata.info)) {
-		// Compute pressure part of acceleration
-		compute_pressure_contrib(params, pdata, ndata, pout, nout);
-
-		// Compute viscous forces
-		compute_viscous_contrib(params, pdata, ndata, pout, nout);
-
-		// Compute diffusion terms for k-epsilon and the strain rate tensor
-		compute_keps_term(params, pdata, ndata, pout, nout);
-		// TODO : implement keps for dummy boundaries
-
-		// Sum all contributions from the neighbors in the force array
-		if (COMPUTE_FORCE(pdata.info) || DEFORMABLE(pdata.info))
-			pout.force.xyz += nout.DvDt;
-
-		// Summ all internal energy contributions from the neighbors
-		add_internal_energy(params, pdata, ndata, pout, nout);
-	}
-}
-
 
 /*
  * Fluid central, boundary neighbors
