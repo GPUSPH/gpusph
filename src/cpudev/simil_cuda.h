@@ -110,6 +110,32 @@ T atomicAdd(ATOMIC_TYPE(T)* address, T val)
 #endif
 }
 
+// In the FEA code we do atomic operations on floats.
+// Not only this isn't supported in C++ until C++20 at least,
+// but the floats we operate on aren't even C++ atomic types.
+// The following is a kludge to try and work around that
+// TODO FIXME ideally we should avoid such atomic operations
+// in the first place. The use of atomicAdd in FEA code should be replaced
+// by reductions
+static inline float atomicAdd(float *address, float val)
+{
+#ifdef _OPENMP
+	std::atomic<float>* fake = reinterpret_cast<std::atomic<float>*>(address);
+	float old = fake->load(std::memory_order_consume);
+	float upd = old + val;
+	while ( fake->compare_exchange_weak(old, upd) )
+	{
+		upd = old + val;
+	}
+	return old;
+#else
+	// no need to actually be atomic
+	const float old = *address;
+	*address = old + val;
+	return old;
+#endif
+}
+
 template<typename T>
 T atomicMax(ATOMIC_TYPE(T)* address, T val)
 {
