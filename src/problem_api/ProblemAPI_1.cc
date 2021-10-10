@@ -2489,7 +2489,7 @@ void ProblemAPI<1>::copy_to_array(BufferList &buffers)
 		// load fea mesh. // FIXME now we do this way since we only use STL files. after we must consider that a
 		// fea mesh can come from any file
 
-		cout << "Looking for deformable bodies... " << endl;
+		//cout << "Looking for deformable bodies... " << endl;
 		if (m_geometries[g]->type == GT_DEFORMABLE_BODY) {
 
 			//FIXME FIXME ACHTUNG!! this is just to compute the number of fea particles and allocate s_hFeaNatCoords
