@@ -1419,65 +1419,69 @@ show: $(MAKE_SHOW_TXT)
 $(MAKE_SHOW_TXT): $(MAKE_SHOW_TMP)
 	@cmp -s $< $@ 2> /dev/null || cp $< $@ ; $(RM) $<
 
-# For optional fields, use the convention [ false condition ] || echo ...
-# since it's more compact than [ true condition ] && echo ... >> $@ || true
+# The show macro expands to a printf that echos two strings, the first of which is
+# left-aligned in a field that is show_width characters wide
+show_width:=20
+show:=printf "%-$(show_width)s: %s\n"
 
+# For optional fields, use the convention [ false condition ] || $(show) ...
+# since it's more compact than [ true condition ] && $(show) ... >> $@ || true
 $(MAKE_SHOW_TMP): | $(INFODIR)
 	$(call show_stage,CONF,make show)
-	@echo "GPUSPH version:  $(GPUSPH_VERSION)"							 > $@
-	@echo "Platform:        $(platform)"								>> $@
-	@echo "Architecture:    $(arch)"									>> $@
-	@echo "Current dir:     $(CURDIR)"									>> $@
-	@echo "This Makefile:   $(MAKEFILE)"								>> $@
-	@echo "Used Makefiles:  $(MAKEFILE_LIST)"							>> $@
-	@echo "Problem:         $(PROBLEM)"									>> $@
-	@echo "Linearization:   $(LINEARIZATION)"							>> $@
-#	@echo "   last:         $(LAST_PROBLEM)"							>> $@
-	@echo "Snapshot file:   $(SNAPSHOT_FILE)"							>> $@
-	@echo "Last problem:    $(LAST_BUILT_PROBLEM)"						>> $@
-	@echo "Sources dir:     $(SRCDIR) $(SRCSUBS)"						>> $@
-	@echo "Options dir:     $(OPTSDIR)"									>> $@
-	@echo "Objects dir:     $(OBJDIR) $(OBJSUBS)"						>> $@
-	@echo "Scripts dir:     $(SCRIPTSDIR)"								>> $@
-	@echo "Docs dir:        $(DOCSDIR)"									>> $@
-	@echo "Doxygen conf:    $(DOXYCONF)"								>> $@
-	@echo "Verbose:         $(verbose)"									>> $@
-	@echo "Debug:           $(DBG)"										>> $@
-	@echo "Backend:         $(COMPUTE_BACKEND)"							>> $@
-	@echo "CXX:             $(CXX)"										>> $@
-	@echo "CXX version:     $(shell $(CXX) --version | head -1)"		>> $@
-	@echo "MPICXX:          $(MPICXX)"									>> $@
+	@$(show) "GPUSPH version" "$(GPUSPH_VERSION)"					> $@
+	@$(show) "Platform" "$(platform)"								>> $@
+	@$(show) "Architecture" "$(arch)"								>> $@
+	@$(show) "Current dir" "$(CURDIR)"							>> $@
+	@$(show) "This Makefile" "$(MAKEFILE)"						>> $@
+	@$(show) "Used Makefiles" "$(MAKEFILE_LIST)"					>> $@
+	@$(show) "Problem" "$(PROBLEM)"								>> $@
+	@$(show) "Linearization" "$(LINEARIZATION)"					>> $@
+#	@$(show) "   last" "$(LAST_PROBLEM)"							>> $@
+	@$(show) "Snapshot file" "$(SNAPSHOT_FILE)"					>> $@
+	@$(show) "Last problem" "$(LAST_BUILT_PROBLEM)"				>> $@
+	@$(show) "Sources dir" "$(SRCDIR) $(SRCSUBS)"					>> $@
+	@$(show) "Options dir" "$(OPTSDIR)"							>> $@
+	@$(show) "Objects dir" "$(OBJDIR) $(OBJSUBS)"					>> $@
+	@$(show) "Scripts dir" "$(SCRIPTSDIR)"						>> $@
+	@$(show) "Docs dir" "$(DOCSDIR)"								>> $@
+	@$(show) "Doxygen conf" "$(DOXYCONF)"							>> $@
+	@$(show) "Verbose" "$(verbose)"								>> $@
+	@$(show) "Debug" "$(DBG)"										>> $@
+	@$(show) "Backend" "$(COMPUTE_BACKEND)"						>> $@
+	@$(show) "CXX" "$(CXX)"										>> $@
+	@$(show) "CXX version" "$(shell $(CXX) --version | head -1)"	>> $@
+	@$(show) "MPICXX" "$(MPICXX)"									>> $@
 	@[ 0 = $(cuda.backend.enabled) ] || \
-	 echo "nvcc:            $(NVCC)"									>> $@
+	 $(show) "nvcc" "$(NVCC)"										>> $@
 	@[ 0 = $(cuda.backend.enabled) ] || \
-	 echo "nvcc version:    $(NVCC_VER)"								>> $@
-	@echo "CUXX:            $(CUXX)"									>> $@
-	@echo "LINKER:          $(LINKER)"									>> $@
+	 $(show) "nvcc version" "$(NVCC_VER)"							>> $@
+	@$(show) "CUXX" "$(CUXX)"										>> $@
+	@$(show) "LINKER" "$(LINKER)"									>> $@
 	@[ 0 = $(cuda.backend.enabled) ] || \
-	 echo "Compute cap.:    $(COMPUTE)"									>> $@
-	@echo "Fastmath:        $(FASTMATH)"								>> $@
-	@echo "Fast DEM:        $(FASTDEM)"									>> $@
-	@echo "USE_OPENMP:      $(USE_OPENMP)"								>> $@
+	 $(show) "Compute capability" "$(COMPUTE)"					>> $@
+	@$(show) "Fastmath" "$(FASTMATH)"								>> $@
+	@$(show) "Fast DEM" "$(FASTDEM)"								>> $@
+	@$(show) "USE_OPENMP" "$(USE_OPENMP)"							>> $@
 	@[ 0 = $(USE_OPENMP) ] || \
-	 echo "    OPENMP version: $(OPENMP_VERSION)"						>> $@
-	@echo "USE_MPI:         $(USE_MPI)"									>> $@
+	 $(show) "    OPENMP version" "$(OPENMP_VERSION)"				>> $@
+	@$(show) "USE_MPI" "$(USE_MPI)"								>> $@
 	@[ 0 = $(USE_MPI) ] || \
-	 echo "    MPI version: $(MPI_VERSION)"								>> $@
-	@echo "USE_HDF5:        $(USE_HDF5)"								>> $@
+	 $(show) "    MPI version" "$(MPI_VERSION)"					>> $@
+	@$(show) "USE_HDF5" "$(USE_HDF5)"								>> $@
 	@[ 0 = $(USE_HDF5) ] || \
-	 echo "    HDF5 version:$(HDF5_VERSION)"							>> $@
-	@echo "USE_CHRONO:      $(USE_CHRONO)"								>> $@
+	 $(show) "    HDF5 version" "$(HDF5_VERSION)"					>> $@
+	@$(show) "USE_CHRONO" "$(USE_CHRONO)"							>> $@
 	@[ 0 = $(USE_CHRONO) ] || \
-	 echo "    Chrono ver.: $(CHRONO_VERSION)"						>> $@
-	@echo "USE_CATALYST:    $(USE_CATALYST)"							>> $@
-	@echo "default paths:   $(CXX_SYSTEM_INCLUDE_PATH)"					>> $@
-	@echo "INCPATH:         $(INCPATH)"									>> $@
-	@echo "LIBPATH:         $(LIBPATH)"									>> $@
-	@echo "LIBS:            $(LIBS)"									>> $@
-	@echo "LDFLAGS:         $(LDFLAGS)"									>> $@
-	@echo "CPPFLAGS:        $(CPPFLAGS)"								>> $@
-	@echo "CXXFLAGS:        $(CXXFLAGS)"								>> $@
-	@echo "CUFLAGS:         $(CUFLAGS)"									>> $@
+	 $(show) "    Chrono version" "$(CHRONO_VERSION)"				>> $@
+	@$(show) "USE_CATALYST" "$(USE_CATALYST)"						>> $@
+	@$(show) "default paths" "$(CXX_SYSTEM_INCLUDE_PATH)"			>> $@
+	@$(show) "INCPATH" "$(INCPATH)"								>> $@
+	@$(show) "LIBPATH" "$(LIBPATH)"								>> $@
+	@$(show) "LIBS" "$(LIBS)"										>> $@
+	@$(show) "LDFLAGS" "$(LDFLAGS)"								>> $@
+	@$(show) "CPPFLAGS" "$(CPPFLAGS)"								>> $@
+	@$(show) "CXXFLAGS" "$(CXXFLAGS)"								>> $@
+	@$(show) "CUFLAGS" "$(CUFLAGS)"								>> $@
 #	@echo "Suffixes:        $(SUFFIXES)"								>> $@
 
 # target: snapshot - Make a snapshot of current sourcecode in $(SNAPSHOT_FILE)
