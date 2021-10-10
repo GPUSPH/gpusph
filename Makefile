@@ -971,6 +971,7 @@ CPPFLAGS += -D_GLIBCXX_USE_C99_MATH
 CPPFLAGS += -DUSE_HDF5=$(USE_HDF5)
 ifneq ($(USE_HDF5),0)
  CPPFLAGS += $(HDF5_CPP)
+ HDF5_VERSION := $(shell printf '\043include <hdf5.h>\nH5_VERSION' | $(CXX) $(HDF5_CPP) -E -P - 2> /dev/null | tail -1)
 endif
 
 # We set __COMPUTE__ on the host to match that automatically defined
@@ -1463,6 +1464,8 @@ $(MAKE_SHOW_TMP): | $(INFODIR)
 	@[ 0 = $(USE_MPI) ] || \
 	 echo "    MPI version: $(MPI_VERSION)"								>> $@
 	@echo "USE_HDF5:        $(USE_HDF5)"								>> $@
+	@[ 0 = $(USE_HDF5) ] || \
+	 echo "    HDF5 version:$(HDF5_VERSION)"							>> $@
 	@echo "USE_CHRONO:      $(USE_CHRONO)"								>> $@
 	@[ 0 = $(USE_CHRONO) ] || \
 	 echo "    Chrono ver.: $(CHRONO_VERSION)"						>> $@
