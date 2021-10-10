@@ -2170,6 +2170,11 @@ ProblemCore::set_grid_params(void)
 	if (simparams()->boundarytype == SA_BOUNDARY)
 		cellSide += m_deltap/2.0f;
 
+	const uint dims = space_dimensions_for(simparams()->dimensions);
+
+	if (dims < 3 && m_size.z > 0) throw std::runtime_error("non-zero z world size: spurious particles generated in the z direction?");
+	if (dims < 2 && m_size.y > 0) throw std::runtime_error("non-zero y world size: spurious particles generated in the y direction?");
+
 	m_gridsize.x = (uint)floor(m_size.x / cellSide);
 	m_gridsize.y = (uint)floor(m_size.y / cellSide);
 	m_gridsize.z = (uint)floor(m_size.z / cellSide);
@@ -2178,8 +2183,6 @@ ProblemCore::set_grid_params(void)
 	// set a deltap so large that cellSide is bigger than m_size.{x,y,z}, resulting
 	// in a corresponding gridsize of 0. Check for this case (by checking if any
 	// of the gridsize components are zero) and throw.
-
-	const uint dims = space_dimensions_for(simparams()->dimensions);
 
 	if (!m_gridsize.x || (dims > 1 && !m_gridsize.y) || (dims > 2 && !m_gridsize.z)) {
 		stringstream ss;
@@ -2201,9 +2204,10 @@ ProblemCore::set_grid_params(void)
 		m_gridsize.y = 1;
 	}
 
+	// set ficticious non-zero cell sizes in the unused directions to avoid NaNs coming from 0/0
 	m_cellsize.x = m_size.x / m_gridsize.x;
-	m_cellsize.y = m_size.y / m_gridsize.y;
-	m_cellsize.z = m_size.z / m_gridsize.z;
+	m_cellsize.y = dims > 1 ? m_size.y / m_gridsize.y : 1.0;
+	m_cellsize.z = dims > 2 ? m_size.z / m_gridsize.z : 1.0;
 
 	/*
 	printf("set_grid_params->t:\n");
