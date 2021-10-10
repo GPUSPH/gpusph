@@ -923,6 +923,8 @@ ifneq ($(USE_CHRONO),0)
  else
   LDFLAGS += -Wl,-rpath -Wl,$(CHRONO_LIB_PATH)
  endif
+
+ CHRONO_VERSION := $(shell printf '\043include <chrono/ChVersion.h>\nCH_VERSION (CHRONO_VERSION)' | $(CXX) $(INCPATH) -E -P - 2> /dev/null)
 endif
 LDFLAGS += $(LIBPATH)
 
@@ -1462,6 +1464,8 @@ $(MAKE_SHOW_TMP): | $(INFODIR)
 	 echo "    MPI version: $(MPI_VERSION)"								>> $@
 	@echo "USE_HDF5:        $(USE_HDF5)"								>> $@
 	@echo "USE_CHRONO:      $(USE_CHRONO)"								>> $@
+	@[ 0 = $(USE_CHRONO) ] || \
+	 echo "    Chrono ver.: $(CHRONO_VERSION)"						>> $@
 	@echo "USE_CATALYST:    $(USE_CATALYST)"							>> $@
 	@echo "default paths:   $(CXX_SYSTEM_INCLUDE_PATH)"					>> $@
 	@echo "INCPATH:         $(INCPATH)"									>> $@
