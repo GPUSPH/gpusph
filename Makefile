@@ -26,11 +26,11 @@ verbose := $(verbose)
 
 # traceconfig and showvardef macros
 ifneq ($(verbose),0)
- traceconfig := $(info (config) $1 $2 $3 $4 $5 $6 $7 $8 $9)
- showvardef  := $1=$($1)
+ traceconfig = $(info (config) $1 $2 $3 $4 $5 $6 $7 $8 $9)
+ showvardef  = $1=$($1)
 else
- traceconfig :=
- showvardef  := $($1)
+ traceconfig =
+ showvardef  = $($1)
 endif
 
 # When running a `make clean`, we do not want to generate the files that we are going to remove
