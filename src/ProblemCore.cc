@@ -2130,6 +2130,19 @@ ProblemCore::calculateDensityDiffusionCoefficient()
 void
 ProblemCore::set_grid_params(void)
 {
+	const uint dims = space_dimensions_for(simparams()->dimensions);
+
+	const Periodicity periodicbound = simparams()->periodicbound;
+	const bool is_periodic_x = !!(periodicbound & PERIODIC_X);
+	const bool is_periodic_y = !!(periodicbound & PERIODIC_Y);
+	const bool is_periodic_z = !!(periodicbound & PERIODIC_Z);
+
+	if (dims < 2 && is_periodic_y)
+		throw std::runtime_error("Problem is periodic in Y, but has less than 2 dimensions");
+	if (dims < 3 && is_periodic_z)
+		throw std::runtime_error("Problem is periodic in Z, but has less than 3 dimensions");
+
+
 	/* When using periodicity, it's important that the world size in the periodic
 	 * direction is an exact multiple of the deltap: if this is not the case,
 	 * fluid filling might use an effective inter-particle distance which is
@@ -2144,13 +2157,13 @@ ProblemCore::set_grid_params(void)
 	 * TODO FIXME this would not be needed if filling was made taking into account
 	 * periodicity and spaced particles accordingly.
 	 */
-	if (simparams()->periodicbound & PERIODIC_X && !is_multiple(m_size.x, m_deltap))
+	if (is_periodic_x && !is_multiple(m_size.x, m_deltap))
 		fprintf(stderr, "WARNING: problem is periodic in X, but X world size %.9g is not a multiple of deltap (%.g)\n",
 			m_size.x, m_deltap);
-	if (simparams()->periodicbound & PERIODIC_Y && !is_multiple(m_size.y, m_deltap))
+	if (is_periodic_y && !is_multiple(m_size.y, m_deltap))
 		fprintf(stderr, "WARNING: problem is periodic in Y, but Y world size %.9g is not a multiple of deltap (%.g)\n",
 			m_size.y, m_deltap);
-	if (simparams()->periodicbound & PERIODIC_Z && !is_multiple(m_size.z, m_deltap))
+	if (is_periodic_z && !is_multiple(m_size.z, m_deltap))
 		fprintf(stderr, "WARNING: problem is periodic in X, but Z world size %.9g is not a multiple of deltap (%.g)\n",
 			m_size.z, m_deltap);
 
@@ -2169,8 +2182,6 @@ ProblemCore::set_grid_params(void)
 	double cellSide = nlInfluenceRadius;
 	if (simparams()->boundarytype == SA_BOUNDARY)
 		cellSide += m_deltap/2.0f;
-
-	const uint dims = space_dimensions_for(simparams()->dimensions);
 
 	if (dims < 3 && m_size.z > 0) throw std::runtime_error("non-zero z world size: spurious particles generated in the z direction?");
 	if (dims < 2 && m_size.y > 0) throw std::runtime_error("non-zero y world size: spurious particles generated in the y direction?");
