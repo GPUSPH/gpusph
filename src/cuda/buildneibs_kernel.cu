@@ -1257,9 +1257,15 @@ count_neighbors(const uint *neibs_num)
  *
  *	TODO: finish implementation for SA_BOUNDARY (include PT_VERTEX)
  */
-template<SPHFormulation sph_formulation, typename ViscSpec, BoundaryType boundarytype, Periodicity periodicbound,
+template<Dimensionality dimensions, SPHFormulation sph_formulation, typename ViscSpec, BoundaryType boundarytype, Periodicity periodicbound,
 	flag_t simflags,
 	bool neibcount,
+	/* nmber of dimensions */
+	int dims = space_dimensions_for(dimensions),
+	/* range of z to search for neibs */
+	int zrange = (dims < 3 ? 0 : 1),
+	/* range of y to search for neibs */
+	int yrange = (dims < 2 ? 0 : 1),
 	/* Number of shared arrays for the maximum number of neighbors:
 	 * this is 1 (counting fluid + boundary) for all boundary types, except
 	 * SA which also has another one for vertices */
@@ -1344,8 +1350,8 @@ struct buildNeibsListDevice : params_t
 		// Get particle grid position computed from particle hash
 		const int3 gridPos = calcGridPosFromParticleHash(params.particleHash[index]);
 
-		for(int z=-1; z<=1; z++) {
-			for(int y=-1; y<=1; y++) {
+		for(int z=-zrange; z<=zrange; z++) {
+			for(int y=-yrange; y<=yrange; y++) {
 				for(int x=-1; x<=1; x++) {
 					neibsInCell<sph_formulation, ViscSpec, boundarytype, periodicbound>(params,
 						gridPos,

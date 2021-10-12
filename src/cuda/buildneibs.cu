@@ -104,7 +104,8 @@ struct ptype_hash_compare :
 
  *	\ingroup neibs
 */
-template<SPHFormulation sph_formulation, typename ViscSpec, BoundaryType boundarytype, Periodicity periodicbound, flag_t simflags,
+template<Dimensionality dimensions,
+	SPHFormulation sph_formulation, typename ViscSpec, BoundaryType boundarytype, Periodicity periodicbound, flag_t simflags,
 	bool neibcount>
 class CUDANeibsEngine : public AbstractNeibsEngine
 {
@@ -326,7 +327,7 @@ const	float		boundNlSqInflRad)
 	const uint numThreads = BLOCK_SIZE_BUILDNEIBS;
 	const uint numBlocks = div_up(particleRangeEnd, numThreads);
 
-	using buildNeibsListDevice = cuneibs::buildNeibsListDevice<
+	using buildNeibsListDevice = cuneibs::buildNeibsListDevice<dimensions,
 		sph_formulation, ViscSpec, boundarytype, periodicbound, simflags, neibcount>;
 
 	execute_kernel(
