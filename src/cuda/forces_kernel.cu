@@ -410,9 +410,9 @@ compute_renormalized_density(Params const&params, symtensor3 const& fcoeff, uint
 		renorm_dens_grad += neib_contrib;
 	}
 
-	const float determinant = det(fcoeff);
+	const float determinant = det<dimensions>(fcoeff);
 	if (determinant >= 0.01f) {
-		const symtensor3 invtens = inverse(fcoeff, determinant);
+		const symtensor3 invtens = inverse<dimensions>(fcoeff, determinant);
 		renorm_dens_grad = dot(invtens, renorm_dens_grad);
 	}
 
