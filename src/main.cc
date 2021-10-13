@@ -336,14 +336,16 @@ int parse_options(int argc, char **argv, GlobalData *gdata)
 			gdata->deviceType = CPU_DEVICE;
 			dev = 0;
 		}
-		if (gdata->devices == MAX_DEVICES_PER_NODE) {
-			printf("WARNING: devices exceeding number %u will be ignored\n",
-					gdata->device[MAX_DEVICES_PER_NODE-1]);
+
+		if (gdata->devices < MAX_DEVICES_PER_NODE) {
+			gdata->device[gdata->devices] = dev;
+			++gdata->devices;
+			++gdata->totDevices;
+		} else {
+			printf("WARNING: more than %u devices specified, the ones exceeding number %u will be ignored\n",
+				MAX_DEVICES_PER_NODE, gdata->device[MAX_DEVICES_PER_NODE-1]);
 			break;
 		}
-		gdata->device[gdata->devices] = dev;
-		++gdata->devices;
-		++gdata->totDevices;
 	}
 
 	// Check if pipeline script path is defined and the file exists

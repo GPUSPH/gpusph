@@ -31,21 +31,46 @@
 #ifndef _MULTIGPU_DEFINES_
 #define _MULTIGPU_DEFINES_
 
+#include "backend_select.opt"
+#include "mpi_select.opt"
+
 //! We use a byte (uchar) to address a device in the cluster
 //! @{
 typedef unsigned char devcount_t;
 #define GLOBAL_DEVICE_BITS 8
-#define MAX_DEVICES_PER_CLUSTER (1 << GLOBAL_DEVICE_BITS)
+#define MAX_DEVICES_PER_CLUSTER (1U << GLOBAL_DEVICE_BITS)
 //! @}
 
-//! Distribution of device bits between per-node devices and node rank
-//! By default we max 8 devices per node (using 3 bits) and the remaining bits (5)
-//! are used for the nodes, thus allowing up to 32 nodes.
+//! Distribution of device bits between per-node devices and node rank.
+//! These define the maximum number of devices per node and the maximum number of nodes
+//! supported by GPUSPH.
+//!
+//! When MPI support is disabled, we allow up to 256 devices and a single node.
+//! When MPI support is enabled, the default split depends onthe backend.
+//!
+//! With the GPU backend, we support up to 8 devices per node (using 3 bits),
+//! and the remaining bits (5) are used for the nodes, thus allowing up to 32 nodes.
+//! This choice is motivated by the limit of 8 PCI devices per domain.
+//! Multi-domain configurations or special situations (e.g. 8 dual GPUs)
+//! may require a change of this value.
+//!
+//! The CPU backend by default is configured for an even split:
+//! 4 bits for the device (up to 16 cores per node), and
+//! 4 bits for the nodes (up to 16 nodes).
 //! @{
+#if !USE_MPI
+#define DEVICE_BITS GLOBAL_DEVICE_BITS
+#else
+#if CPU_BACKEND_ENABLED
+#define DEVICE_BITS 4
+#else
 #define DEVICE_BITS 3
+#endif
+#endif
+
 #define NODE_BITS (GLOBAL_DEVICE_BITS - DEVICE_BITS)
-#define MAX_NODES_PER_CLUSTER (1 << NODE_BITS)
-#define MAX_DEVICES_PER_NODE  (1 << DEVICE_BITS)
+#define MAX_NODES_PER_CLUSTER (1U << NODE_BITS)
+#define MAX_DEVICES_PER_NODE  (1U << DEVICE_BITS)
 #define DEVICE_BITS_MASK (MAX_DEVICES_PER_NODE - 1)
 //! @}
 

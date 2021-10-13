@@ -104,17 +104,26 @@ struct GlobalData {
 
 	// # of GPUs running
 
-	// number of user-specified devices (# of GPUThreads). When multi-node, #device per node
-	devcount_t devices;
-	// array of cuda device numbers
+	//! Number of user-specified devices in this node.
+	//! Note that this is an unsigned int and not a devcount_t, to avoid overflows when
+	//! DEVICE_BITS is equal to GLOBAL_DEVICE_BITS and the user specifies all the devices
+	//! (e.g. with devcount_t a uchar, we could have up to 256 devices, but if the user
+	//! actually specified this many, a devcount_t devices would be 0 due to overflow
+	unsigned int devices;
+
+	//! Array of backend-specific device numbers
+	//! e.g. CUDA device numbers orCPU core IDs
 	unsigned int device[MAX_DEVICES_PER_NODE];
 
 	// MPI vars
 	devcount_t mpi_nodes; // # of MPI nodes. 0 if network manager is not initialized, 1 if no other nodes (only multi-gpu)
 	int mpi_rank; // MPI rank. -1 if not initialized
 
-	// total number of devices. Same as "devices" if single-node
-	devcount_t totDevices;
+	//! Total number of devices, across all of the nodes.
+	//! In single-node simulations, this is equal to devices.
+	//! For the reason why this is an unsigned int and not a devcount_t,
+	//! refer to the devices member.
+	unsigned int totDevices;
 
 	// array of GPUWorkers, one per GPU
 	std::vector<std::shared_ptr<GPUWorker>> GPUWORKERS;
