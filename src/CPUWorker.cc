@@ -38,6 +38,11 @@
 // aligned_alloc needs C++17, so for the time being we'll use posix_memalign
 #include <cstdlib>
 
+#ifdef __linux__
+// to set the thread affinity
+#include <pthread.h>
+#endif
+
 #include "CPUWorker.h"
 
 #include "NetworkManager.h"
@@ -54,7 +59,7 @@ using namespace std;
 
 CPUWorker::CPUWorker(GlobalData* _gdata, devcount_t _deviceIndex) :
 	GPUWorker(_gdata, _deviceIndex),
-	m_cudaDeviceNumber(gdata->device[_deviceIndex])
+	m_cpu_core(gdata->device[_deviceIndex])
 {
 	initializeParticleSystem<HostBuffer>();
 }
@@ -207,12 +212,38 @@ const char * CPUWorker::getHardwareType() const
 
 int CPUWorker::getHardwareDeviceNumber() const
 {
-	return m_cudaDeviceNumber; // fake
+	return m_cpu_core; // fake
 }
 
 void CPUWorker::setDeviceProperties()
 {
-	// TODO FIXME
+#if __linux__
+	cpu_set_t cpuset;
+	pthread_t tid = pthread_self();
+	stringstream msg;
+
+	CPU_ZERO(&cpuset);
+	CPU_SET(m_cpu_core, &cpuset);
+
+	// prepare the error string in case of failure
+	int err = pthread_setaffinity_np(tid, sizeof(cpuset), &cpuset);
+	if (err != 0) {
+		msg << "WARNING: worker " << m_deviceIndex <<
+			"(thread 0x" << hex << tid <<
+			") could not set affinity to CPU core #" << m_cpu_core <<
+			": " << strerror(err);
+		cerr << msg.str() << endl;
+	} else {
+		msg << "Worker " << m_deviceIndex <<
+			"(thread 0x" << hex << tid <<
+			") set affinity to CPU core #" << m_cpu_core;
+		cout << msg.str() << endl;
+	}
+#else
+	if (m_cpu_core != 0) {
+		puts("Non-zero device number not supported, using default scheduling");
+	}
+#endif
 }
 
 //! When using the CPU backend, “peers” are just other threads running on the same device,

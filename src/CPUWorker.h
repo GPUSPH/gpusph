@@ -40,7 +40,7 @@
 // Only the methods which need to be called by GPUSPH are declared public.
 class CPUWorker : public GPUWorker {
 private:
-	unsigned int m_cudaDeviceNumber;
+	unsigned int m_cpu_core;
 	const char *getHardwareType() const override;
 	int getHardwareDeviceNumber() const override;
 

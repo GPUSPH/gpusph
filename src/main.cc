@@ -342,9 +342,6 @@ int parse_options(int argc, char **argv, GlobalData *gdata)
 		++gdata->devices;
 		++gdata->totDevices;
 	}
-	if (gdata->deviceType == CPU_DEVICE && gdata->devices > 1) {
-		// TODO FIXME core or NUMA-node affinity
-	}
 
 	// Check if pipeline script path is defined and the file exists
 	if (_clOptions->visualization) {
