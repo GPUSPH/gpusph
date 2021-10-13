@@ -329,7 +329,7 @@ protected:
 	virtual void asyncCellIndicesUpload(uint fromCell, uint toCell) = 0;
 
 	// wrapper for NetworkManage send/receive methods
-	virtual void networkTransfer(uchar peer_gdix, TransferDirection direction, void* _ptr, size_t _size, uint bid = 0) = 0;
+	virtual void networkTransfer(devcount_t peer_gdix, TransferDirection direction, void* _ptr, size_t _size, uint bid = 0) = 0;
 
 	// synchronize the device
 	virtual void deviceSynchronize() = 0;

@@ -71,7 +71,7 @@ private:
 	void asyncCellIndicesUpload(uint fromCell, uint toCell) override;
 
 	// wrapper for NetworkManage send/receive methods
-	void networkTransfer(uchar peer_gdix, TransferDirection direction, void* _ptr, size_t _size, uint bid = 0) override;
+	void networkTransfer(devcount_t peer_gdix, TransferDirection direction, void* _ptr, size_t _size, uint bid = 0) override;
 
 	// synchronize the device
 	void deviceSynchronize() override;

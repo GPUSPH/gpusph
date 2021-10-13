@@ -114,7 +114,7 @@ void CPUWorker::asyncCellIndicesUpload(uint fromCell, uint toCell)
 }
 
 // wrapper for NetworkManage send/receive methods
-void CPUWorker::networkTransfer(uchar peer_gdix, TransferDirection direction, void* _ptr, size_t _size, uint bid)
+void CPUWorker::networkTransfer(devcount_t peer_gdix, TransferDirection direction, void* _ptr, size_t _size, uint bid)
 {
 	if (direction == SND) {
 		if (gdata->clOptions->asyncNetworkTransfers)

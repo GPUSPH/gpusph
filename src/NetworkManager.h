@@ -38,6 +38,8 @@
 #ifndef NETWORKMANAGER_H_
 #define NETWORKMANAGER_H_
 
+#include "multi_gpu_defines.h" // devcount_t
+
 typedef unsigned int uint;
 
 enum ReductionType
@@ -71,21 +73,21 @@ public:
 	// print world size,process name and rank
 	void printInfo();
 	// methods to exchange data
-	void sendUint(unsigned char src_globalDevIdx, unsigned char dst_globalDevIdx, unsigned int *datum);
-	void receiveUint(unsigned char src_globalDevIdx, unsigned char dst_globalDevIdx, unsigned int *datum);
-	void sendBuffer(unsigned char src_globalDevIdx, unsigned char dst_globalDevIdx, unsigned int count, void *src_data);
-	void receiveBuffer(unsigned char src_globalDevIdx, unsigned char dst_globalDevIdx, unsigned int count, void *src_data);
+	void sendUint(devcount_t src_globalDevIdx, devcount_t dst_globalDevIdx, unsigned int *datum);
+	void receiveUint(devcount_t src_globalDevIdx, devcount_t dst_globalDevIdx, unsigned int *datum);
+	void sendBuffer(devcount_t src_globalDevIdx, devcount_t dst_globalDevIdx, unsigned int count, void *src_data);
+	void receiveBuffer(devcount_t src_globalDevIdx, devcount_t dst_globalDevIdx, unsigned int count, void *src_data);
 	void setNumRequests(uint _numRequests);
-	void sendBufferAsync(unsigned char src_globalDevIdx, unsigned char dst_globalDevIdx, unsigned int count, void *src_data, uint bid);
-	void receiveBufferAsync(unsigned char src_globalDevIdx, unsigned char dst_globalDevIdx, unsigned int count, void *src_data, uint bid);
+	void sendBufferAsync(devcount_t src_globalDevIdx, devcount_t dst_globalDevIdx, unsigned int count, void *src_data, uint bid);
+	void receiveBufferAsync(devcount_t src_globalDevIdx, devcount_t dst_globalDevIdx, unsigned int count, void *src_data, uint bid);
 	void waitAsyncTransfers();
 #if 0
-	void sendUints(unsigned char src_globalDevIdx, unsigned char dst_globalDevIdx, unsigned int count, unsigned int *src_data);
-	void receiveUints(unsigned char src_globalDevIdx, unsigned char dst_globalDevIdx, unsigned int count, unsigned int *dst_data);
-	void sendFloats(unsigned char src_globalDevIdx, unsigned char dst_globalDevIdx, unsigned int count, float *src_data);
-	void receiveFloats(unsigned char src_globalDevIdx, unsigned char dst_globalDevIdx, unsigned int count, float *dst_data);
-	void sendShorts(unsigned char src_globalDevIdx, unsigned char dst_globalDevIdx, unsigned int count, unsigned short *src_data);
-	void receiveShorts(unsigned char src_globalDevIdx, unsigned char dst_globalDevIdx, unsigned int count, unsigned short *dst_data);
+	void sendUints(devcount_t src_globalDevIdx, devcount_t dst_globalDevIdx, unsigned int count, unsigned int *src_data);
+	void receiveUints(devcount_t src_globalDevIdx, devcount_t dst_globalDevIdx, unsigned int count, unsigned int *dst_data);
+	void sendFloats(devcount_t src_globalDevIdx, devcount_t dst_globalDevIdx, unsigned int count, float *src_data);
+	void receiveFloats(devcount_t src_globalDevIdx, devcount_t dst_globalDevIdx, unsigned int count, float *dst_data);
+	void sendShorts(devcount_t src_globalDevIdx, devcount_t dst_globalDevIdx, unsigned int count, unsigned short *src_data);
+	void receiveShorts(devcount_t src_globalDevIdx, devcount_t dst_globalDevIdx, unsigned int count, unsigned short *dst_data);
 #endif
 	// network reduction on bool buffer across the network
 	void networkBoolReduction(bool *buffer, const unsigned int bufferElements);

@@ -116,7 +116,7 @@ void CUDAWorker::asyncCellIndicesUpload(uint fromCell, uint toCell)
 }
 
 // wrapper for NetworkManage send/receive methods
-void CUDAWorker::networkTransfer(uchar peer_gdix, TransferDirection direction, void* _ptr, size_t _size, uint bid)
+void CUDAWorker::networkTransfer(devcount_t peer_gdix, TransferDirection direction, void* _ptr, size_t _size, uint bid)
 {
 	// reallocate host buffer if necessary
 	if (!gdata->clOptions->gpudirect && _size > m_hNetworkTransferBufferSize)

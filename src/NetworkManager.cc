@@ -147,15 +147,17 @@ char* NetworkManager::getProcessorName() {
 //! Combine a source and destination global device index into an MPI message tag
 static inline
 unsigned int
-exchange_tag(unsigned char src_globalDevIdx, unsigned char dst_globalDevIdx)
+exchange_tag(devcount_t src_globalDevIdx, devcount_t dst_globalDevIdx)
 {
 	return (((unsigned int)src_globalDevIdx) << GLOBAL_DEVICE_BITS) | dst_globalDevIdx;
 }
 
 //! Combine a source and destination global device index and a buffer id into an MPI message tag
+//! TODO FIXME: the tag being an int is a limit to the size that devcount_t can have,
+//! since e.g. with a 16-bit devcount_t there would be no room left in the tag to add the bid
 static inline
 unsigned int
-async_exchange_tag(unsigned char src_globalDevIdx, unsigned char dst_globalDevIdx, uint bid)
+async_exchange_tag(devcount_t src_globalDevIdx, devcount_t dst_globalDevIdx, uint bid)
 {
 	unsigned int base_tag = exchange_tag(src_globalDevIdx, dst_globalDevIdx);
 	return (bid << (2*GLOBAL_DEVICE_BITS)) | base_tag;
@@ -167,7 +169,7 @@ void NetworkManager::printInfo()
 	printf("[Network] rank %u (%u/%u), host %s\n", process_rank, process_rank + 1, world_size, processor_name);
 }
 
-void NetworkManager::sendUint(unsigned char src_globalDevIdx, unsigned char dst_globalDevIdx, unsigned int *datum)
+void NetworkManager::sendUint(devcount_t src_globalDevIdx, devcount_t dst_globalDevIdx, unsigned int *datum)
 {
 #if USE_MPI
 	unsigned int tag = exchange_tag(src_globalDevIdx, dst_globalDevIdx);
@@ -185,7 +187,7 @@ void NetworkManager::sendUint(unsigned char src_globalDevIdx, unsigned char dst_
 #endif
 }
 
-void NetworkManager::receiveUint(unsigned char src_globalDevIdx, unsigned char dst_globalDevIdx, unsigned int *datum)
+void NetworkManager::receiveUint(devcount_t src_globalDevIdx, devcount_t dst_globalDevIdx, unsigned int *datum)
 {
 #if USE_MPI
 	unsigned int tag = exchange_tag(src_globalDevIdx, dst_globalDevIdx);
@@ -213,7 +215,7 @@ void NetworkManager::receiveUint(unsigned char src_globalDevIdx, unsigned char d
 #endif
 }
 
-void NetworkManager::sendBuffer(unsigned char src_globalDevIdx, unsigned char dst_globalDevIdx, unsigned int count, void *src_data)
+void NetworkManager::sendBuffer(devcount_t src_globalDevIdx, devcount_t dst_globalDevIdx, unsigned int count, void *src_data)
 {
 #if USE_MPI
 	unsigned int tag = exchange_tag(src_globalDevIdx, dst_globalDevIdx);
@@ -231,7 +233,7 @@ void NetworkManager::sendBuffer(unsigned char src_globalDevIdx, unsigned char ds
 #endif
 }
 
-void NetworkManager::receiveBuffer(unsigned char src_globalDevIdx, unsigned char dst_globalDevIdx, unsigned int count, void *dst_data)
+void NetworkManager::receiveBuffer(devcount_t src_globalDevIdx, devcount_t dst_globalDevIdx, unsigned int count, void *dst_data)
 {
 #if USE_MPI
 	unsigned int tag = exchange_tag(src_globalDevIdx, dst_globalDevIdx);
@@ -259,7 +261,7 @@ void NetworkManager::receiveBuffer(unsigned char src_globalDevIdx, unsigned char
 #endif
 }
 
-void NetworkManager::sendBufferAsync(unsigned char src_globalDevIdx, unsigned char dst_globalDevIdx, unsigned int count, void *src_data, uint bid)
+void NetworkManager::sendBufferAsync(devcount_t src_globalDevIdx, devcount_t dst_globalDevIdx, unsigned int count, void *src_data, uint bid)
 {
 #if USE_MPI
 	unsigned int tag = async_exchange_tag(src_globalDevIdx, dst_globalDevIdx, bid);
@@ -283,7 +285,7 @@ void NetworkManager::sendBufferAsync(unsigned char src_globalDevIdx, unsigned ch
 #endif
 }
 
-void NetworkManager::receiveBufferAsync(unsigned char src_globalDevIdx, unsigned char dst_globalDevIdx, unsigned int count, void *dst_data, uint bid)
+void NetworkManager::receiveBufferAsync(devcount_t src_globalDevIdx, devcount_t dst_globalDevIdx, unsigned int count, void *dst_data, uint bid)
 {
 #if USE_MPI
 	unsigned int tag = async_exchange_tag(src_globalDevIdx, dst_globalDevIdx, bid);
@@ -345,7 +347,7 @@ void NetworkManager::waitAsyncTransfers()
 
 
 #if 0
-void NetworkManager::sendUints(unsigned char src_globalDevIdx, unsigned char dst_globalDevIdx, unsigned int count, uint *src_data)
+void NetworkManager::sendUints(devcount_t src_globalDevIdx, devcount_t dst_globalDevIdx, unsigned int count, uint *src_data)
 {
 	unsigned int tag = exchange_tag(src_globalDevIdx, dst_globalDevIdx);
 
@@ -355,7 +357,7 @@ void NetworkManager::sendUints(unsigned char src_globalDevIdx, unsigned char dst
 		printf("WARNING: MPI_Send returned error %d\n", mpi_err);
 }
 
-void NetworkManager::receiveUints(unsigned char src_globalDevIdx, unsigned char dst_globalDevIdx, unsigned int count, uint *dst_data)
+void NetworkManager::receiveUints(devcount_t src_globalDevIdx, devcount_t dst_globalDevIdx, unsigned int count, uint *dst_data)
 {
 	unsigned int tag = exchange_tag(src_globalDevIdx, dst_globalDevIdx);
 
@@ -375,7 +377,7 @@ void NetworkManager::receiveUints(unsigned char src_globalDevIdx, unsigned char 
 		printf("WARNING: MPI_Get_count returned %d (uints), expected %u\n", actual_count, count);
 }
 
-void NetworkManager::sendFloats(unsigned char src_globalDevIdx, unsigned char dst_globalDevIdx, unsigned int count, float *src_data)
+void NetworkManager::sendFloats(devcount_t src_globalDevIdx, devcount_t dst_globalDevIdx, unsigned int count, float *src_data)
 {
 	unsigned int tag = exchange_tag(src_globalDevIdx, dst_globalDevIdx);
 
@@ -385,7 +387,7 @@ void NetworkManager::sendFloats(unsigned char src_globalDevIdx, unsigned char ds
 		printf("WARNING: MPI_Send returned error %d\n", mpi_err);
 }
 
-void NetworkManager::receiveFloats(unsigned char src_globalDevIdx, unsigned char dst_globalDevIdx, unsigned int count, float *dst_data)
+void NetworkManager::receiveFloats(devcount_t src_globalDevIdx, devcount_t dst_globalDevIdx, unsigned int count, float *dst_data)
 {
 	unsigned int tag = exchange_tag(src_globalDevIdx, dst_globalDevIdx);
 
@@ -405,7 +407,7 @@ void NetworkManager::receiveFloats(unsigned char src_globalDevIdx, unsigned char
 		printf("WARNING: MPI_Get_count returned %d (floats), expected %u\n", actual_count, count);
 }
 
-void NetworkManager::sendShorts(unsigned char src_globalDevIdx, unsigned char dst_globalDevIdx, unsigned int count, unsigned short *src_data)
+void NetworkManager::sendShorts(devcount_t src_globalDevIdx, devcount_t dst_globalDevIdx, unsigned int count, unsigned short *src_data)
 {
 	unsigned int tag = exchange_tag(src_globalDevIdx, dst_globalDevIdx);
 
@@ -415,7 +417,7 @@ void NetworkManager::sendShorts(unsigned char src_globalDevIdx, unsigned char ds
 		printf("WARNING: MPI_Send returned error %d\n", mpi_err);
 }
 
-void NetworkManager::receiveShorts(unsigned char src_globalDevIdx, unsigned char dst_globalDevIdx, unsigned int count, unsigned short *dst_data)
+void NetworkManager::receiveShorts(devcount_t src_globalDevIdx, devcount_t dst_globalDevIdx, unsigned int count, unsigned short *dst_data)
 {
 	unsigned int tag = exchange_tag(src_globalDevIdx, dst_globalDevIdx);
 
