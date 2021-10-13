@@ -326,7 +326,10 @@ int parse_options(int argc, char **argv, GlobalData *gdata)
 		_clOptions->devices = get_default_devices();
 	}
 
-
+	// Devices to use: on GPU, these are devices returned by the backend enumeration,
+	// on CPU these are core IDs.
+	// FIXME for CPU+OpenMP this doesn't really make sense, maybe we should
+	// turn it into an appropriate OpenMP scheduling specification?
 	for (auto dev : _clOptions->devices) {
 		if (dev == -1) {
 			printf("Switching to experimental CPU worker\n");

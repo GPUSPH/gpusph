@@ -217,6 +217,11 @@ int CPUWorker::getHardwareDeviceNumber() const
 
 void CPUWorker::setDeviceProperties()
 {
+	if (USE_OPENMP) {
+		if (m_cpu_core != 0)
+			puts("OpenMP in use, CPU core specification ignore");
+		return;
+	}
 #if __linux__
 	cpu_set_t cpuset;
 	pthread_t tid = pthread_self();
