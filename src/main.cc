@@ -331,14 +331,9 @@ int parse_options(int argc, char **argv, GlobalData *gdata)
 	// FIXME for CPU+OpenMP this doesn't really make sense, maybe we should
 	// turn it into an appropriate OpenMP scheduling specification?
 	for (auto dev : _clOptions->devices) {
-		if (dev == -1) {
-			printf("Switching to experimental CPU worker\n");
-			gdata->deviceType = CPU_DEVICE;
-			dev = 0;
-		}
-
 		if (gdata->devices < MAX_DEVICES_PER_NODE) {
 			gdata->device[gdata->devices] = dev;
+			// printf("Added device %u\n", dev); // uncomment to debug device parsing
 			++gdata->devices;
 			++gdata->totDevices;
 		} else {

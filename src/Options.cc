@@ -29,11 +29,13 @@
  * Specializations of option extractors for the problem class
  */
 
-#include <Options.h>
-
 #include <stdexcept>
 #include <algorithm>
 #include <cstdlib>
+#include <thread>
+
+#include "Options.h"
+#include "backend_select.opt"
 
 using namespace std;
 
@@ -45,15 +47,19 @@ vector<int> parse_devices_string(const char *argv)
 
 	string dev_string;
 	while (getline(tokenizer, dev_string, ',')) {
-		int next_dev = -1;
-		// if this could be parsed like an unsigned integer, use it as device number
-		// otherwise, if it's the string 'cpu', append -1
-		if (sscanf(dev_string.c_str(), "%u", &next_dev)>0) {
-			ret.push_back(next_dev);
-		} else if (dev_string == "cpu") {
-			ret.push_back(next_dev);
+		int first_dev, last_dev;
+		int cvt = sscanf(dev_string.c_str(), "%u-%u", &first_dev, &last_dev);
+		if (cvt == 0 /* no specification */ || first_dev < 0 || last_dev < 0) {
+			throw invalid_argument("device specification " + dev_string + " is not a (range of) non-negative integers");
+		} else if (cvt == 1) {
+			ret.push_back(first_dev);
 		} else {
-			throw invalid_argument("token " + dev_string + " is not a number");
+			if (last_dev < first_dev) {
+				std::swap(first_dev, last_dev);
+			}
+			while (first_dev <= last_dev) {
+				ret.push_back(first_dev++);
+			}
 		}
 	}
 	return ret;
