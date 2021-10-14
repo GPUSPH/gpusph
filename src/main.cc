@@ -122,7 +122,10 @@ void print_usage() {
 	cout << " --checkpoint-every : HotStart checkpoints will be created every VAL seconds\n";
 	cout << "                      of simulated time (float VAL, 0 disables)\n";
 	cout << " --checkpoints : number of HotStart checkpoints to keep (integer VAL)\n";
-	cout << " --device n[,n...] : Use device number n; runs multi-gpu if multiple n are given\n";
+	cout << " --device DEV[,DEV...] : Use device number DEV; runs in multi-GPU mode if multiple DEVs are specified;\n";
+	cout << "                         the argument is a comma-separated list of ranges of non-negative numbers. Examples:\n";
+	cout << "                         --device 2\truns on device #2 (single-GPU)\n";
+	cout << "                         --device 0,2-4\truns on devices #0, #2, #3 and #4 (multi-GPU)\n";
 	cout << " --dem : Use given DEM (if problem supports it)\n";
 	cout << " --deltap : Use given deltap (VAL is cast to float)\n";
 	cout << " --tend : Break at given time (VAL is cast to float)\n";
