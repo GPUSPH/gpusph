@@ -130,16 +130,20 @@ void GPUSPH::resetCommandTimes()
 
 void GPUSPH::showCommandTimes()
 {
-	cout << "CMDTIMES:COMMAND\tCMD_NUM\tCALLS\tMAX(ms)\tTOT(ms)\n";
+	cout << "CMDTIMES:COMMAND\tCMD_NUM\tCALLS\tMAX(ms)\tTOT(ms)\tAVG(ms)\n";
 	for (CommandName cmd = IDLE; cmd < NUM_COMMANDS; cmd = CommandName(cmd+1))
 	{
 		if (!cmd_calls[cmd])
 			continue;
 		std::chrono::duration<double, std::milli> max_ms = max_cmd_time[cmd];
 		std::chrono::duration<double, std::milli> tot_ms = tot_cmd_time[cmd];
-		cout << "CMDTIMES:" << command_name[cmd] << "\t" << cmd << "\t"
-			<< cmd_calls[cmd] << "\t"
-			<< max_ms.count() << "\t" << tot_ms.count() << "\n";
+		cout << "CMDTIMES:" << command_name[cmd]
+			<< "\t" << cmd
+			<< "\t" << cmd_calls[cmd]
+			<< "\t" << max_ms.count()
+			<< "\t" << tot_ms.count()
+			<< "\t" << (tot_ms.count()/cmd_calls[cmd])
+			<< "\n";
 	}
 }
 
