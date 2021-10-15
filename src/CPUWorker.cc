@@ -38,9 +38,13 @@
 // aligned_alloc needs C++17, so for the time being we'll use posix_memalign
 #include <cstdlib>
 
-#ifdef __linux__
+// Thread affinity is currently only supported on non-Android Linux
+#if defined(__linux__) && !defined(__ANDROID__)
 // to set the thread affinity
 #include <pthread.h>
+#define THREAD_AFFINITY_SUPPORTED 1
+#else
+#define THREAD_AFFINITY_SUPPORTED 0
 #endif
 
 #include "CPUWorker.h"
@@ -217,12 +221,15 @@ int CPUWorker::getHardwareDeviceNumber() const
 
 void CPUWorker::setDeviceProperties()
 {
+#if THREAD_AFFINITY_SUPPORTED
 	if (USE_OPENMP) {
 		if (m_cpu_core != 0)
-			puts("OpenMP in use, CPU core specification ignore");
+			puts("OpenMP in use, CPU core specification ignored");
 		return;
 	}
-#if __linux__
+
+	// TODO
+	// The following is on Linux only, other OSes will probably do things different
 	cpu_set_t cpuset;
 	pthread_t tid = pthread_self();
 	stringstream msg;
@@ -230,23 +237,22 @@ void CPUWorker::setDeviceProperties()
 	CPU_ZERO(&cpuset);
 	CPU_SET(m_cpu_core, &cpuset);
 
-	// prepare the error string in case of failure
 	int err = pthread_setaffinity_np(tid, sizeof(cpuset), &cpuset);
 	if (err != 0) {
-		msg << "WARNING: worker " << m_deviceIndex <<
+		msg << "WARNING: worker " << uint(m_deviceIndex) <<
 			"(thread 0x" << hex << tid <<
 			") could not set affinity to CPU core #" << m_cpu_core <<
 			": " << strerror(err);
 		cerr << msg.str() << endl;
 	} else {
-		msg << "Worker " << m_deviceIndex <<
+		msg << "Worker " << uint(m_deviceIndex) <<
 			"(thread 0x" << hex << tid <<
 			") set affinity to CPU core #" << m_cpu_core;
 		cout << msg.str() << endl;
 	}
 #else
 	if (m_cpu_core != 0) {
-		puts("Non-zero device number not supported, using default scheduling");
+		puts("Device number specification ignored, thread affinity not suppported");
 	}
 #endif
 }
