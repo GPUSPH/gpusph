@@ -227,11 +227,14 @@ protected:
 	enable_if_t<IsLastIterator::value == false, bool>
 	_next(IsLastIterator const& bool_class)
 	{
-		if (core::current_type != ptype) return NextIterator::next();
-		bool ret = fetch_next();
-		if (ret) return ret;
-		// finished current type, switch to the next
-		NextIterator::reset();
+		if (core::current_type == ptype) {
+			bool ret = fetch_next();
+			if (ret) return true;
+			// finished current type, switch to the next
+			NextIterator::reset();
+		}
+		// current type has finished, delegate the call
+		// to the next type
 		return NextIterator::next();
 	}
 
