@@ -99,11 +99,6 @@ constexpr idx_t neib_list_step() {
 class neiblist_iterator_core : protected pos_mass
 {
 protected:
-	// This class is not actually associated to any specific particle type,
-	// and is instead used as a base class and a terminator, identified
-	// by having an associated particle type of PT_NONE
-	static constexpr ParticleType ptype = PT_NONE;
-
 	const	uint*	cellStart;	///< cells first particle index
 	const	neibdata* neibsList; ///< neighbors list
 	const	int3	gridPos;	///< current particle cell index
@@ -129,6 +124,19 @@ protected:
 	}
 
 public:
+
+	//! 'reset' the core
+	//! Since this isn't an actual iterator, we just set the current_type to PT_NONE,
+	//! to ensure that no other iterator will match it.
+	__device__ __forceinline__
+	void reset()
+	{ current_type = PT_NONE; }
+
+	//! fetch the next neighbor
+	//! This always returns false, since this is not a true iterator
+	__device__ __forceinline__
+	constexpr bool next() const
+	{ return false; }
 
 	//! Neighbor sequential offset
 	/*! Any structure which is addressed like the neighbor list can find
@@ -182,16 +190,7 @@ protected:
 
 	static constexpr ParticleType ptype = ptype_;
 
-	static constexpr bool lastIterator = NextIterator::ptype == PT_NONE;
-
 	//! Fetch the next neighbor
-	//! There are two instances of this member function.
-	//! This one is used in the last (or only) iterator case,
-	//! and simply loads a neighbor, and if not found returns false.
-	//!
-	//! \note the reason for the argument is that we cannot specialize a member function
-	//! in C++ simply by return type, so we pass a dummy argument.
-	//! This could be solved using more recent C++ features such as if constexpr
 	//!
 	//! \return false if not found, true otherwise
 	__device__ __forceinline__
@@ -203,39 +202,6 @@ protected:
 
 		core::update_neib_index(neib_data);
 		return true;
-	}
-
-	//! Fetch the next neighbor, assumingno next iterators
-	//! There are two instances of this member function.
-	//! This one is used in the last (or only) iterator case,
-	//! and simply loads a neighbor, and if not found returns false.
-	//!
-	//! \note the reason for the argument is that we cannot specialize a member function
-	//! in C++ simply by return type, so we pass a dummy argument.
-	//! This could be solved using more recent C++ features such as if constexpr
-	template<typename IsLastIterator>
-	__device__ __forceinline__
-	enable_if_t<IsLastIterator::value == true, bool>
-	_next(IsLastIterator const& bool_class)
-	{ return fetch_next(); }
-
-	//! Fetch the next neighbor or delegate to the next iterator
-	//! This instance is used when there is a next iterator.
-	//! \note see the other instance for the meaning of the argument.
-	template<typename IsLastIterator>
-	__device__ __forceinline__
-	enable_if_t<IsLastIterator::value == false, bool>
-	_next(IsLastIterator const& bool_class)
-	{
-		if (core::current_type == ptype) {
-			bool ret = fetch_next();
-			if (ret) return true;
-			// finished current type, switch to the next
-			NextIterator::reset();
-		}
-		// current type has finished, delegate the call
-		// to the next type
-		return NextIterator::next();
 	}
 
 public:
@@ -255,8 +221,15 @@ public:
 	__device__ __forceinline__
 	bool next()
 	{
-		using next_selector = bool_constant<!!lastIterator>;
-		return _next(next_selector());
+		if (core::current_type == ptype) {
+			bool ret = fetch_next();
+			if (ret) return true;
+			// finished current type, switch to the next
+			NextIterator::reset();
+		}
+		// current type has finished, delegate the call
+		// to the next type
+		return NextIterator::next();
 	}
 
 	template<typename PosMass, // float4 or pos_mass
@@ -274,27 +247,43 @@ public:
 	}
 };
 
-//! More practical way to specify the list of types
-template<ParticleType... types>
-class neiblist_iterator;
+//! We want to implement a user-facing API for the iterators such that
+//! neiblist_iterator<type1, type2, ...> maps to the appropriate chain of neiblist_iterator_nest.
+//! We need to take care of two corner cases:
+//! * we want to eliminate PT_NONE from the list of types
+//! * we want to map the empty list of types case to neiblist_iterator_core
+template<ParticleType... ptypes>
+struct nest_skip_pt_none;
 
-template<ParticleType ptype, ParticleType... other_types>
-class neiblist_iterator<ptype, other_types...> :
-	public neiblist_iterator_nest<ptype,
-		// the next iterator is chosen based on how many remain,
-		// to properly terminate the list
-		typename std::conditional<sizeof...(other_types) == 0,
-			neiblist_iterator_core,
-			neiblist_iterator<other_types...>
-		>::type>
+//! Remove PT_NONE, no types case
+template<>
+struct nest_skip_pt_none<>
 {
-	using base = neiblist_iterator_nest<ptype,
-		// the next iterator is chosen based on how many remain,
-		// to properly terminate the list
-		typename std::conditional<sizeof...(other_types) == 0,
-			neiblist_iterator_core,
-			neiblist_iterator<other_types...>
-		>::type>;
+	using type = neiblist_iterator_core;
+};
+
+
+//! Remove PT_NONE with at least one type
+template<ParticleType head, ParticleType ...tail>
+struct nest_skip_pt_none<head, tail...>
+{
+	// recursively apply nest_skip_pt_none to the tail
+	using clean_tail = typename nest_skip_pt_none<tail...>::type;
+
+	// skip the head if it's PT_NONE
+	using type = typename std::conditional<head == PT_NONE,
+		clean_tail,
+		neiblist_iterator_nest<head, clean_tail>
+	>::type;
+};
+
+//! More practical way to specify the list of types: neiblist_iterator<type1, type2, ...>
+//! Implementation of user-facing iterator
+template<ParticleType... ptypes>
+class neiblist_iterator :
+	public nest_skip_pt_none<ptypes...>::type
+{
+	using base = typename nest_skip_pt_none<ptypes...>::type;
 
 public:
 	//! Constructor: delegate to the nested iterator class,
