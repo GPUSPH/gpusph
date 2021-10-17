@@ -9,10 +9,11 @@ BEGIN {
 }
 
 /^unsigned / {
-	flag = $2;
-	alt = gensub(/_/, "-", "g", flag);
+	flag = $2
+	alt = flag;
+	gsub(/_/, "-", alt);
 	cond = "flag == \"" flag "\"";
-	if ($alt != flag)
+	if (alt != flag)
 		cond = "(" cond ") || (flag == \"" alt "\")";
 	print "if (" cond ") ret." flag " = 1; else "
 }
