@@ -1,0 +1,43 @@
+== ++OpenChannel++
+
+****
+#TODO#: revise according to current test case definition
+(or revise the test case to match the description here)
+****
+
+This problem represents an instantaneous start up of a highly viscous
+end dense fluid flow in an open channel on a \(9\deg\) slope.
+The channel is rectangular in cross-section (\(1\)m wide and \(0.7\)m deep);
+the computational length of the infinitely long channel is \(2\)m.
+The side walls (if present) are fixed, while the computational
+ends of the domain are periodic, so that a particle leaving the
+downstream end of the model domain enters the upstream end at the same
+place, \(2\)m upstream.
+
+If side walls are absent,
+periodicity is imposed on both the \(x\) and \(y\) directions,
+whereas with side walls
+periodic boundary conditions are imposed in the flow direction \(x\) only.
+
+(In general, periodicity is set by the `periodicity` keyword in the simulation framework setup,
+with a parameter which is either `PERIODIC_NONE` (the default),
+or any combination of `PERIODIC_X`, `PERIODIC_Y`, `PERIODIC_Z` to indicate peridocity along each of the axes,
+with shortcuts such as `PERIODIC_XY` corresponding to `PERIODIC_X | PERIODIC_Y`.)
+
+////
+TODO
+Figure \ref{fig:OpenChannel} shows the shape of the velocity field in 
+the channel after time convergence.
+\begin{figure}[h]
+  \begin{center}
+    \includegraphics[scale=0.35, trim={0 100 0 0},clip]{../fig/openChannel_screenshot.png}
+    \caption{Screenshot of the OpenChannel simulation after time convergence.}\label{fig:OpenChannel}
+  \end{center}
+\end{figure}
+////
+
+This test case supports only one custom command-line option:
+[horizontal]
+sidewalls:: a boolean to control whether the geometry should include
+the channel side walls (`true`) or should be periodic in the cross-flow direction \(y\)
+(`false`).

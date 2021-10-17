@@ -1,0 +1,37 @@
+== ++DamBreakGate++
+
+In most laboratory experiments of dam breaks,
+the dam takes a certain amount of time to move out of the way.
+The example problem `DamBreakGate` illustrates the use of moving boundaries
+with prescribed motions.
+The problem is set up the same way as the `<<DamBreak3D>>` case,
+but there is a moving gate that is raised
+vertically with a linearly varying velocity. In this case, the gate will
+move with a velocity that is zero when the problem starts and that
+linearly increases with time until the gate is outside the domain. The
+effect on the dam break is that the escaping water is affected by the
+gage motion.
+(See cite:[crespo_modeling_2008]'s SPH modeling of cite:[janosi_turbulent_2004]'s experiment,
+where a moving gate was important.)
+
+The moving gate is created by defining its geometry with a geometry type
+`GT_MOVING_BODY`, and overriding the `Problem`'s
+`moving_bodies_callback` member function to impose the linear and
+angular velocity of the body.
+
+////
+TODO
+A screenshot of the simulation at time $0.8s$ is provided
+in the Figure \ref{fig:DamBreakGate}.
+
+\begin{figure}[h]
+  \begin{center}
+    \includegraphics[scale=0.35, trim={100 100 100 100},clip]{../fig/damBreakGate_screenshot.png}
+    \caption{Screenshot of the DamBreakGate simulation at time $0.8s$.}\label{fig:DamBreakGate}   
+  \end{center}
+\end{figure}
+////
+
+****
+#TODO# document custom command-line parameters
+****

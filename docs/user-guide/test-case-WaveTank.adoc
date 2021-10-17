@@ -1,0 +1,52 @@
+== ++WaveTank++
+
+The `WaveTank` test cases uses a moving boundary to create a paddle wavemaker
+at one end of a wave tank with a sloping bottom (bottom slope is \(4.2364\deg\)).
+The wavemaker motion is controlled by the `moving_bodies_callback` member function
+(see also `<<DamBreakGate>>`).
+
+****
+#TODO# verify consistency between test description here and dimensions in source file
+****
+
+In this case, the length of the paddle is \(1.0\)m and the paddle pivots
+about an origin `m_origin`; here, the pivot is located \(0.1344\)m
+below the bottom and \(0.13\)m from the front wall of the tank. To specify
+the paddle motion, the angular frequency of the motion (\(2 \pi/T\), where
+\(T=1\)s is the wave period), and the wave paddle stroke at the water
+surface (\(S=0.1\)m) are given in the variables `mb_omega` and
+`mb_amplitude`.
+
+To change the stroke and the frequency of the wave paddle, you must change these variables
+in the test-case definition file, `src/problems/WaveTank.cu`.
+
+****
+#TODO# these should be customizable via command-line parameters
+****
+
+////
+TODO
+Figure \ref{fig:WaveTank} shows a screenshot of the simulation at time $9s$.
+
+\iffalse
+\begin{figure}[h]
+\centering{%
+\includegraphics[width=0.63\textwidth]{paddle.png}%
+}
+\caption{Schematic of the wave paddle for \cmd{WaveTank.cc}}
+\end{figure}
+\else
+%\todo{paddle picture}
+\fi
+
+\begin{figure}[h]
+  \begin{center}
+    \includegraphics[scale=0.35, trim={0 200 0 200},clip]{../fig/waveTank_screenshot.png}
+    \caption{Screenshot of the WaveTank simulation at time $9s$.}\label{fig:WaveTank}
+  \end{center}
+\end{figure}
+////
+
+****
+#TODO# document custom command-line parameters
+****

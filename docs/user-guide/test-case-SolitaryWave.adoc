@@ -1,0 +1,14 @@
+== ++SolitaryWave++
+
+SolitaryWave is similar in set up to the <<WaveTank>> example,
+except that a piston moving boundary is used.
+The motion of a vertical plate is determined by the method of cite:[goring_tsunamis_1979],
+available in PDF format from http://caltechkhr.library.caltech.edu/50/
+
+The full excursion (stroke) of the paddle is the variable `S`.
+
+****
+#TODO#: stroke should be configurable from the command-line
+****
+
+

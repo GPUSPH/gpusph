@@ -1,0 +1,7 @@
+== GPUSPH License
+
+GPUSPH is free software, licensed under the GNU General Public License, version 3.
+
+....
+include::../GPLv3.txt[]
+....

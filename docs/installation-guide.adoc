@@ -1,4 +1,4 @@
-= GPUSPH Installation Guide
+= GPUSPH Installation and Quick Start Guide
 :toc: left
 include::defines.adoc[]
 :sectnums:
@@ -6,19 +6,7 @@ v{version}
 
 == Introduction
 
-{url-project}[GPUSPH] is a computational engine for weakly-compressible Smoothed Particle Hydrodynamics (SPH).
-It was the first implementation of WCSPH to run entirely on GPU, using NVIDIA's CUDA technology.
-Since its first release, it has grown to support a large variety of SPH formulations,
-and a more extensive coverage of computational fluid dynamics
-(including fluid/structure interaction (FSI) and a selection of non-Newtonian rheological models).
-All features are supported both in single- and multi-GPU mode,
-including the possibility to distribute computation across multiple nodes in a cluster
-through MPI.
-
-With version 6.0, we have introduced the possibility to run GPUSPH on CPU (_CPU backend_)
-as an alternative to NVIDIA GPUs (_CUDA backend_).
-The CPU backend supports several options for parallel and distributed computing
-(user-controlled multi-threading, OpenMP and MPI).
+include::common-introduction.adoc[]
 
 == Operating system support
 
@@ -35,6 +23,9 @@ This allows users that not need those features to run GPUSPH without installing 
 
 With the introduction of the CPU backend in GPUSPH v6.0, even CUDA is not a hard dependency anymore,
 although it is highly recommended, for performance reasons, to use the CUDA backend whenever possible.
+
+IMPORTANT: this guide does not provide instructions on how to install these dependencies;
+please refer to the corresponding installation guides or your distribution package manager for further details.
 
 === Must-have
 
@@ -53,27 +44,37 @@ it should be sufficient to install the `build-essential` and `libthrust-dev` pac
 
 === Optional requirements [[optional]]
 
-* the NVIDIA CUDA Software Development Kit, version 8 or higher, to enable the CUDA backend
-  (build and run GPUSPH on NVIDIA GPUs);
-
+* the https://developer.nvidia.com/cuda-downloads[NVIDIA CUDA Toolkit], version 8 or higher,
+  to enable the CUDA backend (build and run GPUSPH on NVIDIA GPUs);
++
 NOTE: due to the version requirement for CUDA, GPUSPH is only supported on Kepler architecture GPUs
 (compute capability 3.0) or newer.
 
 * an MPI library (and corresponding header files), to enable multi-node support in GPUSPH;
   GPUSPH has been tested with OpenMPI, MPICH and MVAPICH2;
-
++
 NOTE: Multi-GPU on a single machine is supported even _without_ MPI.
 
 * {url-chrono}[Project Chrono], version 5 or higher, to enable support fully coupled fluid/structure interaction;
-
++
 NOTE: Bodies with a prescribed motion are supported even _without_ Chrono.
 
 * a compiler with OpenMP support, to enable OpenMP on the CPU backend;
-
++
 NOTE: the CPU backend can run multi-threaded also without OpenMP, by using the `--device` command-line option
 to specify the number of threads to run.
 
 * the HDF5 library (and corresponding header files), to enable the H5Sph reader;
+
+=== Auxiliary tools
+
+By default, GPUSPH test-cases write their results in https://www.vtk.org[VTK] format.
+For visualization and post-processing we recommend using https://www.paraview.org[ParaView]
+(the go-to choice by GPUSPH developers)
+or other similar software such as https://visit-dav.github.io/visit-website/[VisIt].
+
+GPUSPH also come with some sample processing scripts,
+mostly written in https://www.python.org/[Python].
 
 == Getting GPUSPH
 
@@ -100,7 +101,8 @@ If you intend to keep up with GPUSPH development, or wish to contribute, you sho
 [source,shell,subs="+attributes"]
 .Example: setting up the working directory from git
 ----
-git clone {url-github} # use {url-git} if you have enabled SSH access on GitHub
+# use {url-git} if you have enabled SSH access on GitHub
+git clone {url-github}
 cd gpusph
 ----
 
@@ -188,7 +190,7 @@ NOTE: you can also pass the `--version` and `--help` command-line options to any
 All test cases support the command-line options listed by `--help`.
 Some test cases support additional, problem-specific command-line options.
 
-See the link:user-guide.html[GPUSPH User Guide] for additional details
+See the xref:user-guide[GPUSPH User Guide] for additional details
 about the default test-cases, and for instructions about building your own.
 
 
@@ -257,7 +259,7 @@ mpi:: enables (`1`) or disables (`0`) multi-node support;
  if it's not auto-detected, you can <<mpi-override,set up the appropriate override>> to help the configuration process
 linearization:: select the order in which coordinates are processed for linearization (e.g. `xzy`);
  this can have a significant impact on multi-GPU and multi-node performance, based on the problem splitting direction;
-chrono:: enables (`1`) or disables (`1`) fluid/solid interaction through Project Chrono;
+chrono:: enables (`1`) or disables (`0`) fluid/solid interaction through Project Chrono;
  this is automatically enabled if the Chrono library and header files are found;
  if it's not auto-detected, you can <<chrono-override,set up the appropriate override>> to help the configuration process;
 hdf5:: enables (`1`) or disables (`0`) HDF5 support;

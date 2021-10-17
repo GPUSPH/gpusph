@@ -1,0 +1,87 @@
+== GPUSPH project history
+
+The first seed of what would become GPUSPH was developed by Alexis Hérault,
+and presented for the first time at the 3^rd^ SPHERIC Workshop in Lausanne, Switzerland in 2008.
+cite:[herault_laval_2008]
+
+The motivation to use graphic processing units (GPUs) as computing platform for weakly-compressible SPH
+was motivated by a combination of the embarrassingly parallel nature of the standard WCSPH formulation,
+due to each particle computing the material derivatives of its properties directly,
+and the growing accessibility and computational power of GPUs,
+driven by the demands for fast, realistic rendering of animated three-dimensional graphic
+for gaming.
+
+Earlier implementations of particle systems (including SPH) being simulated on GPUs
+leveraging a mix of graphics shaders and CPU code to compensate for their limitations
+can be found as early as 2004 (TODO refs),
+but it's the introduction of CUDA by NVIDIA in 2007 that revolutionized GPU computing,
+allowing the entire computationa logic to be run on the new unified shaders,
+without involving the three-dimensional rendering engine,
+through a developer-friendly extension to the familiar {cpp} programming languge.
+
+Although inspired feature-wise by http://www.sphysics.org/[SPHysics],
+the well-known FORTRAN implementation of WCSPH,
+the code that would later become GPUSPH was written entirely from scratch in CUDA {cpp},
+using programming patterns and paradigms specific to the language,
+and designed from the get-go to run on CUDA-enabled GPUs.
+
+The GPU implementation was largely driven by GPU-LAVA, a specialized version of the code
+aimed at the simulation of lava flows, developed mainly by Alexis Hérault and Giuseppe Bilotta
+at the Istituto Nazionale di Geofisica e Vulanologia (INGV) in Catania, Italy.
+This version was coded around several assumptions, such as purely laminar, viscous flow
+(thereby making do without artificial viscosity or turbulence model),
+with limited vertical development
+(thus using a 2D auxiliary grid for particle sorting, despite being a fully three-dimesional code
+without shallow water approximation).
+
+A general-purpose version was also developed in parallel with GPU-LAVA,
+stripped of the lava-specific assumptions and features,
+and enriched by the support for artificial viscosity, turbulence models
+and the possibility to add moving parts such as pistons, paddles and gates.
+This code, intially called GPU-SPHysics, was developed in cooperation with
+Prof. Robert A. Dalrymple at the Johns Hopkints University in Baltimore, MD (USA).
+cite:[dalrymple_levee_2009,herault_modeling_2009,herault_sph_2010].
+
+GPUSPH v1.0 was first released in 2011.
+Simulations could be run with real-time rendering using OpenG
+and the possibility to take screeshots during the simulation.
+Moving bodies were limited to fixed motion patterns (pistons, paddles, gates).
+
+GPUSPH v2.0 was first released in 2012.
+Introduces support for moving bodies with generic imposed motion,
+optimizations for the Fermi architeture,
+a faster neighbors list construction,
+and new sample test case.
+
+GPUSPH v3.0 was first released in 2014.
+This huge release saw the start of a much more active participation of partners such as
+the Coastal Studies Institude (CSI), Électricité de France (EDF), and the Bundesanstalt für Wasserbau (BAW)
+in the development of GPUSPH.
+It introduces wave gages, semi-analytical boundary conditions,
+floating objects (fully coupled fluid/structure interaction) using https://www.ode.org/[ODE],
+and support for multi-GPU and multi-node simulations.
+The graphical interface was removed (due to design incompatibilities with the multi-device support),
+and replaced by the `UDPWriter`, that sends packets over UDP for visualization via external tools
+such as https://github.com/kgamiel/seewaves[seewaves].
+
+GPUSPH v4.0 was first released in 2016.
+This release replaces ODE with Project Chrono for moving objects,
+introduces the new API for test case definition (`XProblem`),
+and adds features such as hot-start, debug flags,
+and several improvements, optimizations and bug-fixes.
+
+GPUSPH v5.0 was first released in 2019.
+Major features include support for the dummy boundary model,
+support for the Hu & Adams multi-fluid formulation,
+non-Newtonian rheological models, and the concept of versioned APIs for the `Problem` class.
+
+GPUSPH v6.0, the current version, was first released in 2021.
+Major features include support for fluid/structure interaction with deformable bodies
+through the Finite Element Analysis module of Project Chrono,
+the possibility to define truly 2D and 1D problems,
+support for running on CPU in addition to NVIDIA GPUs,
+and the possibility to build the entire source code (both host and device parts)
+using the Clang compiler.
+A new neighbors traversal implementation also led to significant improved runtimes
+(between 2 and 5 times faster depending on hardware, framework options and number of particles).
+

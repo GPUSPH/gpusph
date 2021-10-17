@@ -1,0 +1,45 @@
+== ++DamBreak3D++
+
+This test case was originally used by cite:[gomez-gesteira_using_2004]
+to test a prototype version of SPHysics.
+It is based on some experiments done by cite:[arnason_interactions_2005]
+at the University of Wshington.
+
+We assume an instantaneous breaking dam and the resulting flow impinging
+onto a rectangular object. The whole problem is contained within a
+bounding box, which extends \(1.6\)m in length (\(x\) axis), \(0.67\)m in
+width (\(y\) axis), and \(0.4\)m in height. This is the experimental box.
+The fluid behind the dam is a rectangular box of water at one end of the
+tank at time equal to zero. The dam is assumed to break instantaneously
+so that the column of water, confined on three sides, collapses into the
+tank. In the tank there is a vertical rectangular object -- the
+collapsing water column impacts on the tank and then flows up the front
+face of the object and around the sides. Finally the water hits the back
+wall of the tank.
+
+////
+TODO
+A screenshot of the simulation at time $0.6s$ is provided
+in the Figure \ref{fig:DamBreak3D}.
+\begin{figure}[h]
+  \begin{center}
+    \includegraphics[scale=0.3, trim={100 100 100 100},clip]{../fig/damBreak3D_screenshot.png}
+    \caption{Screenshot of the DamBreak3D simulation at time $0.6s$.}\label{fig:DamBreak3D}
+  \end{center}
+\end{figure}
+////
+
+This test case supports a number of custom command-line options:
+[horizontal]
+wet:: start with a wet floor (default: `false`);
+use_planes:: define the experiment box using geometric planes rather than particles (default: `false`);
+use_ccsph:: adopt the Conservative Corrective SPH formulation (default: `true`);
+num_obstacles:: change the number of obstacles in the domain (default: `1`);
+rotate_obstacle:: rotate the obstacle by half a right angle (default: `true`);
+num_testpoints:: change the number of testpoints used to sample pressure (default: `3`);
+density-diffusion:: specify the density diffusion to use (default: Molteni & Colagrossi);
+
+////
+TODO
+turn Molteni & Colagrossi into a reference
+////

@@ -1,0 +1,13 @@
+{url-project}[GPUSPH] is a computational engine for weakly-compressible Smoothed Particle Hydrodynamics (SPH).
+It was the first implementation of WCSPH to run entirely on GPU, using NVIDIA's CUDA technology.
+Since its first release, it has grown to support a large variety of SPH formulations,
+and a more extensive coverage of computational fluid dynamics
+(including fluid/structure interaction (FSI) and a selection of non-Newtonian rheological models).
+All features are supported both in single- and multi-GPU mode,
+including the possibility to distribute computation across multiple nodes in a cluster
+through MPI.
+
+Starting from version 6.0, GPUSPH has gained the capability to run entirely on CPU (_CPU backend_)
+as an alternative to NVIDIA GPUs (_CUDA backend_).
+The CPU backend supports several options for parallel and distributed computing
+(user-controlled multi-threading, OpenMP and MPI).

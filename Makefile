@@ -1561,13 +1561,20 @@ Makefile.conf: $(ACTUAL_OPTFILES)
 # The `docs` target builds the AsciiDoctor one, the old LaTeX-based one can
 # still be built either manually or through the `dev-guide` and `user-guide` targets.
 
-INSTALLATION_GUIDE := $(DOCSDIR)/installation-guide.html
-
-$(DOCSDIR)/%.html: $(DOCSDIR)/%.adoc $(DOCSDIR)/defines.adoc
+$(DOCSDIR)/%.html: $(DOCSDIR)/%.adoc $(DOCSDIR)/defines.adoc $(DOCSDIR)/common-introduction.adoc
+	$(call show_stage,DOCS,$(basename $@))
 	$(CMDECHO)asciidoctor $<
 
+INSTALLATION_GUIDE := $(DOCSDIR)/installation-guide.html
+USER_GUIDE := $(DOCSDIR)/user-guide.html
+PROBLEM_LIST_DOCS := DamBreak3D DamBreakGate OpenChannel WaveTank SolitaryWave Seiche DEMExample
+
+$(USER_GUIDE): $(patsubst %,$(DOCSDIR)/user-guide/test-case-%.adoc,$(PROBLEM_LIST_DOCS))
+$(USER_GUIDE): $(DOCSDIR)/user-guide/appendix-history.adoc
+$(USER_GUIDE): $(DOCSDIR)/appendix-license.adoc
+
 # target: docs - Generate the offline documentation
-docs: $(INSTALLATION_GUIDE)
+docs: $(INSTALLATION_GUIDE) $(USER_GUIDE)
 
 # target: dev-guide - Generate the developers' guide
 dev-guide:
@@ -1582,7 +1589,7 @@ user-guide:
 # target: docsclean - Remove $(DOCSDIR)
 docsclean:
 	$(CMDECHO)rm -rf $(DOCSDIR)/dev-guide/html/ $(DOCSDIR)/user-guide/gpusph-manual.pdf
-	$(CMDECHO)rm -rf $(INSTALLATION_GUIDE)
+	$(CMDECHO)rm -rf $(INSTALLATION_GUIDE) $(USER_GUIDE)
 
 #----- Documentation build system end
 

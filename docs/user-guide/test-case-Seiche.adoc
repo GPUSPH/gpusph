@@ -1,0 +1,55 @@
+== ++Seiche++
+
+The `Seiche` test-case shows the influence of shaking on a
+rectangular container of size
+\(\ell = 0.707\)m, \(w = \ell/2\), and depth \(H = 0.5\)m.
+
+This test-case shows the ability to model varying external body forces in GPUSPH.
+This is done by enabling `gcallback` in the simulation params:
+[source,cpp]
+----
+simparams()->gcallback = true;
+----
+and defining a `g_callback` member function for the test case class.
+(The `g` stands for ‘gravity’, since in most test-cases the only external body force
+is the gravity.)
+
+This function takes the current time \(t\) as input (a `double`),
+and sets the new value for the accleration given by the external forces
+(using `set_gravity`), and returning its value as a `float3`,
+which can be done e.g. with
+[soure,cpp]
+----
+return get_gravity();
+----
+
+In the `Seiche` test case there is water in the container,
+and the container itself is at rest, under the influence of standrd Earth gravity.
+
+After `m_gtstart`\(= 0.3\)s, gravity is modified by adding a component in the \(x\) direction,
+[source,cpp]
+----
+set_gravity(3.*sin(9.8*(t-m_gtstart)), 0.0, -9.81f);
+----
+to represent the container being shaken with a sinusoidal motion
+with angular frequency \(9.8\text{s}^{-1}\) (period \(0.64\)s), and magnitude \(3\text{m}/\text{s}^2\),
+until time `m_gtend`\(=3.0\)s is reached,
+when the gravity vector once again returns to the standard vertical acceleration of gravity.
+After this time, the seiching motion starts to decrease in amplitude.
+
+////
+TODO
+\iffalse
+\begin{figure}[h]
+\centering{%
+\includegraphics[scale=0.5]{Seiche.png}%
+}
+\caption{Resonant seiching in a rectangular domain showing the results
+of a time varying gravity in the problem, \cmd{Seiche.cc}. Here the tank has
+been shaking side to side at the resonant frequency of $0.638$s. The
+color coding is for the pressure in the fluid.}
+\end{figure}
+\else
+%\todo{seiche picture}
+\fi
+////

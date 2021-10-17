@@ -1,0 +1,11 @@
+== ++DEMExample++
+
+This is an example showing how to use GPUSPH's support for Digital Elevation Models (DEMs).
+It loads the topography of the bottom of the domain from a file called `half_wave0.1m.txt`, shipped with GPUSPH.
+A different DEM can be used, either by changing the name in the source `src/problems/DEMExample.cu` file,
+or by providing the new name as argument to the `--dem`  command-line option to GPUSPH.
+
+////
+TODO figure, maybe more documentation?
+////
+
