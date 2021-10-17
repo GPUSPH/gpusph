@@ -3,6 +3,7 @@ Makefile.gpu
 Makefile.local
 Makefile.conf
 options
+docs/*.html
 docs/dev-guide/html
 docs/user-guide/*pdf
 docs/user-guide/src/*bbl

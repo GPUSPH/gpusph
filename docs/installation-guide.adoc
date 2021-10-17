@@ -1,0 +1,288 @@
+= GPUSPH Installation Guide
+:toc: left
+include::defines.adoc[]
+:sectnums:
+v{version}
+
+== Introduction
+
+{url-project}[GPUSPH] is a computational engine for weakly-compressible Smoothed Particle Hydrodynamics (SPH).
+It was the first implementation of WCSPH to run entirely on GPU, using NVIDIA's CUDA technology.
+Since its first release, it has grown to support a large variety of SPH formulations,
+and a more extensive coverage of computational fluid dynamics
+(including fluid/structure interaction (FSI) and a selection of non-Newtonian rheological models).
+All features are supported both in single- and multi-GPU mode,
+including the possibility to distribute computation across multiple nodes in a cluster
+through MPI.
+
+With version 6.0, we have introduced the possibility to run GPUSPH on CPU (_CPU backend_)
+as an alternative to NVIDIA GPUs (_CUDA backend_).
+The CPU backend supports several options for parallel and distributed computing
+(user-controlled multi-threading, OpenMP and MPI).
+
+== Operating system support
+
+GPUSPH is developed primarily on Linux, with some support for macOS.
+It can be built and run on Windows under the WSL (Windows Subsystem for Linux).
+WSL2 is required to use CUDA GPUs from the WSL, otherwise only the CPU backend will be available.
+
+== Requirements
+
+In developing GPUSPH, an effort has been made to minimize <<Must-have,hard dependencies>> on external libraries and tools.
+Most of the dependencies are thus <<optional,optional>>,
+and the corresponding features will be automatically disabled if they are not found.
+This allows users that not need those features to run GPUSPH without installing additional software.
+
+With the introduction of the CPU backend in GPUSPH v6.0, even CUDA is not a hard dependency anymore,
+although it is highly recommended, for performance reasons, to use the CUDA backend whenever possible.
+
+=== Must-have
+
+As of version {version}, the tools and libraries that are *required* to build GPUSPH are:
+
+* GNU Make, version 4.0 or later;
+* a {cpp} compiler with support for {cpp}11;
+  GPUSPH has been tested with the GNU compiler and Clang;
+* the {url-thrust}[Thrust] library;
+  this is distributed with CUDA,
+  but may also be installed separately if needed;
+* common command-line utitlities such as `sed` and `awk`.
+
+On a Debian or Ubuntu systems (including the Windows WSL),
+it should be sufficient to install the `build-essential` and `libthrust-dev` packages.
+
+=== Optional requirements [[optional]]
+
+* the NVIDIA CUDA Software Development Kit, version 8 or higher, to enable the CUDA backend
+  (build and run GPUSPH on NVIDIA GPUs);
+
+NOTE: due to the version requirement for CUDA, GPUSPH is only supported on Kepler architecture GPUs
+(compute capability 3.0) or newer.
+
+* an MPI library (and corresponding header files), to enable multi-node support in GPUSPH;
+  GPUSPH has been tested with OpenMPI, MPICH and MVAPICH2;
+
+NOTE: Multi-GPU on a single machine is supported even _without_ MPI.
+
+* {url-chrono}[Project Chrono], version 5 or higher, to enable support fully coupled fluid/structure interaction;
+
+NOTE: Bodies with a prescribed motion are supported even _without_ Chrono.
+
+* a compiler with OpenMP support, to enable OpenMP on the CPU backend;
+
+NOTE: the CPU backend can run multi-threaded also without OpenMP, by using the `--device` command-line option
+to specify the number of threads to run.
+
+* the HDF5 library (and corresponding header files), to enable the H5Sph reader;
+
+== Getting GPUSPH
+
+GPUSPH is distributed in source-code form.
+There are no ready-to-run packages. Each test-case is compiled for the specific backend and architecture on the user machine(s),
+in order to provide optimal performance.
+
+=== Setting up the working directory [[workdir-setup]]
+
+The public version of GPUSPH is available on {url-github}[GitHub].
+You can fetch the source code for the current release (v{version}) {url-tag}[from the GitHub tag page],
+as either a {url-archive}.zip[zip package] or {url-archive}.tar.gz[gzipped tarball].
+
+[source,shell,subs="+attributes"]
+.Example: setting up the working directory from the tarball
+----
+wget {url-archive}.tar.gz -O gpusph-{version}.tar.gz
+tar xzf gpusph-{version}.tar.gz
+cd gpusph-{version}
+----
+
+If you intend to keep up with GPUSPH development, or wish to contribute, you should use https://git-scm.org[git]
+
+[source,shell,subs="+attributes"]
+.Example: setting up the working directory from git
+----
+git clone {url-github} # use {url-git} if you have enabled SSH access on GitHub
+cd gpusph
+----
+
+NOTE: the zip package and tarball create a working directory named `gpusph-{version}`,
+whereas `git` creates a working directory named `gpusph`.
+
+== Building GPUSPH
+
+From the <<<workdir-setup,GPUSPH working directory>>, just run
+
+[source,shell]
+----
+make
+----
+
+to build the default test case (`DamBreak3D`), or run
+
+[source,shell]
+----
+make test
+----
+
+to build _and_ run it.
+
+=== Building and running test cases
+
+You can get a list of available test cases (`Problem` in GPUSPH terminology) using
+[source,shell]
+----
+make list-problems
+----
+and building any of them using
+[source,shell,subs="+quotes"]
+----
+make _ProblemName_
+----
+where `_ProblemName_` is the name of the test case you want to build, e.g.
+[source,shell,subs="+quotes"]
+----
+make LidDrivenCavity2D
+----
+
+You can specify multiple test-cases to build them concurrently.
+Each problem will be compiled to its own executable, that you can run at any time, e.g.
+[source,shell]
+----
+./LidDrivenCavity2D
+----
+
+CAUTION: Some test-cases may requires features such as Chrono to be enabled;
+they will fail to build and/or run if the correspondig feature is disabled.
+Further down you can find details about <<Customizing your installation>>
+to enable the required features,
+assuming the correct <<optional,dependencies>> are installed and can be found,
+as well as <<overrides,instructions on how to help the build system find some dependencies>>.
+
+[NOTE]
+====
+Some test-cases require external data files.
+If you are connected to the internet, you can fetch them by running
+[source,shell]
+----
+scripts/get-data-files
+----
+from the GPUSPH working directory.
+====
+
+For historical reasons, when building a single test case, a symbolic link to it, named `GPUSPH`, is created.
+You can run the test case through the symlink, but this usage is discouraged.
+You can check which test-case `GPUSPH` links to
+(as well as other information about the version of GPUSPH, the backend used, etc)
+by using
+[source,shell]
+----
+./GPUSPH --version
+----
+
+A full list of the command-line options supported by GPUSPH can be found by
+[source,shell]
+----
+./GPUSPH --help
+----
+
+NOTE: you can also pass the `--version` and `--help` command-line options to any test-case.
+All test cases support the command-line options listed by `--help`.
+Some test cases support additional, problem-specific command-line options.
+
+See the link:user-guide.html[GPUSPH User Guide] for additional details
+about the default test-cases, and for instructions about building your own.
+
+
+== Customizing your installation
+
+The GPUSPH build system is designed to auto-configure most settings,
+while still giving control to the user over most aspects.
+By default (i.e. when the user does not explicitly set <<Build options,options>>
+or <<Build overrides,overrides>>),
+it will look for <<optional,optional packages>> in a number of possible locations,
+and auto-enabled the corresponding features.
+
+You can run
+
+[source,shell]
+----
+make show
+----
+
+to show the current configuration.
+
+[NOTE]
+====
+If you need to {url-github}issues/[report an issue],
+it's a good idea to attach the output of `make show` to your bug report.
+You can save the output of the command to disk, together with any warnings or errors
+
+----
+make show > make-show.log 2>&
+----
+
+and then attach `make-show.log` to your report.
+====
+
+If the automatic configuration is not to your liking, or one of the <<optional,optional packages>>
+was not found automatically, you can customize the configuration through the use of
+<<options,options>> and <<overrides,overrides>>.
+
+=== Build options [[options]]
+
+Build options can be set when running `make` to override program-wide optionts such as the backend to be used,
+or which features should be enabled/disabled. You can run
+
+[source,shell]
+----
+make option=value
+----
+
+(possibly with multiple `option=value` pairs) to change the value from the default.
+
+NOTE: trying to enable a feature for which auto-detection failed to find the corresponding library
+will lead to errors. Use <<overrides,overrides>> to help the library detection find the correct
+headers.
+
+Common build options are:
+[horizontal]
+backend:: selects the backend; accepted values are currently `cuda` and `cpu`;
+ the `cuda` backend is automatically selected if the NVIDIA CUDA Toolkit is found;
+ if it's not auto-detected, you can <<cuda-override,set up the appropriate override>> to help the configuration process;
+compute:: selects the compute capability for which the GPU code should be built, when using the `cuda` backend;
+ the default is auto-detected from the GPUs available on the system; the expected value is a two-digit number
+ such as `61` for the NVIDIA GeForce GTX 1080, or `75` for the NVIDIA TITAN RTX
+openmp:: enables (`1`) or disables (`0`) OpenMP support for the `cpu` backend;
+mpi:: enables (`1`) or disables (`0`) multi-node support;
+ this is automatically enabled if a supported MPI implementation is found;
+ if it's not auto-detected, you can <<mpi-override,set up the appropriate override>> to help the configuration process
+linearization:: select the order in which coordinates are processed for linearization (e.g. `xzy`);
+ this can have a significant impact on multi-GPU and multi-node performance, based on the problem splitting direction;
+chrono:: enables (`1`) or disables (`1`) fluid/solid interaction through Project Chrono;
+ this is automatically enabled if the Chrono library and header files are found;
+ if it's not auto-detected, you can <<chrono-override,set up the appropriate override>> to help the configuration process;
+hdf5:: enables (`1`) or disables (`0`) HDF5 support;
+ this is automatically enabled if the HDF5 library and header files are found;
+ if it's not auto-detected, you can <<hdf5-override,set up the appropriate overrides>> to help the configuration process.
+
+Run `make help-options` for a complete list of available options.
+
+
+=== Compile-time flags and path overrides [[overrides]]
+
+If auto-detection fails of a library fails, or find the wrong version of a library is found,
+you can override the automatic configuration by creating a `Makefile.local` file in the working directory
+and setting appropriate variables there.
+
+Some common overrides are:
+[horizontal]
+[[cuda-override]]CUDA_INSTALL_PATH:: path to where the NVIDIA CUDA Toolkit has been installed;
+ this is frequently something like `/usr/local/cuda-MAJOR.MINOR`,
+ where `MAJOR` and `MINOR` are the major and minor version of the toolkit;
+ example: `CUDA_INSTALL_PATH=/usr/local/cuda-11.4`;
+[[mpi-override]]MPICXX:: full path to the MPI compiler;
+[[chrono-override]]CHRONO_PATH:: path to the location where Project Chrono is installed;
+[[hdf5-override]]HDF5_CPP:: preprocessor flags needed to find and use the HDF5 headers;
+HDF5_CXX:: compiler flags needed to build programs with HDF5;
+HDF5_LD:: linker flags needed to link programs to the HDF5 library;
+
+Run `make help-overrides` for a complete list of available overrides.

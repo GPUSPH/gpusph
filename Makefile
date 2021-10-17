@@ -1553,11 +1553,21 @@ Makefile.conf: $(ACTUAL_OPTFILES)
 	$(CMDECHO)# recover value of USE_CATALYST from OPTFILES
 	$(CMDECHO)grep "\#define USE_CATALYST" $(CATALYST_SELECT_OPTFILE) | cut -f2-3 -d ' ' | tr ' ' '=' >> $@
 
-# TODO docs should also build the user-guide, but since we don't ship images
-# this can't be normally done, so let's not include this for the time being.
+
+#---- Documentation build system
 #
-# target: docs - Generate the developers' guide
-docs: dev-guide
+# TODO FIXME at the moment we're transitioning from the old LaTeX-based documentation
+# to the new AsciiDoctor-based documentation.
+# The `docs` target builds the AsciiDoctor one, the old LaTeX-based one can
+# still be built either manually or through the `dev-guide` and `user-guide` targets.
+
+INSTALLATION_GUIDE := $(DOCSDIR)/installation-guide.html
+
+$(DOCSDIR)/%.html: $(DOCSDIR)/%.adoc $(DOCSDIR)/defines.adoc
+	$(CMDECHO)asciidoctor $<
+
+# target: docs - Generate the offline documentation
+docs: $(INSTALLATION_GUIDE)
 
 # target: dev-guide - Generate the developers' guide
 dev-guide:
@@ -1572,6 +1582,9 @@ user-guide:
 # target: docsclean - Remove $(DOCSDIR)
 docsclean:
 	$(CMDECHO)rm -rf $(DOCSDIR)/dev-guide/html/ $(DOCSDIR)/user-guide/gpusph-manual.pdf
+	$(CMDECHO)rm -rf $(INSTALLATION_GUIDE)
+
+#----- Documentation build system end
 
 # target: tags - Create TAGS file
 tags: TAGS cscope.out

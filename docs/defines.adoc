@@ -1,0 +1,13 @@
+:version: 6.0
+:url-project: https://www.gpusph.org/
+:url-forum: https://gpusph.discourse.group/
+:url-github: https://github.com/GPUSPH/gpusph/
+:url-git: git@github.com:GPUSPH/gpusph/
+:url-tag: {url-github}releases/tags/v{version}
+:url-archive: {url-github}archive/refs/tags/v{version}
+
+:cpp: C++
+:url-thrust: https://thrust.github.io/
+:url-chrono: https://www.projectchrono.org/
+
+:stem: latexmath
