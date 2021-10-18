@@ -130,14 +130,13 @@ void print_usage() {
 	cout << " --deltap : Use given deltap (VAL is cast to float)\n";
 	cout << " --tend : Break at given time (VAL is cast to float)\n";
 	cout << " --dt : Use the provided fixed time-step (VAL is cast to float)\n";
-	cout << " --csph-min-det : Use given minimum determnant for CCSPH (VAL is cast to float)\n";
+	cout << " --ccsph-min-det : Use given minimum determinant for CCSPH (VAL is cast to float)\n";
 	cout << " --maxiter : Break after this many iterations (integer VAL)\n";
 	cout << " --dir : Use given directory for dumps instead of date-based one\n";
-	cout << " --pin : Use given directory for dumps instead of date-based one\n";
 	cout << " --pin-fea-buffers : Force pinning of FEA buffers (default)\n";
 	cout << " --no-pin-fea-buffers : Disable pinning of FEA buffers\n";
 	cout << " --nosave : Disable all file dumps but the last\n";
-	cout << " --gpudirect: Enable GPUDirect for RDMA (requires a CUDA-aware MPI library)\n";
+	cout << " --gpudirect : Enable GPUDirect for RDMA (requires a CUDA-aware MPI library)\n";
 	cout << " --striping : Enable computation/transfer overlap  in multi-GPU (usually convenient for 3+ devices)\n";
 	cout << " --asyncmpi : Enable asynchronous network transfers (requires GPUDirect and 1 process per device)\n";
 	cout << " --num-hosts : Specify number of hosts. To be used if #processes > #hosts (VAL is cast to uint)\n";
@@ -155,8 +154,8 @@ void print_usage() {
 	cout << " --repack-only : run the repacking and stop\n";
 	cout << " --repack-maxiter : repacking breaks after this many iterations (integer VAL)\n";
 	cout << " --from-repack : run from a previous repack file\n";
-	cout << " --note TEXT: Add a note to the output directory with the specified TEXT as content\n";
-	cout << " --help: Show this help and exit\n";
+	cout << " --note : Add a note to the output directory with the specified TEXT as content\n";
+	cout << " --help : Show this help and exit\n";
 }
 
 /// Parse command line options
