@@ -78,6 +78,11 @@ class Rect: public Object {
 
 		void BodyCreate(::chrono::ChSystem *bodies_physical_system, const double dx, const bool collide,
 			const EulerParameters & orientation_diff)
-		{ throw std::runtime_error("Rect::BodyCreate not implemented !"); };
+		{
+			if (Object::world_dimensions == 2)
+				Object::BodyCreate(bodies_physical_system, dx, collide, orientation_diff);
+			else
+				throw std::runtime_error("Rect::BodyCreate not implemented !");
+		};
 };
 #endif	/* _RECT_H */
