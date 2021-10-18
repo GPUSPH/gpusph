@@ -135,7 +135,7 @@ public:
 	//! fetch the next neighbor
 	//! This always returns false, since this is not a true iterator
 	__device__ __forceinline__
-	constexpr bool next() const
+	bool next() const
 	{ return false; }
 
 	//! Neighbor sequential offset
