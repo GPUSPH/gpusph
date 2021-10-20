@@ -1584,7 +1584,7 @@ ProblemCore::create_problem_dir(void)
 		char new_dir[] = { '/', 'r', 'e', 's', 'u', 'm', 'e', '0', '0', '0', 0 };
 		string candidate;
 		cout << "Resuming into same directory, looking for next candidate" << endl;
-#define MAX_RESUMES 1000
+#define MAX_RESUMES 999
 		for ( ; resume_count < MAX_RESUMES; ++resume_count) {
 			snprintf(new_dir + 7, 4, "%03u", resume_count);
 			candidate = m_problem_dir + new_dir;
