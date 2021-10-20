@@ -509,17 +509,6 @@ const char* ParticleTypeName[PT_NONE]
 	"testpoint"
 };
 
-//! Symbols of the particle types
-// TODO these should probably go in particleinfo.h in a similar manner to the particledefine.h names
-const char ParticleTypeSym[PT_NONE]
-= {
-	'F',
-	'B',
-	'V',
-	'T'
-};
-
-
 void
 VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, double t, const bool testpoints)
 {
@@ -592,7 +581,7 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, dou
 			 * of each type for the particle.
 			 */
 			neibs	<< i << "\t" << id(info[i])
-				<< " (" << ParticleTypeSym[PART_TYPE(info[i])] << ")";
+				<< " (" << particle_type_sym(info[i]) << ")";
 			// raw output first
 #if NL_INTERLEAVED
 			for (uint index = i; index < m_neiblist_end; index += m_neiblist_stride) {

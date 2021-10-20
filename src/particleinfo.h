@@ -404,11 +404,27 @@ particleinfo make_particleinfo_by_ids(
  *
  * \return particle type
  */
-static __forceinline__ __host__ __device__ __attribute__((pure))
+static constexpr __forceinline__ __host__ __device__ __attribute__((pure))
 const ushort& type(	const particleinfo &info	///< Particle info
 		)
 {
 	return info.x;
+}
+
+/// Describe a particle type with a single letter
+static constexpr __host__ __device__ __forceinline__ __attribute__((pure))
+char particle_type_sym(ParticleType ptype)
+{
+	return ptype == PT_FLUID	? 'F' :
+		ptype == PT_BOUNDARY	? 'B' :
+		ptype == PT_VERTEX		? 'V' :
+		ptype == PT_TESTPOINT	? 'T' : '-';
+}
+
+static constexpr __host__ __device__ __forceinline__ __attribute__((pure))
+char particle_type_sym(particleinfo const& pinfo)
+{
+	return particle_type_sym(PART_TYPE(pinfo));
 }
 
 /// Returns particle object number
