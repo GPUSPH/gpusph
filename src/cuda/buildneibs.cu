@@ -101,12 +101,13 @@ struct ptype_hash_compare :
  *	\tparam boundarytype : type of boundary
  *	\tparam periodicbound : type of periodic boundaries (0 ... 7)
  *	\tparam neibcount : true if we want to compute actual neighbors number
+ *	\tparam debug_planes : true if we want to warn if particles end up behind the planes or DEM
 
  *	\ingroup neibs
 */
 template<Dimensionality dimensions,
 	SPHFormulation sph_formulation, typename ViscSpec, BoundaryType boundarytype, Periodicity periodicbound, flag_t simflags,
-	bool neibcount>
+	bool neibcount, bool debug_planes>
 class CUDANeibsEngine : public AbstractNeibsEngine
 {
 public:
@@ -328,7 +329,7 @@ const	float		boundNlSqInflRad)
 	const uint numBlocks = div_up(particleRangeEnd, numThreads);
 
 	using buildNeibsListDevice = cuneibs::buildNeibsListDevice<dimensions,
-		sph_formulation, ViscSpec, boundarytype, periodicbound, simflags, neibcount>;
+		sph_formulation, ViscSpec, boundarytype, periodicbound, simflags, neibcount, debug_planes>;
 
 	execute_kernel(
 		buildNeibsListDevice(bufread, bufwrite, numParticles, sqinfluenceradius, boundNlSqInflRad),

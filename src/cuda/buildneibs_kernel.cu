@@ -1069,10 +1069,54 @@ struct reorderDataAndFindCellStartDevice :
 }
 };
 
+/// Warn if a particle is behind the DEM
+/*! The check is enabled only with the --debug planes option,
+ *  otherwise no actual check is done
+ */
+template<bool debug_planes, typename Params_t>
+__device__ __forceinline__
+enable_if_t<debug_planes>
+warnIfBehindDEM(Params_t const& params, float r, int index)
+{
+	if (r < 0) {
+		int part_id = id(params.fetchInfo(index));
+		printf("Particle %d id %d behind DEM!\n", index, part_id);
+	}
+}
+
+/// Don't warn if particle is behind the DEM
+template<bool debug_planes, typename Params_t>
+__device__ __forceinline__
+enable_if_t<!debug_planes>
+warnIfBehindDEM(Params_t const& params, float r, int index)
+{ return; }
+
+/// Warn if a particle is behind a plane
+/*! The check is enabled only with the --debug planes option,
+ *  otherwise no actual check is done
+ */
+template<bool debug_planes, typename Params_t>
+__device__ __forceinline__
+enable_if_t<debug_planes>
+warnIfBehindPlane(Params_t const& params, float r, int index, int p)
+{
+	if (r < 0) {
+		int part_id = id(params.fetchInfo(index));
+		printf("Particle %d id %d behind plane %d!\n", index, part_id, p);
+	}
+}
+
+/// Don't warn if a particle is behind a plane
+template<bool debug_planes, typename Params_t>
+__device__ __forceinline__
+enable_if_t<!debug_planes>
+warnIfBehindPlane(Params_t const& params, float r, int index, int p)
+{ return; }
+
 /// Find the planes within the influence radius of the particle
 /*! If neither ENABLE_PLANES nor ENABLE_DEM are active, do nothing
  */
-template<BoundaryType boundarytype, flag_t simflags>
+template<bool debug_planes, BoundaryType boundarytype, flag_t simflags>
 __device__ __forceinline__
 enable_if_t<!HAS_DEM_OR_PLANES(simflags)>
 findNeighboringPlanes(
@@ -1084,7 +1128,7 @@ findNeighboringPlanes(
 
 /// Check if the DEM is in range
 /*! Do nothing if not ENABLE_DEM */
-template<BoundaryType boundarytype, flag_t simflags>
+template<bool debug_planes, BoundaryType boundarytype, flag_t simflags>
 __device__ __forceinline__
 enable_if_t<!HAS_DEM(simflags), bool>
 isDemInRange(
@@ -1096,7 +1140,7 @@ isDemInRange(
 
 /// Check if the DEM is in range
 /*! Actual check in case DEM is enabled */
-template<BoundaryType boundarytype, flag_t simflags>
+template<bool debug_planes, BoundaryType boundarytype, flag_t simflags>
 __device__ __forceinline__
 enable_if_t<HAS_DEM(simflags), bool>
 isDemInRange(
@@ -1110,8 +1154,7 @@ isDemInRange(
 	const float globalZ = d_worldOrigin.z + (gridPos.z + 0.5f)*d_cellSize.z + pos.z;
 	const float globalZ0 = cugeom::DemInterpol(params, demPos);
 	const float r = globalZ - globalZ0;
-	if (r < 0)
-		printf("Particle %d id %d behind DEM!\n", index, (int)id(params.fetchInfo(index)));
+	warnIfBehindDEM<debug_planes>(params, r, index);
 	return (r*r < params.sqinfluenceradius);
 }
 
@@ -1119,7 +1162,7 @@ isDemInRange(
 /*! If ENABLE_PLANES or ENABLE_DEM are active, go over each defined plane
  * and see if the distance is within the required radius
  */
-template<BoundaryType boundarytype, flag_t simflags>
+template<bool debug_planes, BoundaryType boundarytype, flag_t simflags>
 __device__ __forceinline__
 enable_if_t<HAS_DEM_OR_PLANES(simflags)>
 findNeighboringPlanes(
@@ -1138,8 +1181,7 @@ findNeighboringPlanes(
 	if ( HAS_PLANES(simflags) ) {
 		for (int p = 0; p < d_numplanes; ++p) {
 			float r = signedPlaneDistance(gridPos, pos, d_plane[p]);
-			if (r < 0)
-				printf("Particle %d behind plane %d!\n", index, p);
+			warnIfBehindPlane<debug_planes>(params, r, index, p);
 			if (r*r < params.sqinfluenceradius) {
 				store[neib_planes++] = p;
 				if (neib_planes > 3) break;
@@ -1148,7 +1190,7 @@ findNeighboringPlanes(
 	}
 
 	if ( HAS_DEM(simflags) && neib_planes < 4 ) {
-		if (isDemInRange(params, gridPos, pos, index)) {
+		if (isDemInRange<debug_planes>(params, gridPos, pos, index)) {
 			store[neib_planes++] = MAX_PLANES;
 		}
 	}
@@ -1260,6 +1302,7 @@ count_neighbors(const uint *neibs_num)
 template<Dimensionality dimensions, SPHFormulation sph_formulation, typename ViscSpec, BoundaryType boundarytype, Periodicity periodicbound,
 	flag_t simflags,
 	bool neibcount,
+	bool debug_planes,
 	/* nmber of dimensions */
 	int dims = space_dimensions_for(dimensions),
 	/* range of z to search for neibs */
@@ -1367,7 +1410,7 @@ struct buildNeibsListDevice : params_t
 			}
 		}
 
-		findNeighboringPlanes(params, gridPos, pdata.pos, index);
+		findNeighboringPlanes<debug_planes>(params, gridPos, pdata.pos, index);
 	} while (0);
 
 	// Each of the sections of the neighbor list is terminated by a NEIBS_END. This allow

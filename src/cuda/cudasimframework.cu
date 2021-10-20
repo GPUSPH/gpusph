@@ -235,7 +235,15 @@ public:
 public:
 	CUDASimFrameworkImpl() : SimFramework()
 	{
-		m_neibsEngine = new CUDANeibsEngine<dimensions, sph_formulation, ViscSpec, boundarytype, periodicbound, simflags, true>();
+		if (g_debug.planes) {
+			m_neibsEngine = new CUDANeibsEngine<dimensions, sph_formulation, ViscSpec, boundarytype, periodicbound, simflags,
+				true /* neibcount */,
+				true /* debug_planes */>();
+		} else {
+			m_neibsEngine = new CUDANeibsEngine<dimensions, sph_formulation, ViscSpec, boundarytype, periodicbound, simflags,
+				true /* neibcount */,
+				false /* debug_planes */>();
+		}
 		m_integrationEngine = new CUDAPredCorrEngine<sph_formulation, boundarytype, kerneltype, ViscSpec, simflags>();
 		m_viscEngine = new CUDAViscEngine<ViscSpec, kerneltype, boundarytype, simflags>();
 		m_forcesEngine = new CUDAForcesEngine<kerneltype, sph_formulation, densitydiffusiontype, ViscSpec, boundarytype, simflags, dimensions>();
