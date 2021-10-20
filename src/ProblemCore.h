@@ -177,11 +177,14 @@ class ProblemCore
 		double3	m_cellsize;		// Size of grid cells
 		uint3	m_gridsize;		// Number of grid cells along each axis
 
-		//! Number of particles that were placed outside of the domain
-		//  during initialization.
-		//  (Mutable because this is debug information that we collect during
-		//   the execution of calc_localpos_and_hash(), which is const
+		//! Number of particles that were placed outside of the domain during initialization.
+		//! (Mutable because this is debug information that we collect during
+		//!  the execution of calc_localpos_and_hash(), which is const)
 		mutable size_t m_out_of_bounds_count;
+		//! Number of particles that have a non-finite (global) position during initialization
+		//! (Mutable because this is debug information that we collect during
+		//!  the execution of calc_localpos_and_hash(), which is const)
+		mutable size_t m_nan_pos_count;
 
 		//! \inpsection{discretisation}
 		//! \default{-1}

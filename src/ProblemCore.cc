@@ -2295,6 +2295,8 @@ void
 ProblemCore::calc_localpos_and_hash(const Point& pos, const particleinfo& info, float4& localpos, hashKey& hash) const
 {
 	static bool warned_out_of_bounds = false;
+	static bool warned_nan_pos = false;
+
 	// check if the particle is actually inside the domain
 	if (
 		(pos(0) < m_origin.x || pos(0) > m_origin.x + m_size.x ||
@@ -2304,10 +2306,30 @@ ProblemCore::calc_localpos_and_hash(const Point& pos, const particleinfo& info, 
 		++m_out_of_bounds_count;
 		if (!warned_out_of_bounds) {
 			const uint pid = id(info);
+			const string ptype = " type " + std::to_string(PART_TYPE(info)) + "=" + std::to_string(particle_type_sym(info));
+
 			stringstream errmsg;
-			errmsg << "Particle " << pid << " position " << make_double4(pos)
+			errmsg << "Particle " << pid << ptype << " position " << make_double4(pos)
 				<< " is outside of the domain " << m_origin << "--" << (m_origin+m_size) ;
 			warned_out_of_bounds = true;
+			if (g_debug.validate_init_positions)
+				throw std::out_of_range(errmsg.str());
+			else
+				cerr << errmsg.str() << endl;
+		}
+	}
+
+	if (!isfinite(pos(0) + pos(1) + pos(2)))
+	{
+		++m_nan_pos_count;
+		if (!warned_nan_pos) {
+			const uint pid = id(info);
+			const string ptype = " type " + std::to_string(PART_TYPE(info)) + "=" + std::to_string(particle_type_sym(info));
+
+			stringstream errmsg;
+			errmsg << "Particle " << pid << ptype << " position " << make_double4(pos)
+				<< " is not finite" ;
+			warned_nan_pos = true;
 			if (g_debug.validate_init_positions)
 				throw std::out_of_range(errmsg.str());
 			else
@@ -2335,6 +2357,9 @@ ProblemCore::show_out_of_bounds() const
 			g_debug.check_cell_overflow = 1;
 			cerr << "will check for cell overflow" << endl;
 		}
+	}
+	if (m_nan_pos_count > 0) {
+		cerr << m_out_of_bounds_count << " particles had NaN initial position" << endl;
 	}
 }
 
