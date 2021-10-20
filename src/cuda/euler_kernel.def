@@ -836,8 +836,8 @@ struct nanCheckDevice : EP
 	const float4 vel0 = params.oldVel[index];
 
 
-	printf("%d id %d (%d) @ %d %d %d : %g %g %g . %g -> %g %g %g . %g v %g %g %g . %g -> %g %g %g . %g f %g %g %g . %g\n",
-		index, id(info), (int)PART_TYPE(info),
+	printf("%10u id %10u (%u | %4x) @ %4u %4u %4u : %16.9g %16.9g %16.9g . %16.9g -> %16.9g %16.9g %16.9g . %16.9g v %16.9g %16.9g %16.9g . %16.9g -> %16.9g %16.9g %16.9g . %16.9g f %16.9g %16.9g %16.9g . %16.9g\n",
+		index, id(info), int(PART_TYPE(info)), int(PART_FLAGS(info)),
 		gridPos.x, gridPos.y, gridPos.z,
 		pos0.x, pos0.y, pos0.z, pos0.w,
 		pos.x, pos.y, pos.z, pos.w,
