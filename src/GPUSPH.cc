@@ -1797,7 +1797,7 @@ void GPUSPH::doWrite(WriteFlags const& write_flags)
 		const particleinfo pinfo = info[i];
 
 		if (!warned_nan_pos && !(isfinite(dpos.x) && isfinite(dpos.y) && isfinite(dpos.z))) {
-			fprintf(stderr, "WARNING: particle %u (id %u, type %u (%c)) has NAN position! (%g, %g, %g) @ (%u, %u, %u) = (%g, %g, %g) at iteration %lu, time %g\n",
+			fprintf(stderr, "WARNING: particle %u (id %u, type %u=%c) has NAN position! (%g, %g, %g) @ (%u, %u, %u) = (%g, %g, %g) at iteration %lu, time %g\n",
 				i, id(pinfo), PART_TYPE(pinfo), particle_type_sym(pinfo),
 				pos.x, pos.y, pos.z,
 				gridPos.x, gridPos.y, gridPos.z,
