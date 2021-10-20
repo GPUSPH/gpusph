@@ -1099,7 +1099,7 @@ size_t GPUSPH::allocateGlobalHostBuffers()
 
 	if (HAS_FEA(problem->simparams()->simflags)) {
 		gdata->s_hBuffers.addBuffer<HostBuffer, BUFFER_FEA_FORCES>();
-		gdata->s_hBuffers.addBuffer<HostBuffer, BUFFER_FEA_VEL>();
+		gdata->s_hBuffers.addBuffer<HostBuffer, BUFFER_FEA_VEL>(0);
 	}
 
 	// number of elements to allocate
