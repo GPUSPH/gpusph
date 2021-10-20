@@ -652,7 +652,7 @@ class ProblemCore
 		void set_body_angularvel(const Object*, const double3&);
 
 		void InitializeChrono(void);
-		void SetFeaReady(void);
+		void SetFeaReady(bool resumed, BufferList&);
 		void FinalizeChrono(void);
 
 		//! Callback to initialize the Chrono system

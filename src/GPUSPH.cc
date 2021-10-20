@@ -527,8 +527,7 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 	}
 
 	if (HAS_FEA(_sp->simflags))
-		gdata->problem->SetFeaReady();
-
+		problem->SetFeaReady(resumed, gdata->s_hBuffers);
 
 	if (!resumed && _sp->sph_formulation == SPH_GRENIER)
 		problem->init_volume(gdata->s_hBuffers, gdata->totParticles);

@@ -288,7 +288,7 @@ ProblemCore::initializeChronoSystem(::chrono::ChSystem *chrono_system)
 }
 
 void
-ProblemCore::SetFeaReady()
+ProblemCore::SetFeaReady(bool resumed, BufferList& bufwrite)
 {
 #if USE_CHRONO == 1
 
@@ -310,6 +310,12 @@ ProblemCore::SetFeaReady()
 		create_fea_nodes_file();
 	if (simparams()->numConstraintsToWrite)
 		create_fea_constr_file();
+
+	if (!resumed) {
+		auto fea_vel = bufwrite.get<BUFFER_FEA_VEL>();
+		fea_vel->clobber();
+		fea_vel->mark_valid();
+	}
 
 #endif
 }
