@@ -1,5 +1,4 @@
-DIRS=gpusph-install \
-     gpusph-setup \
+DIRS=gpusph-setup \
      gpusph-theory \
      gpusph-valid
 
