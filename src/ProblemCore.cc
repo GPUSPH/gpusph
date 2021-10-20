@@ -848,6 +848,13 @@ ProblemCore::transfer_fea_motion(BufferList &buffers, const uint numFeaParts, co
 
 			// to be sent to the SPH particle system
 			fea_vel[i] = node_vel;
+			if (g_debug.nans){
+				if (!isfinite(node_vel.x + node_vel.y + node_vel.z))
+					printf("i:%u\tobject: %u\tnode: %u\tvel:%g, %g, %g -> %g, %g, %g\n",
+						i, o, n,
+						m_old_fea_vel[i].x, m_old_fea_vel[i].y, m_old_fea_vel[i].z,
+						node_vel.x, node_vel.y, node_vel.z);
+			}
 
 			// store the most recent fea vel to be used dusing the fea_every SPH steps
 			// TODO we could send it once and reuse in the gpu, but we would apply a 
