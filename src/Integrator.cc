@@ -101,7 +101,7 @@ Integrator::buildNeibsPhase(flag_t import_buffers)
 {
 	const SimParams* sp = gdata->problem->simparams();
 
-	import_buffers |= PARTICLE_SUPPORT_BUFFERS | BUFFER_FEA_VEL;
+	import_buffers |= PARTICLE_SUPPORT_BUFFERS;
 
 	// Some buffers can be shared between the sorted and unsorted state, because
 	// they are not directly tied to the particles themselves, but the particle system
