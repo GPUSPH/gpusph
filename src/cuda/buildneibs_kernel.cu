@@ -138,6 +138,11 @@ struct common_niC_vars
 	const	uint	gridHash;		///< Hash value of grid position
 	const	uint	bucketStart;	///< Index of first particle in cell
 	const	uint	bucketEnd;		///< Index of last particle in cell
+	const	float3	pos_corr;       ///< corrected position of the central particle
+			uint	neib_index;		///< current neib index
+	particleinfo	neib_info;		///< current neib info
+	ParticleType	neib_type;		///< current neib type
+			bool	encode_cell;	///< should next neib encode the cell too?
 
 	/// Constructor
 	/*!	Computes structure members value according to the grid position.
@@ -146,11 +151,18 @@ struct common_niC_vars
 	__device__ __forceinline__
 	common_niC_vars(
 		buildneibs_params<boundarytype, simflags> const& bparams,
-		int3 const& gridPos		///< [in] position in the grid
-					) :
+		int3 const& gridPos,	///< [in] position in the grid
+		int3 const& gridOffset,
+		float3 const& pos )
+	:
 		gridHash(calcGridHash(gridPos)),
 		bucketStart(bparams.fetchCellStart(gridHash)),
-		bucketEnd(bparams.fetchCellEnd(gridHash))
+		bucketEnd(bparams.fetchCellEnd(gridHash)),
+		// Substract gridOffset*cellsize to pos so we don't need to do it each time
+		// we compute relPos respect to potential neighbor
+		pos_corr(pos - gridOffset*d_cellSize),
+		neib_index(bucketStart),
+		encode_cell(true)
 	{}
 };
 
@@ -214,13 +226,41 @@ struct niC_vars :
 {
 	template<flag_t simflags>
 	__device__ __forceinline__
+	void load_neib_info( buildneibs_params<boundarytype, simflags> const& bparams )
+	{
+		neib_info = bparams.fetchInfo(neib_index);
+		neib_type = PART_TYPE(neib_info);
+	}
+
+	template<flag_t simflags>
+	__device__ __forceinline__
 	niC_vars(
-		int3 const& gridPos,
+		buildneibs_params<boundarytype, simflags> const& bparams,
 		const uint index,
-		buildneibs_params<boundarytype, simflags> const& bparams) :
-		common_niC_vars(bparams, gridPos),
+		int3 const& gridPos,
+		int3 const& gridOffset,
+		float3 const& pos)
+	:
+		common_niC_vars(bparams, gridPos, gridOffset, pos),
 		COND_STRUCT(boundarytype == SA_BOUNDARY, sa_boundary_niC_vars)(index, bparams)
-	{}
+	{
+		if (bucketStart != CELL_EMPTY)
+			load_neib_info(bparams);
+	}
+
+	//! Check if the neighbor index we're at corresponds to a neighbor of the specified type
+	template<ParticleType nptype, flag_t simflags>
+	__device__ __forceinline__
+	bool on_neib_of_type(buildneibs_params<boundarytype, simflags> const& bparams)
+	{
+		// we're done? then the type is irrelevant 8-)
+		if (neib_index >= bucketEnd) return false;
+
+		// ok, we have a neighbor. load the data and check the type
+		load_neib_info(bparams);
+		return neib_type == nptype;
+	}
+
 };
 /** @} */
 
@@ -402,9 +442,9 @@ calcNeibCell(
  * 	\return : true if the distance is < to the squared influence radius, false otherwise
  * 	\tparam boundarytype : the boundary model used
  */
-template<BoundaryType boundarytype, flag_t simflags>
+template<ParticleType nptype, BoundaryType boundarytype, flag_t simflags>
 __device__ __forceinline__
-enable_if_t<boundarytype != SA_BOUNDARY, bool>
+enable_if_t<boundarytype != SA_BOUNDARY || nptype != PT_BOUNDARY, bool>
 isCloseEnough(float3 const& relPos, particleinfo const& neib_info,
 	buildneibs_params<boundarytype, simflags> const& params)
 {
@@ -412,18 +452,18 @@ isCloseEnough(float3 const& relPos, particleinfo const& neib_info,
 	return sqlength(relPos) < params.sqinfluenceradius;
 }
 
-/// Specialization of isCloseEnough for SA boundaries
-/// \see isCloseEnough
-template<BoundaryType boundarytype, flag_t simflags>
+/// Specialization of isCloseEnough for SA boundaries and PT_BOUNDARY neighbors
+/// In this case, the comparison is madeagainst boundNlSqInflRad,
+/// which is typically larger (because the boundary particle 'representing'
+/// an intersected boundary element may be further than the influence radius
+template<ParticleType nptype, BoundaryType boundarytype, flag_t simflags>
 __device__ __forceinline__
-enable_if_t<boundarytype == SA_BOUNDARY, bool>
+enable_if_t<boundarytype == SA_BOUNDARY && nptype == PT_BOUNDARY, bool>
 isCloseEnough(float3 const& relPos, particleinfo const& neib_info,
 	buildneibs_params<boundarytype, simflags> const& params)
 {
-	const float rp2(sqlength(relPos));
 	// Include boundary neighbors which are a little further than sqinfluenceradius
-	return (rp2 < params.sqinfluenceradius ||
-		(rp2 < params.boundNlSqInflRad && BOUNDARY(neib_info)));
+	return sqlength(relPos) < params.boundNlSqInflRad;
 }
 
 
@@ -483,19 +523,21 @@ process_niC_segment(const uint index, const uint neib_id, float3 const& relPos,
 }
 
 /// Offset location of the nth neighbor of type neib_type
+template<ParticleType nptype>
 __device__ __forceinline__
-constexpr uint neibListOffset(uint neib_num, ParticleType neib_type)
+constexpr uint neibListOffset(uint neib_num)
 {
-	return	(neib_type == PT_FLUID) ? neib_num :
-			(neib_type == PT_BOUNDARY) ? d_neibboundpos - neib_num :
-			/* neib_type == PT_VERTEX */ neib_num + d_neibboundpos + 1;
+	return	(nptype == PT_FLUID) ? neib_num :
+			(nptype == PT_BOUNDARY) ? d_neibboundpos - neib_num :
+			/* nptype == PT_VERTEX */ neib_num + d_neibboundpos + 1;
 }
 
 /// Same as above, picking the neighbor index from the type-indexed neibs_num array
+template<ParticleType nptype>
 __device__ __forceinline__
-uint neibListOffset(uint* neibs_num, ParticleType neib_type)
+uint neibListOffset(uint* neibs_num)
 {
-	return	neibListOffset(neibs_num[neib_type], neib_type);
+	return	neibListOffset<nptype>(neibs_num[nptype]);
 }
 
 /// Check if we have too many neighbors of the given type
@@ -508,25 +550,118 @@ uint neibListOffset(uint* neibs_num, ParticleType neib_type)
  * consistency with the other particle types, and thus simplifying loops over
  * neighbors), the effective number must be strictly less than that limit.
  */
+template<ParticleType nptype>
 __device__ __forceinline__
-bool too_many_neibs(const uint* neibs_num, ParticleType neib_type)
+bool too_many_neibs(const uint* neibs_num)
 {
-	switch (neib_type) {
-	case PT_FLUID:
+	return
 		/* We give priority to the PT_FLUID particles, so we consider an overflow
 		 * for them withount considering the number of boundary particles.
 		 * Full checks will find the overflow anyway from the PT_BOUNDARY check.
 		 */
-		return !(neibs_num[PT_FLUID] < d_neibboundpos);
-	case PT_BOUNDARY:
-		return !(neibs_num[PT_FLUID] + neibs_num[PT_BOUNDARY] < d_neibboundpos);
-	case PT_VERTEX:
-		// TODO : possible optimization: there's no need to check for PT_VERTEX if not SA
-		return !(neibs_num[PT_VERTEX] < d_neiblistsize - d_neibboundpos - 1);
-	default:
-		// should never happen
-		return true;
+		nptype == PT_FLUID    ? !(neibs_num[PT_FLUID] < d_neibboundpos) :
+		nptype == PT_BOUNDARY ? !(neibs_num[PT_FLUID] + neibs_num[PT_BOUNDARY] < d_neibboundpos) :
+		nptype == PT_VERTEX   ? !(neibs_num[PT_VERTEX] < d_neiblistsize - d_neibboundpos - 1) :
+		true;
+}
+
+/// Find neighbors of a given type in a given cell
+/*! This function handles the neighbor-type specific aspect of \see neibsInCell,
+ * for everything except PT_VERTEX particles on non-SA boundaries
+ */
+template<ParticleType nptype,
+SPHFormulation sph_formulation, typename ViscSpec, BoundaryType boundarytype, flag_t simflags>
+__device__ __forceinline__
+enable_if_t< (boundarytype == SA_BOUNDARY) || (nptype != PT_VERTEX) >
+neibsInCellOfType(
+			buildneibs_params<boundarytype, simflags> const& params,			// build neibs parameters
+			niC_vars<boundarytype>& var,
+			const uchar		cell,		// cell number (0 ... 26)
+			const uint		index,		// current particle index
+			uint*			neibs_num,	// number of neighbors for the current particle
+			const bool		segment,	// true if the current particle belongs to a segment
+			const bool		fea,	// true if the current particle belongs to a FEA body
+			const bool		boundary)	// true if the current particle is a boundary particle
+{
+	var.encode_cell = true;
+
+	for ( ; var.on_neib_of_type<nptype>(params); ++var.neib_index) {
+
+		// Prevent self-interaction
+		if (var.neib_index == index) continue;
+
+		// LJ boundary particles should not have any boundary neighbor, except when
+		// rheologytype is GRANULAR.
+		// If we are here is because a FLOATING LJ boundary needs neibs.
+		if (boundary)
+			if (nptype == PT_BOUNDARY && boundarytype == LJ_BOUNDARY && ViscSpec::rheologytype != GRANULAR)
+				continue;
+
+		// With dynamic boundaries, boundary parts don't interact with other boundary parts
+		// except for Grenier's formulation, where the sigma computation needs all neighbors
+		// to be enumerated
+		// TODO FIXME FEA why the discrepancy between LJ and DYN?
+		if (boundary && !fea && !DEFORMABLE(var.neib_info))
+			if (nptype == PT_BOUNDARY && boundarytype == DYN_BOUNDARY && sph_formulation != SPH_GRENIER)
+				continue;
+
+		const pos_mass neib = params.fetchPos(var.neib_index);
+
+		// Skip inactive particles
+		if (is_inactive(neib))
+			continue;
+
+		// Compute relative position between particle and potential neighbor
+		const float3 relPos = var.pos_corr - neib.pos;
+
+		// Check if the squared distance is smaller than the squared influence radius
+		// used for neighbor list construction
+		const bool close_enough = isCloseEnough<nptype>(relPos, var.neib_info, params);
+
+		if (!close_enough)
+			continue;
+
+		// OK, it's close enough
+
+		/* The previous number of neighbors is the index of the current neighbor,
+		 * use it to get the offset where it will be placed in the list */
+		const uint offset = neibListOffset<nptype>(neibs_num);
+		neibs_num[nptype]++;
+
+		/* We only store the neighbor if we don't have too many.
+		 * End-of-list markers and overflow counts will be managed
+		 * after the list has been built */
+		if (!too_many_neibs<nptype>(neibs_num))
+		{
+			const int neib_bucket_offset = var.neib_index - var.bucketStart;
+			const int encode_offset = var.encode_cell ? ENCODE_CELL(cell) : 0;
+			params.neibsList[ITH_NEIGHBOR_DEVICE(index, offset)] = neib_bucket_offset + encode_offset;
+			var.encode_cell = false;
+		}
+
+		// SA-specific
+		// TODO FIXME this should only be invoked if the neighbor is a PT_BOUNDARY neighbor, right?
+		if (segment)
+			process_niC_segment(index, id(var.neib_info), relPos, params, var);
 	}
+
+}
+
+template<ParticleType nptype,
+SPHFormulation sph_formulation, typename ViscSpec, BoundaryType boundarytype, flag_t simflags>
+__device__ __forceinline__
+enable_if_t< (boundarytype != SA_BOUNDARY) && (nptype == PT_VERTEX) >
+neibsInCellOfType(
+			buildneibs_params<boundarytype, simflags> const& params,			// build neibs parameters
+			niC_vars<boundarytype>& var,
+			const uchar		cell,		// cell number (0 ... 26)
+			const uint		index,		// current particle index
+			uint*			neibs_num,	// number of neighbors for the current particle
+			const bool		segment,	// true if the current particle belongs to a segment
+			const bool		fea,	// true if the current particle belongs to a FEA body
+			const bool		boundary)	// true if the current particle is a boundary particle
+{
+	/* This can't happen */
 }
 
 
@@ -560,10 +695,10 @@ __device__ __forceinline__ void
 neibsInCell(
 			buildneibs_params<boundarytype, simflags> const& params,			// build neibs parameters
 			int3			gridPos,	// current particle grid position
-			const int3		gridOffset,	// cell offset from current particle grid position
+			int3 const&		gridOffset,	// cell offset from current particle grid position
 			const uchar		cell,		// cell number (0 ... 26)
 			const uint		index,		// current particle index
-			float3			pos,		// current particle position
+			float3 const&	pos,		// current particle position
 			uint*			neibs_num,	// number of neighbors for the current particle
 			const bool		segment,	// true if the current particle belongs to a segment
 			const bool		fea,	// true if the current particle belongs to a FEA body
@@ -576,89 +711,27 @@ neibsInCell(
 
 	// Internal variables used by neibsInCell. Structure built on
 	// specialized template of niC_vars.
-	niC_vars<boundarytype> var(gridPos, index, params);
+	niC_vars<boundarytype> var(params, index, gridPos, gridOffset, pos);
 
 	// Return if the cell is empty
 	if (var.bucketStart == CELL_EMPTY)
 		return;
 
-	// Substract gridOffset*cellsize to pos so we don't need to do it each time
-	// we compute relPos respect to potential neighbor
-	pos -= gridOffset*d_cellSize;
+	// Process neighbors by type, leveraging the fact that within cell they are sorted by type
+	if (var.neib_type == PT_FLUID)
+		neibsInCellOfType<PT_FLUID, sph_formulation, ViscSpec, boundarytype, simflags>
+			(params, var, cell, index, neibs_num, segment, fea, boundary);
 
-	// Iterate over all particles in the cell
-	bool encode_cell = true;
+	if (var.neib_type == PT_BOUNDARY)
+		neibsInCellOfType<PT_BOUNDARY, sph_formulation, ViscSpec, boundarytype, simflags>
+			(params, var, cell, index, neibs_num, segment, fea, boundary);
 
-	ParticleType neib_type = PT_FLUID;
-	for (uint neib_index = var.bucketStart; neib_index < var.bucketEnd; neib_index++) {
+	if (boundarytype == SA_BOUNDARY && var.neib_type == PT_VERTEX)
+		neibsInCellOfType<PT_VERTEX, sph_formulation, ViscSpec, boundarytype, simflags>
+			(params, var, cell, index, neibs_num, segment, fea, boundary);
 
-		// Prevent self-interaction
-		if (neib_index == index)
-			continue;
-
-		const particleinfo neib_info = params.fetchInfo(neib_index);
-
-		// Testpoints have a neighbor list, but are not considered in the neighbor list
-		// of other points
-		if (TESTPOINT(neib_info))
-			continue;
-
-		// Force cell encode at each neib type change
-		if (!encode_cell && neib_type != PART_TYPE(neib_info))
-			encode_cell = true;
-		neib_type = PART_TYPE(neib_info);
-
-		// LJ boundary particles should not have any boundary neighbor, except when
-		// rheologytype is GRANULAR.
-		// If we are here is because a FLOATING LJ boundary needs neibs.
-		if (boundarytype == LJ_BOUNDARY && boundary && BOUNDARY(neib_info) &&
-		    ViscSpec::rheologytype != GRANULAR)
-			continue;
-
-		// With dynamic boundaries, boundary parts don't interact with other boundary parts
-		// except for Grenier's formulation, where the sigma computation needs all neighbors
-		// to be enumerated
-		if (boundarytype == DYN_BOUNDARY && sph_formulation != SPH_GRENIER && !DEFORMABLE(neib_info) && !fea) {
-			if (boundary && BOUNDARY(neib_info))
-				continue;
-		}
-
-		// Compute relative position between particle and potential neighbor
-		const pos_mass neib = params.fetchPos(neib_index);
-
-		// Skip inactive particles
-		if (is_inactive(neib))
-			continue;
-
-		const float3 relPos = pos - neib.pos;
-
-		// Check if the squared distance is smaller than the squared influence radius
-		// used for neighbor list construction
-		bool close_enough = isCloseEnough(relPos, neib_info, params);
-
-		if (close_enough) {
-			/* The previous number of neighbors is the index of the current neighbor,
-			 * use it to get the offset where it will be placed in the list */
-			const uint offset = neibListOffset(neibs_num, neib_type);
-			neibs_num[neib_type]++;
-
-			/* Store the neighbor, if there's room. End-of-list markers and overflow
-			 * counts will be managed after the list has been built */
-			if (!too_many_neibs(neibs_num, neib_type)) {
-				int neib_bucket_offset = neib_index - var.bucketStart;
-				int encode_offset = encode_cell ? ENCODE_CELL(cell) : 0;
-				params.neibsList[ITH_NEIGHBOR_DEVICE(index, offset)] =
-					neib_bucket_offset + encode_offset;
-				encode_cell = false;
-			}
-		}
-		if (segment) {
-			process_niC_segment(index, id(neib_info), relPos, params, var);
-		}
-
-	}
-
-	return;
+	// Testpoints have a neighbor list, but are not considered in the neighbor list of other points.
+	// Moreover, since they are sorted last, we can stop iterating over the cell when we come across one
 }
 /** @} */
 
@@ -1420,7 +1493,7 @@ struct buildNeibsListDevice : params_t
 	// In the latter case, we truncate the list at the last useful place, and record one of the particles
 	// so that diagnostic information can be printed about it.
 	if (index < params.numParticles) {
-		bool overflow = too_many_neibs(neibs_num, PT_FLUID);
+		bool overflow = too_many_neibs<PT_FLUID>(neibs_num);
 
 		/* If PT_FLUID neighbors overflowed, we put the marker at the last position, which
 		 * means no PT_BOUNDARY neighbors will be registered
@@ -1428,16 +1501,16 @@ struct buildNeibsListDevice : params_t
 		int marker_pos = overflow ? d_neibboundpos : neibs_num[PT_FLUID];
 		params.neibsList[ITH_NEIGHBOR_DEVICE(index, marker_pos)] = NEIBS_END;
 
-		overflow |= too_many_neibs(neibs_num, PT_BOUNDARY);
+		overflow |= too_many_neibs<PT_BOUNDARY>(neibs_num);
 		/* A marker here is needed only if we didn't overflow, since otherwise the PT_FLUID marker will work
 		 * for PT_BOUNDARY too */
 		if (!overflow) {
-			marker_pos = neibListOffset(neibs_num, PT_BOUNDARY);
+			marker_pos = neibListOffset<PT_BOUNDARY>(neibs_num);
 			params.neibsList[ITH_NEIGHBOR_DEVICE(index, marker_pos)] = NEIBS_END;
 		}
 
 		if (boundarytype == SA_BOUNDARY) {
-			overflow |= too_many_neibs(neibs_num, PT_VERTEX);
+			overflow |= too_many_neibs<PT_VERTEX>(neibs_num);
 			marker_pos = overflow ? d_neiblistsize - 1 : d_neibboundpos + 1 + neibs_num[PT_VERTEX];
 			params.neibsList[ITH_NEIGHBOR_DEVICE(index, marker_pos)] = NEIBS_END;
 		}
