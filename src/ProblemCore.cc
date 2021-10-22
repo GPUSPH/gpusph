@@ -91,6 +91,7 @@ ProblemCore::ProblemCore(GlobalData *_gdata) :
 	m_size(make_double3(NAN, NAN, NAN)),
 	m_origin(make_double3(NAN, NAN, NAN)),
 	m_out_of_bounds_count(0),
+	m_nan_pos_count(0),
 	m_deltap(NAN),
 	m_waterLevel(NAN),
 	m_hydrostaticFilling(true),
@@ -2359,7 +2360,7 @@ ProblemCore::show_out_of_bounds() const
 		}
 	}
 	if (m_nan_pos_count > 0) {
-		cerr << m_out_of_bounds_count << " particles had NaN initial position" << endl;
+		cerr << m_nan_pos_count << " particles had NaN initial position" << endl;
 	}
 }
 
