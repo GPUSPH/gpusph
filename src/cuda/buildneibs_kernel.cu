@@ -218,6 +218,12 @@ struct sa_boundary_niC_vars
 		{ }
 };
 
+#if !CPU_BACKEND_ENABLED
+//! backend for the shared memory cache
+//! it is typed as float4 because this type has stricter alignment requirements than particleinfo
+extern __shared__ float4 buildNeibsShared[];
+#endif
+
 /// Cache the neighbor cell particle data in shared memory
 template<BoundaryType boundarytype, flag_t simflags>
 struct niC_cache
@@ -225,8 +231,15 @@ struct niC_cache
 	using params_t = buildneibs_params<boundarytype, simflags>;
 
 #if !CPU_BACKEND_ENABLED
-	particleinfo neib_info_cache[BLOCK_SIZE_BUILDNEIBS];
-	float4 neib_pos_cache[BLOCK_SIZE_BUILDNEIBS];
+	// pointers into the buildNeibsShared shared memory region
+	float4* neib_pos_cache;
+	particleinfo* neib_info_cache;
+
+	__device__ __forceinline__
+	niC_cache() :
+		neib_pos_cache(buildNeibsShared),
+		neib_info_cache((particleinfo*)(buildNeibsShared + BLOCK_SIZE_BUILDNEIBS))
+	{}
 #endif
 
 	__device__ __forceinline__
@@ -818,7 +831,7 @@ neibsInCell(
 			const bool		central_is_boundary,
 			const bool		central_is_fea)
 {
-	__shared__ niC_cache<boundarytype, simflags> cache;
+	niC_cache<boundarytype, simflags> cache;
 
 	// Compute the grid position of the current cell, and return if it's
 	// outside the domain
@@ -1401,8 +1414,8 @@ enable_if_t<neibcount == true>
 count_neighbors(const uint *neibs_num) // computed number of neighbors per type
 {
 #if CUDA_BACKEND_ENABLED
-	__shared__ uint sm_total_neibs_num[BLOCK_SIZE_BUILDNEIBS];
-	__shared__ uint sm_neibs_max[BLOCK_SIZE_BUILDNEIBS*num_sm_neibs_max];
+	uint *sm_total_neibs_num = (uint*)buildNeibsShared;
+	uint *sm_neibs_max = sm_total_neibs_num + BLOCK_SIZE_BUILDNEIBS;
 #endif
 
 	uint neibs_max[num_sm_neibs_max];
@@ -1426,8 +1439,8 @@ count_neighbors(const uint *neibs_num) // computed number of neighbors per type
 		d_numInteractions += total_neibs_num;
 	}
 #endif
-#else
-	// CUDA_BACKEND_ENABLED
+#else // CUDA_BACKEND_ENABLED
+	BUILD_NEIBS_SYNC; // make sure we're not conflicting with the cache usage
 	sm_total_neibs_num[threadIdx.x] = total_neibs_num;
 	sm_neibs_max[threadIdx.x] = neibs_max[0];
 	if (num_sm_neibs_max > 1)

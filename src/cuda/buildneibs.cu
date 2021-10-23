@@ -338,9 +338,19 @@ const	float		boundNlSqInflRad)
 	using buildNeibsListDevice = cuneibs::buildNeibsListDevice<dimensions,
 		sph_formulation, ViscSpec, boundarytype, periodicbound, simflags, neibcount, debug_planes>;
 
+#if CPU_BACKEND_ENABLED
+	const size_t shMemSize = 0;
+#else
+	// we need enough shared memory to store BLOCK_SIZE_BUILDNEIBS float4 and particleinfo for the cache.
+	// we also use this shared memory for the count_neighbors shared memory arrays, for which we need
+	// to store 1 uint for the total and either 1 or 2 for the per-chunk subtotals (fluid/boundary, and vertex):
+	// 3 uints are less than 1 float4, so the sizing for the cache is sufficient
+	const size_t shMemSize = BLOCK_SIZE_BUILDNEIBS*( sizeof(float4) + sizeof(particleinfo) );
+#endif
+
 	execute_kernel(
 		buildNeibsListDevice(bufread, bufwrite, numParticles, gridCells, sqinfluenceradius, boundNlSqInflRad),
-		numBlocks, numThreads);
+		numBlocks, numThreads, shMemSize);
 
 	if (g_debug.check_cell_overflow) {
 		const uint numBlocksCheck = div_up(gridCells, numThreads);
