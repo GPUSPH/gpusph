@@ -63,12 +63,16 @@ struct common_buildneibs_params :
 	const	hashKey		* __restrict__ particleHash;			///< particle's hashes (in)
 			neibdata	* __restrict__ neibsList;				///< neighbor's list (out)
 	const	uint		numParticles;			///< total number of particles
+#if CUDA_BACKEND_ENABLED
+	const	uint		numCells;
+#endif
 	const	float		sqinfluenceradius;		///< squared influence radius
 
 	common_buildneibs_params(
 		const	BufferList&	bufread,
 				BufferList& bufwrite,
 		const	uint		_numParticles,
+		const	uint		_numCells,
 		const	float		_sqinfluenceradius)
 	:
 		pos_info_wrapper(bufread),
@@ -76,6 +80,9 @@ struct common_buildneibs_params :
 		particleHash(bufread.getData<BUFFER_HASH>()),
 		neibsList(bufwrite.getData<BUFFER_NEIBSLIST>()),
 		numParticles(_numParticles),
+#if CUDA_BACKEND_ENABLED
+		numCells(_numCells),
+#endif
 		sqinfluenceradius(_sqinfluenceradius)
 	{}
 };
@@ -137,12 +144,13 @@ struct buildneibs_params :
 		const	BufferList&	bufread,
 				BufferList& bufwrite,
 		const	uint		_numParticles,
+		const	uint		_numCells,
 		const	float		_sqinfluenceradius,
 
 		// SA_BOUNDARY
 		const	float	_boundNlSqInflRad) :
 		common_buildneibs_params(bufread, bufwrite,
-			_numParticles, _sqinfluenceradius),
+			_numParticles, _numCells, _sqinfluenceradius),
 		cond_planes_params(bufwrite),
 		cond_dem_params(), // dem_params automatically initialize from the global DEM object
 		cond_sa_params(bufread, bufwrite, _boundNlSqInflRad)

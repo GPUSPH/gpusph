@@ -84,21 +84,21 @@
 	#define MIN_BLOCKS_CALCHASH		4
 	#define BLOCK_SIZE_REORDERDATA	256
 	#define MIN_BLOCKS_REORDERDATA	4
-	#define BLOCK_SIZE_BUILDNEIBS	256
+	#define BLOCK_SIZE_BUILDNEIBS	32
 	#define MIN_BLOCKS_BUILDNEIBS	4
 #elif (__COMPUTE__ >= 20)
 	#define BLOCK_SIZE_CALCHASH		256
 	#define MIN_BLOCKS_CALCHASH		6
 	#define BLOCK_SIZE_REORDERDATA	256
 	#define MIN_BLOCKS_REORDERDATA	6
-	#define BLOCK_SIZE_BUILDNEIBS	256
+	#define BLOCK_SIZE_BUILDNEIBS	32
 	#define MIN_BLOCKS_BUILDNEIBS	5
 #else
 	#define BLOCK_SIZE_CALCHASH		256
 	#define MIN_BLOCKS_CALCHASH		1
 	#define BLOCK_SIZE_REORDERDATA	256
 	#define MIN_BLOCKS_REORDERDATA	1
-	#define BLOCK_SIZE_BUILDNEIBS	256
+	#define BLOCK_SIZE_BUILDNEIBS	32
 	#define MIN_BLOCKS_BUILDNEIBS	1
 #endif
 
@@ -1384,7 +1384,7 @@ template<Dimensionality dimensions, SPHFormulation sph_formulation, typename Vis
 >
 __device__ __forceinline__
 void
-buildNeibsListOfParticle(uint index, params_t const& params)
+buildNeibsListOfParticle(uint index, params_t const& params, const uint numParticlesInBlock)
 {
 	// Number of neighbors for the current particle for each neighbor type.
 	// One slot per supported particle type
@@ -1393,7 +1393,7 @@ buildNeibsListOfParticle(uint index, params_t const& params)
 	// Rather than nesting if's, use a do { } while (0) loop with breaks
 	// for early bail outs
 	do {
-		if (index >= params.numParticles)
+		if (index >= numParticlesInBlock)
 			break;
 
 		// Read particle info from texture
@@ -1466,7 +1466,7 @@ buildNeibsListOfParticle(uint index, params_t const& params)
 	// of a given type were encountered, or when too many neighbors were found, to avoid overflowing.
 	// In the latter case, we truncate the list at the last useful place, and record one of the particles
 	// so that diagnostic information can be printed about it.
-	if (index < params.numParticles) {
+	if (index < numParticlesInBlock) {
 		bool overflow = too_many_neibs<PT_FLUID>(neibs_num);
 
 		/* If PT_FLUID neighbors overflowed, we put the marker at the last position, which
@@ -1522,20 +1522,47 @@ struct buildNeibsListDevice : params_t
 		const	BufferList&	bufread,
 				BufferList& bufwrite,
 		const	uint		numParticles,
+		const	uint		numCells,
 		const	float		sqinfluenceradius,
 
 		// SA_BOUNDARY
 		const	float	boundNlSqInflRad)
 	:
-		params_t(bufread, bufwrite, numParticles, sqinfluenceradius, boundNlSqInflRad)
+		params_t(bufread, bufwrite, numParticles, numCells, sqinfluenceradius, boundNlSqInflRad)
 	{}
 
 	__device__ void operator()(simple_work_item item) const
 {
-	const uint index = item.get_id();
-
+#if CPU_BACKEND_ENABLED
 	buildNeibsListOfParticle<dimensions, sph_formulation, ViscSpec, boundarytype, periodicbound, simflags,
-		neibcount, debug_planes>(item.get_id(), *this);
+		neibcount, debug_planes>(item.get_id(), *this, numParticles);
+#else
+	// On GPU, each block takes care of all the particles in a single cell
+	// TODO we might want to find a way to detect empty cells and distribute the workload
+	// in a more homogeneous manner
+	// TODO cells typically have less than 32 particles in fact, so even with BLOCK_SIZE_BUILDNEIBS 32
+	// we're going to waste some resources
+	const uint cell_index = blockIdx.x;
+
+	// This shouldn't happen now, but might when we change the logic
+	if (cell_index >= this->numCells) return;
+
+	// First thing first, find the range of particles that this block needs to take care of
+	uint base_idx = this->fetchCellStart(cell_index);
+	const uint end_idx = this->fetchCellEnd(cell_index);
+
+	// if the cell is empty, we're done
+	if (base_idx == CELL_EMPTY) return;
+
+	// Each work-item in the work-group takes care of one particle:
+	// note that we pass end_idx so that the particle neighbors list construction
+	// will abort if we're past the end of the current cell
+	while (base_idx < end_idx) {
+		buildNeibsListOfParticle<dimensions, sph_formulation, ViscSpec, boundarytype, periodicbound, simflags,
+			neibcount, debug_planes>(base_idx + threadIdx.x, *this, end_idx);
+		base_idx += BLOCK_SIZE;
+	}
+#endif
 }
 };
 

@@ -315,6 +315,9 @@ sort(	BufferList const& bufread,
  *  @{ */
 
 /// Build neibs list
+/// \note this kernel is launched differently on CPU and on GPU:
+/// on CPU, we launch a work-item per particle (as usual),
+/// while on GPU we launch a work-group per cell
 void
 buildNeibsList(
 const	BufferList&	bufread,
@@ -326,13 +329,17 @@ const	float		sqinfluenceradius,
 const	float		boundNlSqInflRad)
 {
 	const uint numThreads = BLOCK_SIZE_BUILDNEIBS;
+#if CPU_BACKEND_ENABLED
 	const uint numBlocks = div_up(particleRangeEnd, numThreads);
+#else
+	const uint numBlocks = gridCells;
+#endif
 
 	using buildNeibsListDevice = cuneibs::buildNeibsListDevice<dimensions,
 		sph_formulation, ViscSpec, boundarytype, periodicbound, simflags, neibcount, debug_planes>;
 
 	execute_kernel(
-		buildNeibsListDevice(bufread, bufwrite, numParticles, sqinfluenceradius, boundNlSqInflRad),
+		buildNeibsListDevice(bufread, bufwrite, numParticles, gridCells, sqinfluenceradius, boundNlSqInflRad),
 		numBlocks, numThreads);
 
 	if (g_debug.check_cell_overflow) {
