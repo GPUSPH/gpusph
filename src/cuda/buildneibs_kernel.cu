@@ -1527,7 +1527,8 @@ struct buildNeibsListDevice : params_t
 			if (old == -1) {
 				d_hasMaxNeibs[PT_FLUID] = neibs_num[PT_FLUID];
 				d_hasMaxNeibs[PT_BOUNDARY] = neibs_num[PT_BOUNDARY];
-				d_hasMaxNeibs[PT_VERTEX] = neibs_num[PT_VERTEX];
+				if (boundarytype == SA_BOUNDARY)
+					d_hasMaxNeibs[PT_VERTEX] = neibs_num[PT_VERTEX];
 			}
 		}
 	}
