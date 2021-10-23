@@ -579,9 +579,8 @@ neibsInCellOfType(
 			const uchar		cell,		// cell number (0 ... 26)
 			const uint		index,		// current particle index
 			uint*			neibs_num,	// number of neighbors for the current particle
-			const bool		segment,	// true if the current particle belongs to a segment
-			const bool		fea,	// true if the current particle belongs to a FEA body
-			const bool		boundary)	// true if the current particle is a boundary particle
+			const bool		central_is_boundary,
+			const bool		central_is_fea)
 {
 	var.encode_cell = true;
 
@@ -593,7 +592,7 @@ neibsInCellOfType(
 		// LJ boundary particles should not have any boundary neighbor, except when
 		// rheologytype is GRANULAR.
 		// If we are here is because a FLOATING LJ boundary needs neibs.
-		if (boundary)
+		if (central_is_boundary)
 			if (nptype == PT_BOUNDARY && boundarytype == LJ_BOUNDARY && ViscSpec::rheologytype != GRANULAR)
 				continue;
 
@@ -601,7 +600,7 @@ neibsInCellOfType(
 		// except for Grenier's formulation, where the sigma computation needs all neighbors
 		// to be enumerated
 		// TODO FIXME FEA why the discrepancy between LJ and DYN?
-		if (boundary && !fea && !DEFORMABLE(var.neib_info))
+		if (central_is_boundary && !central_is_fea && !DEFORMABLE(var.neib_info))
 			if (nptype == PT_BOUNDARY && boundarytype == DYN_BOUNDARY && sph_formulation != SPH_GRENIER)
 				continue;
 
@@ -639,9 +638,10 @@ neibsInCellOfType(
 			var.encode_cell = false;
 		}
 
-		// SA-specific
-		// TODO FIXME this should only be invoked if the neighbor is a PT_BOUNDARY neighbor, right?
-		if (segment)
+		// SA-specific: in this case central_is_boundary tells us that this is a boundary segment
+		// (or rathe the particle representing it)
+		// TODO FIXME this should only be invoked if the neighbor is a PT_VERTEX neighbor, right?
+		if (boundarytype == SA_BOUNDARY && central_is_boundary)
 			process_niC_segment(index, id(var.neib_info), relPos, params, var);
 	}
 
@@ -657,9 +657,8 @@ neibsInCellOfType(
 			const uchar		cell,		// cell number (0 ... 26)
 			const uint		index,		// current particle index
 			uint*			neibs_num,	// number of neighbors for the current particle
-			const bool		segment,	// true if the current particle belongs to a segment
-			const bool		fea,	// true if the current particle belongs to a FEA body
-			const bool		boundary)	// true if the current particle is a boundary particle
+			const bool		central_is_boundary,
+			const bool		central_isfea)
 {
 	/* This can't happen */
 }
@@ -700,9 +699,8 @@ neibsInCell(
 			const uint		index,		// current particle index
 			float3 const&	pos,		// current particle position
 			uint*			neibs_num,	// number of neighbors for the current particle
-			const bool		segment,	// true if the current particle belongs to a segment
-			const bool		fea,	// true if the current particle belongs to a FEA body
-			const bool		boundary)	// true if the current particle is a boundary particle
+			const bool		central_is_boundary,
+			const bool		central_is_fea)
 {
 	// Compute the grid position of the current cell, and return if it's
 	// outside the domain
@@ -720,15 +718,15 @@ neibsInCell(
 	// Process neighbors by type, leveraging the fact that within cell they are sorted by type
 	if (var.neib_type == PT_FLUID)
 		neibsInCellOfType<PT_FLUID, sph_formulation, ViscSpec, boundarytype, simflags>
-			(params, var, cell, index, neibs_num, segment, fea, boundary);
+			(params, var, cell, index, neibs_num, central_is_boundary, central_is_fea);
 
 	if (var.neib_type == PT_BOUNDARY)
 		neibsInCellOfType<PT_BOUNDARY, sph_formulation, ViscSpec, boundarytype, simflags>
-			(params, var, cell, index, neibs_num, segment, fea, boundary);
+			(params, var, cell, index, neibs_num, central_is_boundary, central_is_fea);
 
 	if (boundarytype == SA_BOUNDARY && var.neib_type == PT_VERTEX)
 		neibsInCellOfType<PT_VERTEX, sph_formulation, ViscSpec, boundarytype, simflags>
-			(params, var, cell, index, neibs_num, segment, fea, boundary);
+			(params, var, cell, index, neibs_num, central_is_boundary, central_is_fea);
 
 	// Testpoints have a neighbor list, but are not considered in the neighbor list of other points.
 	// Moreover, since they are sorted last, we can stop iterating over the cell when we come across one
@@ -1444,7 +1442,9 @@ struct buildNeibsListDevice : params_t
 		//	* For dynamic boundaries :
 		//		we construct a neighbors list for all particles.
 		//TODO: optimze test. (Alexis).
-		bool build_nl = FLUID(info) || TESTPOINT(info) || FLOATING(info) || COMPUTE_FORCE(info) || DEFORMABLE(info);
+		bool build_nl = FLUID(info) || TESTPOINT(info) || FLOATING(info) || COMPUTE_FORCE(info);
+		if (HAS_FEA(simflags))
+			build_nl = build_nl || DEFORMABLE(info);
 		if (boundarytype == SA_BOUNDARY)
 			build_nl = build_nl || VERTEX(info) || BOUNDARY(info);
 		if (boundarytype == DYN_BOUNDARY || boundarytype == DUMMY_BOUNDARY)
@@ -1467,6 +1467,12 @@ struct buildNeibsListDevice : params_t
 		// Get particle grid position computed from particle hash
 		const int3 gridPos = calcGridPosFromParticleHash(params.particleHash[index]);
 
+		// neighbors list construction needs to know if the central particle is a boundary particle
+		// (in SA, a boundary segment), or a FEA node, because these influence the construction of the list
+		// check here onace and for all
+		const bool central_is_boundary = BOUNDARY(info);
+		const bool central_is_fea = HAS_FEA(simflags) && FEA_NODE(info);
+
 		for(int z=-zrange; z<=zrange; z++) {
 			for(int y=-yrange; y<=yrange; y++) {
 				for(int x=-1; x<=1; x++) {
@@ -1477,9 +1483,8 @@ struct buildNeibsListDevice : params_t
 						index,
 						pdata.pos,
 						neibs_num,
-						BOUNDARY(info),
-						FEA_NODE(info),
-						BOUNDARY(info));
+						central_is_boundary,
+						central_is_fea);
 				}
 			}
 		}
