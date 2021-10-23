@@ -1420,8 +1420,9 @@ struct buildNeibsListDevice : params_t
 
 	const uint index = item.get_id();
 
-	// Number of neighbors for the current particle for each neighbor type
-	uint neibs_num[PT_TESTPOINT] = {0};
+	// Number of neighbors for the current particle for each neighbor type.
+	// One slot per supported particle type
+	uint neibs_num[(boundarytype == SA_BOUNDARY ? PT_TESTPOINT : PT_VERTEX)] = {0};
 
 	// Rather than nesting if's, use a do { } while (0) loop with breaks
 	// for early bail outs
