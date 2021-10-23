@@ -1384,7 +1384,7 @@ template<Dimensionality dimensions, SPHFormulation sph_formulation, typename Vis
 >
 __device__ __forceinline__
 void
-buildNeibsListOfParticle(uint index, params_t const& params, const uint numParticlesInBlock)
+buildNeibsListOfParticle(params_t const& params, const uint index, const uint numParticlesInBlock, const uint cell_index)
 {
 	// Number of neighbors for the current particle for each neighbor type.
 	// One slot per supported particle type
@@ -1432,8 +1432,19 @@ buildNeibsListOfParticle(uint index, params_t const& params, const uint numParti
 		if (is_inactive(pdata))
 			break;
 
+#if CPU_BACKEND_ENABLED
 		// Get particle grid position computed from particle hash
 		const int3 gridPos = calcGridPosFromParticleHash(params.particleHash[index]);
+#else
+#if 0 // debugging in case of failure of the next assumption
+		if (params.particleHash[index] != cell_index)
+			printf("WTF %d != %d\n", params.particleHash[index], cell_index);
+#endif
+		// We're iterating by cell, and the hash of the particle is just the cell index
+		// we already have. There isn't even a need to remove the extra bits used for multi-GPU
+		// because this kernel is GPU-local
+		const int3 gridPos = calcGridPosFromCellHash(cell_index);
+#endif
 
 		// neighbors list construction needs to know if the central particle is a boundary particle
 		// (in SA, a boundary segment), or a FEA node, because these influence the construction of the list
@@ -1533,9 +1544,10 @@ struct buildNeibsListDevice : params_t
 
 	__device__ void operator()(simple_work_item item) const
 {
+	params_t const& params(*this);
 #if CPU_BACKEND_ENABLED
 	buildNeibsListOfParticle<dimensions, sph_formulation, ViscSpec, boundarytype, periodicbound, simflags,
-		neibcount, debug_planes>(item.get_id(), *this, numParticles);
+		neibcount, debug_planes>(params, item.get_id(), numParticles, 0);
 #else
 	// On GPU, each block takes care of all the particles in a single cell
 	// TODO we might want to find a way to detect empty cells and distribute the workload
@@ -1545,11 +1557,11 @@ struct buildNeibsListDevice : params_t
 	const uint cell_index = blockIdx.x;
 
 	// This shouldn't happen now, but might when we change the logic
-	if (cell_index >= this->numCells) return;
+	if (cell_index >= params.numCells) return;
 
 	// First thing first, find the range of particles that this block needs to take care of
-	uint base_idx = this->fetchCellStart(cell_index);
-	const uint end_idx = this->fetchCellEnd(cell_index);
+	uint base_idx = params.fetchCellStart(cell_index);
+	const uint end_idx = params.fetchCellEnd(cell_index);
 
 	// if the cell is empty, we're done
 	if (base_idx == CELL_EMPTY) return;
@@ -1559,7 +1571,7 @@ struct buildNeibsListDevice : params_t
 	// will abort if we're past the end of the current cell
 	while (base_idx < end_idx) {
 		buildNeibsListOfParticle<dimensions, sph_formulation, ViscSpec, boundarytype, periodicbound, simflags,
-			neibcount, debug_planes>(base_idx + threadIdx.x, *this, end_idx);
+			neibcount, debug_planes>(params, base_idx + threadIdx.x, end_idx, cell_index);
 		base_idx += BLOCK_SIZE;
 	}
 #endif
