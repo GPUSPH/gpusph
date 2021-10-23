@@ -1347,8 +1347,8 @@ count_neighbors(const uint *neibs_num)
 
 
 /// Builds particles neighbors list
-/*! This kernel builds the neighbor's indexes of all particles. The
- * 	parameter params is built on specialized version of build_neibs_params
+/*! This function builds the list of neighbors' indices of a given particles.
+ *  The parameter params is built on specialized version of build_neibs_params
  * 	according to template values.
  *	The neighbor list is now organized by neighboring particle type :
  *	index	0					neibboundpos		neiblistsize-1
@@ -1364,14 +1364,9 @@ count_neighbors(const uint *neibs_num)
  *	\tparam boundarytype : boundary type (determines which particles have a neib list)
  *	\tparam periodicbound : type periodic boundaries (0 ... 7)
  *	\tparam neibcount : if true we compute maximum neighbor number
- *
- *	First and last particle index for grid cells and particle's informations
- *	are read through texture fetches.
- *
- *	TODO: finish implementation for SA_BOUNDARY (include PT_VERTEX)
  */
-template<Dimensionality dimensions, SPHFormulation sph_formulation, typename ViscSpec, BoundaryType boundarytype, Periodicity periodicbound,
-	flag_t simflags,
+template<Dimensionality dimensions, SPHFormulation sph_formulation, typename ViscSpec, BoundaryType boundarytype,
+	Periodicity periodicbound, flag_t simflags,
 	bool neibcount,
 	bool debug_planes,
 	/* nmber of dimensions */
@@ -1386,38 +1381,11 @@ template<Dimensionality dimensions, SPHFormulation sph_formulation, typename Vis
 	int num_sm_neibs_max = (1 + (boundarytype == SA_BOUNDARY)),
 	// parameter structure we use
 	typename params_t = buildneibs_params<boundarytype, simflags>
-	>
-struct buildNeibsListDevice : params_t
+>
+__device__ __forceinline__
+void
+buildNeibsListOfParticle(uint index, params_t const& params)
 {
-	static constexpr unsigned BLOCK_SIZE = BLOCK_SIZE_BUILDNEIBS;
-	static constexpr unsigned MIN_BLOCKS = MIN_BLOCKS_BUILDNEIBS;
-
-	buildNeibsListDevice(
-		const	BufferList&	bufread,
-				BufferList& bufwrite,
-		const	uint		numParticles,
-		const	float		sqinfluenceradius,
-
-		// SA_BOUNDARY
-		const	float	boundNlSqInflRad)
-	:
-		params_t(bufread, bufwrite, numParticles, sqinfluenceradius, boundNlSqInflRad)
-	{}
-
-	__device__ void operator()(simple_work_item item) const
-{
-	// preserve the classic way to access params, even though the structure
-	// is the kernel functor itself. We do this to minimize the diff during
-	// the migration to the new structure, but TODO we should benchmark to assess
-	// the performance impact, and switch to this->member instead of params.member
-	// if going through the const ref has a measurable impact.
-	// NOTE: this _must_ be done inside the operator(), not in the constructor,
-	// because the constructor would initialize params with the _host_ pointer,
-	// not the device one!
-	params_t const& params(*this);
-
-	const uint index = item.get_id();
-
 	// Number of neighbors for the current particle for each neighbor type.
 	// One slot per supported particle type
 	uint neibs_num[(boundarytype == SA_BOUNDARY ? PT_TESTPOINT : PT_VERTEX)] = {0};
@@ -1534,6 +1502,40 @@ struct buildNeibsListDevice : params_t
 	}
 
 	count_neighbors<neibcount, num_sm_neibs_max>(neibs_num);
+}
+
+/// Build neighbors list for the particles
+/// \see buildNeibsListOfParticle for details.
+template<Dimensionality dimensions, SPHFormulation sph_formulation, typename ViscSpec, BoundaryType boundarytype, Periodicity periodicbound,
+	flag_t simflags,
+	bool neibcount,
+	bool debug_planes,
+	// parameter structure we use
+	typename params_t = buildneibs_params<boundarytype, simflags>
+	>
+struct buildNeibsListDevice : params_t
+{
+	static constexpr unsigned BLOCK_SIZE = BLOCK_SIZE_BUILDNEIBS;
+	static constexpr unsigned MIN_BLOCKS = MIN_BLOCKS_BUILDNEIBS;
+
+	buildNeibsListDevice(
+		const	BufferList&	bufread,
+				BufferList& bufwrite,
+		const	uint		numParticles,
+		const	float		sqinfluenceradius,
+
+		// SA_BOUNDARY
+		const	float	boundNlSqInflRad)
+	:
+		params_t(bufread, bufwrite, numParticles, sqinfluenceradius, boundNlSqInflRad)
+	{}
+
+	__device__ void operator()(simple_work_item item) const
+{
+	const uint index = item.get_id();
+
+	buildNeibsListOfParticle<dimensions, sph_formulation, ViscSpec, boundarytype, periodicbound, simflags,
+		neibcount, debug_planes>(item.get_id(), *this);
 }
 };
 
