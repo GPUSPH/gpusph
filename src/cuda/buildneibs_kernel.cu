@@ -102,6 +102,12 @@
 	#define MIN_BLOCKS_BUILDNEIBS	1
 #endif
 
+#if BLOCK_SIZE_BUILDNEIBS > 32
+#define BUILD_NEIBS_SYNC __syncthreads()
+#else
+#define BUILD_NEIBS_SYNC /* empty statement */
+#endif
+
 /** \namespace cuneibs
  *  \brief Contains all device functions/kernels/variables used for neighbor list construction
  *
@@ -227,7 +233,8 @@ struct niC_cache
 	void prime(params_t const& bparams, const uint bucketEnd, uint& cache_base, uint& cache_index)
 	{
 #if !CPU_BACKEND_ENABLED
-		__syncthreads();
+
+		BUILD_NEIBS_SYNC;
 
 		if (cache_base + threadIdx.x < bucketEnd) {
 			neib_info_cache[threadIdx.x] = bparams.fetchInfo(cache_base + threadIdx.x);
@@ -236,7 +243,8 @@ struct niC_cache
 
 		cache_base += BLOCK_SIZE_BUILDNEIBS;
 		cache_index -= BLOCK_SIZE_BUILDNEIBS;
-		__syncthreads();
+
+		BUILD_NEIBS_SYNC;
 #endif
 	}
 
@@ -1426,7 +1434,7 @@ count_neighbors(const uint *neibs_num) // computed number of neighbors per type
 		sm_neibs_max[threadIdx.x + blockDim.x] = neibs_max[1];
 
 	for (unsigned int i = blockDim.x/2; i > 0; i /= 2) {
-		__syncthreads();
+		BUILD_NEIBS_SYNC;
 		if (threadIdx.x < i) {
 			total_neibs_num += sm_total_neibs_num[threadIdx.x + i];
 			sm_total_neibs_num[threadIdx.x] = total_neibs_num;
