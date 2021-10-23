@@ -212,6 +212,55 @@ struct sa_boundary_niC_vars
 		{ }
 };
 
+/// Cache the neighbor cell particle data in shared memory
+template<BoundaryType boundarytype, flag_t simflags>
+struct niC_cache
+{
+	using params_t = buildneibs_params<boundarytype, simflags>;
+
+#if !CPU_BACKEND_ENABLED
+	particleinfo neib_info_cache[BLOCK_SIZE_BUILDNEIBS];
+	float4 neib_pos_cache[BLOCK_SIZE_BUILDNEIBS];
+#endif
+
+	__device__ __forceinline__
+	void prime(params_t const& bparams, const uint bucketEnd, uint& cache_base, uint& cache_index)
+	{
+#if !CPU_BACKEND_ENABLED
+		__syncthreads();
+
+		if (cache_base + threadIdx.x < bucketEnd) {
+			neib_info_cache[threadIdx.x] = bparams.fetchInfo(cache_base + threadIdx.x);
+			neib_pos_cache[threadIdx.x] = bparams.fetchPos(cache_base + threadIdx.x);
+		}
+
+		cache_base += BLOCK_SIZE_BUILDNEIBS;
+		cache_index -= BLOCK_SIZE_BUILDNEIBS;
+		__syncthreads();
+#endif
+	}
+
+	__device__ __forceinline__
+	particleinfo fetch_neib_info(params_t const& bparams, uint neib_or_cache_index ) const
+	{
+#if CPU_BACKEND_ENABLED
+		return bparams.fetchInfo(neib_or_cache_index);
+#else
+		return neib_info_cache[neib_or_cache_index];
+#endif
+	}
+
+	__device__ __forceinline__
+	float4 fetch_neib_pos(params_t const& bparams, uint neib_or_cache_index ) const
+	{
+#if CPU_BACKEND_ENABLED
+		return bparams.fetchPos(neib_or_cache_index);
+#else
+		return neib_pos_cache[neib_or_cache_index];
+#endif
+	}
+};
+
 
 /// The actual neibInCell variables structure, which concatenates the above, as appropriate
 /*! This structure provides a constructor that takes as arguments the union of the
@@ -224,11 +273,48 @@ struct niC_vars :
 	common_niC_vars,
 	COND_STRUCT(boundarytype == SA_BOUNDARY, sa_boundary_niC_vars)
 {
+#if !CPU_BACKEND_ENABLED
+	// index of the first neighbor stored in cache
+	uint cache_base;
+	uint cache_index;
+#endif
+
 	template<flag_t simflags>
 	__device__ __forceinline__
-	void load_neib_info( buildneibs_params<boundarytype, simflags> const& bparams )
+	particleinfo fetch_neib_info(
+		buildneibs_params<boundarytype, simflags> const& bparams,
+		niC_cache<boundarytype, simflags>& cache)
 	{
-		neib_info = bparams.fetchInfo(neib_index);
+#if CPU_BACKEND_ENABLED
+		return cache.fetch_neib_info(bparams, neib_index);
+#else
+		if (cache_index >= BLOCK_SIZE_BUILDNEIBS) cache.prime(bparams, bucketEnd, cache_base, cache_index);
+		return cache.fetch_neib_info(bparams, cache_index);
+#endif
+
+	}
+
+	template<flag_t simflags>
+	__device__ __forceinline__
+	float4 fetch_neib_pos(
+		buildneibs_params<boundarytype, simflags> const& bparams,
+		niC_cache<boundarytype, simflags> const& cache)
+	{
+		// this is only called with a primed cache, so no need to check
+#if CPU_BACKEND_ENABLED
+		return cache.fetch_neib_pos(bparams, neib_index);
+#else
+		return cache.fetch_neib_pos(bparams, cache_index);
+#endif
+	}
+
+	template<flag_t simflags>
+	__device__ __forceinline__
+	void load_neib_info(
+		buildneibs_params<boundarytype, simflags> const& bparams,
+		niC_cache<boundarytype, simflags>& cache)
+	{
+		neib_info = fetch_neib_info(bparams, cache);
 		neib_type = PART_TYPE(neib_info);
 	}
 
@@ -244,20 +330,33 @@ struct niC_vars :
 		common_niC_vars(bparams, gridPos, gridOffset, pos),
 		COND_STRUCT(boundarytype == SA_BOUNDARY, sa_boundary_niC_vars)(index, bparams)
 	{
-		if (bucketStart != CELL_EMPTY)
-			load_neib_info(bparams);
+#if CUDA_BACKEND_ENABLED
+		cache_base = bucketStart;
+		cache_index = BLOCK_SIZE_BUILDNEIBS; // force a cache priming
+#endif
+	}
+
+	__device__ __forceinline__
+	void next_neib()
+	{
+		++neib_index;
+#if CUDA_BACKEND_ENABLED
+		++cache_index;
+#endif
 	}
 
 	//! Check if the neighbor index we're at corresponds to a neighbor of the specified type
 	template<ParticleType nptype, flag_t simflags>
 	__device__ __forceinline__
-	bool on_neib_of_type(buildneibs_params<boundarytype, simflags> const& bparams)
+	bool on_neib_of_type(
+		buildneibs_params<boundarytype, simflags> const& bparams,
+		niC_cache<boundarytype, simflags>& cache)
 	{
 		// we're done? then the type is irrelevant 8-)
 		if (neib_index >= bucketEnd) return false;
 
 		// ok, we have a neighbor. load the data and check the type
-		load_neib_info(bparams);
+		load_neib_info(bparams, cache);
 		return neib_type == nptype;
 	}
 
@@ -575,16 +674,22 @@ __device__ __forceinline__
 enable_if_t< (boundarytype == SA_BOUNDARY) || (nptype != PT_VERTEX) >
 neibsInCellOfType(
 			buildneibs_params<boundarytype, simflags> const& params,			// build neibs parameters
+			niC_cache<boundarytype, simflags>& cache,
 			niC_vars<boundarytype>& var,
 			const uchar		cell,		// cell number (0 ... 26)
 			const uint		index,		// current particle index
 			uint*			neibs_num,	// number of neighbors for the current particle
+			const bool		build_nl,
 			const bool		central_is_boundary,
 			const bool		central_is_fea)
 {
 	var.encode_cell = true;
 
-	for ( ; var.on_neib_of_type<nptype>(params); ++var.neib_index) {
+	for ( ; var.on_neib_of_type<nptype>(params, cache); var.next_neib()) {
+
+		// nothing to do if we don't need to build the neighbors list
+		// (i.e. we're thread running just to load neighbor data into the cache)
+		if (!build_nl) continue;
 
 		// Prevent self-interaction
 		if (var.neib_index == index) continue;
@@ -604,7 +709,7 @@ neibsInCellOfType(
 			if (nptype == PT_BOUNDARY && boundarytype == DYN_BOUNDARY && sph_formulation != SPH_GRENIER)
 				continue;
 
-		const pos_mass neib = params.fetchPos(var.neib_index);
+		const pos_mass neib = var.fetch_neib_pos(params, cache);
 
 		// Skip inactive particles
 		if (is_inactive(neib))
@@ -653,10 +758,12 @@ __device__ __forceinline__
 enable_if_t< (boundarytype != SA_BOUNDARY) && (nptype == PT_VERTEX) >
 neibsInCellOfType(
 			buildneibs_params<boundarytype, simflags> const& params,			// build neibs parameters
+			niC_cache<boundarytype, simflags>& cache,
 			niC_vars<boundarytype>& var,
 			const uchar		cell,		// cell number (0 ... 26)
 			const uint		index,		// current particle index
 			uint*			neibs_num,	// number of neighbors for the current particle
+			const bool		build_nl,
 			const bool		central_is_boundary,
 			const bool		central_isfea)
 {
@@ -699,9 +806,12 @@ neibsInCell(
 			const uint		index,		// current particle index
 			float3 const&	pos,		// current particle position
 			uint*			neibs_num,	// number of neighbors for the current particle
+			const bool		build_nl,   // build the NL for this particle (false = use it only to load neib data)
 			const bool		central_is_boundary,
 			const bool		central_is_fea)
 {
+	__shared__ niC_cache<boundarytype, simflags> cache;
+
 	// Compute the grid position of the current cell, and return if it's
 	// outside the domain
 	if (!calcNeibCell<periodicbound>(gridPos, gridOffset))
@@ -715,18 +825,20 @@ neibsInCell(
 	if (var.bucketStart == CELL_EMPTY)
 		return;
 
+	var.load_neib_info(params, cache);
+
 	// Process neighbors by type, leveraging the fact that within cell they are sorted by type
 	if (var.neib_type == PT_FLUID)
 		neibsInCellOfType<PT_FLUID, sph_formulation, ViscSpec, boundarytype, simflags>
-			(params, var, cell, index, neibs_num, central_is_boundary, central_is_fea);
+			(params, cache, var, cell, index, neibs_num, build_nl, central_is_boundary, central_is_fea);
 
 	if (var.neib_type == PT_BOUNDARY)
 		neibsInCellOfType<PT_BOUNDARY, sph_formulation, ViscSpec, boundarytype, simflags>
-			(params, var, cell, index, neibs_num, central_is_boundary, central_is_fea);
+			(params, cache, var, cell, index, neibs_num, build_nl, central_is_boundary, central_is_fea);
 
 	if (boundarytype == SA_BOUNDARY && var.neib_type == PT_VERTEX)
 		neibsInCellOfType<PT_VERTEX, sph_formulation, ViscSpec, boundarytype, simflags>
-			(params, var, cell, index, neibs_num, central_is_boundary, central_is_fea);
+			(params, cache, var, cell, index, neibs_num, build_nl, central_is_boundary, central_is_fea);
 
 	// Testpoints have a neighbor list, but are not considered in the neighbor list of other points.
 	// Moreover, since they are sorted last, we can stop iterating over the cell when we come across one
@@ -1392,12 +1504,19 @@ buildNeibsListOfParticle(params_t const& params, const uint index, const uint nu
 
 	// Rather than nesting if's, use a do { } while (0) loop with breaks
 	// for early bail outs
+	// NOTE: the early bail-outs are only used on CPU, since GPU needs all threads to get into
+	// neibsInCell, as it needs them to load neighbors data through shared memory
 	do {
+#if CPU_BACKEND_ENABLED
 		if (index >= numParticlesInBlock)
 			break;
+#define IS_VALID true
+#else
+#define IS_VALID (index < numParticlesInBlock)
+#endif
 
 		// Read particle info from texture
-		const particleinfo info = params.fetchInfo(index);
+		const particleinfo info = IS_VALID ? params.fetchInfo(index) : particleinfo{};
 
 		// The way the neighbors list is constructed depends on
 		// the boundary type used in the simulation.
@@ -1421,16 +1540,27 @@ buildNeibsListOfParticle(params_t const& params, const uint index, const uint nu
 		    ViscSpec::rheologytype == GRANULAR)
 			build_nl = build_nl || BOUNDARY(info);
 
+#if CPU_BACKEND_ENABLED
 		// Exit if we have nothing to do
 		if (!build_nl)
 			break;
+#else
+		if (!IS_VALID)
+			build_nl = false;
+#endif
+
 
 		// Get particle position
-		const pos_mass pdata = params.fetchPos(index);
+		const pos_mass pdata = IS_VALID ? params.fetchPos(index) : float4{};
 
 		// If the particle is inactive we have nothing to do
-		if (is_inactive(pdata))
+		if (is_inactive(pdata)) {
+#if CPU_BACKEND_ENABLED
 			break;
+#else
+			build_nl = false;
+#endif
+		}
 
 #if CPU_BACKEND_ENABLED
 		// Get particle grid position computed from particle hash
@@ -1449,8 +1579,8 @@ buildNeibsListOfParticle(params_t const& params, const uint index, const uint nu
 		// neighbors list construction needs to know if the central particle is a boundary particle
 		// (in SA, a boundary segment), or a FEA node, because these influence the construction of the list
 		// check here onace and for all
-		const bool central_is_boundary = BOUNDARY(info);
-		const bool central_is_fea = HAS_FEA(simflags) && FEA_NODE(info);
+		const bool central_is_boundary = IS_VALID ? BOUNDARY(info) : false;
+		const bool central_is_fea = IS_VALID ? (HAS_FEA(simflags) && FEA_NODE(info)) : false;
 
 		for(int z=-zrange; z<=zrange; z++) {
 			for(int y=-yrange; y<=yrange; y++) {
@@ -1462,6 +1592,7 @@ buildNeibsListOfParticle(params_t const& params, const uint index, const uint nu
 						index,
 						pdata.pos,
 						neibs_num,
+						build_nl,
 						central_is_boundary,
 						central_is_fea);
 				}
