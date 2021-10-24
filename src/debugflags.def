@@ -49,6 +49,13 @@ unsigned print_step : 1;
 /// debug the neighbors list on host
 unsigned neibs : 1;
 
+/// force using the per-particle neighbors list construction
+/*! This is the default (and only option) on CPU, but on GPU
+ *  we default to the cell-based neighbors list construction,
+ *  which can be disabled with this option
+ */
+unsigned buildneibs_by_particle : 1;
+
 /// debug forces on host
 unsigned forces : 1;
 

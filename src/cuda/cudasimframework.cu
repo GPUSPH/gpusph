@@ -105,6 +105,46 @@ struct CUDABoundaryConditionsSelector<kerneltype, ViscSpec, DUMMY_BOUNDARY, simf
 	{ return new BCEtype(); } // TODO FIXME when we have proper BCEs
 };
 
+/* CUDANeibsEngineSelector */
+
+// The NeibsEngine specialization is also made complex, this time by the possibility to enable
+// some options (specifically, the plane debugging and the mapping type) at runtime
+template<Dimensionality dims, SPHFormulation sph_formulation, typename ViscSpec,
+	BoundaryType boundarytype, Periodicity periodicbound, flag_t simflags>
+struct CUDANeibsEngineSelector
+{
+	template<BuildNeibsMappingType bn_type, bool debug_planes>
+	static AbstractNeibsEngine*
+	instance() {
+		return new CUDANeibsEngine<dims, sph_formulation, ViscSpec, boundarytype, periodicbound, simflags,
+			bn_type, true /* neibcount */, debug_planes>();
+	}
+
+	template<BuildNeibsMappingType bn_type>
+	static AbstractNeibsEngine*
+	select_debug() {
+		if (g_debug.planes)
+			return instance<bn_type, true>();
+		else
+			return instance<bn_type, false>();
+
+
+	}
+
+	static AbstractNeibsEngine*
+	select() {
+#if CPU_BACKEND_ENABLED
+		return select_debug<BY_PARTICLE>(); // with the CPU backend, BY_PARTICLE is the only supported mapping
+#else
+		if (g_debug.buildneibs_by_particle)
+			return select_debug<BY_PARTICLE>();
+		else
+			return select_debug<BY_CELL>();
+#endif
+	}
+
+};
+
 /// Some combinations of frameworks for kernels are invalid/
 /// unsupported/untested and we want to prevent the user from
 /// using them, by (1) catching the error as soon as possible
@@ -235,16 +275,7 @@ public:
 public:
 	CUDASimFrameworkImpl() : SimFramework()
 	{
-		constexpr BuildNeibsMappingType bn_type = CPU_BACKEND_ENABLED ? BY_PARTICLE : BY_CELL;
-		if (g_debug.planes) {
-			m_neibsEngine = new CUDANeibsEngine<dimensions, sph_formulation, ViscSpec, boundarytype, periodicbound, simflags, bn_type,
-				true /* neibcount */,
-				true /* debug_planes */>();
-		} else {
-			m_neibsEngine = new CUDANeibsEngine<dimensions, sph_formulation, ViscSpec, boundarytype, periodicbound, simflags, bn_type,
-				true /* neibcount */,
-				false /* debug_planes */>();
-		}
+		m_neibsEngine = CUDANeibsEngineSelector<dimensions, sph_formulation, ViscSpec, boundarytype, periodicbound, simflags>::select();
 		m_integrationEngine = new CUDAPredCorrEngine<sph_formulation, boundarytype, kerneltype, ViscSpec, simflags>();
 		m_viscEngine = new CUDAViscEngine<ViscSpec, kerneltype, boundarytype, simflags>();
 		m_forcesEngine = new CUDAForcesEngine<kerneltype, sph_formulation, densitydiffusiontype, ViscSpec, boundarytype, simflags, dimensions>();
