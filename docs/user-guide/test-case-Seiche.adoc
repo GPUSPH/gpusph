@@ -18,7 +18,7 @@ This function takes the current time \(t\) as input (a `double`),
 and sets the new value for the accleration given by the external forces
 (using `set_gravity`), and returning its value as a `float3`,
 which can be done e.g. with
-[soure,cpp]
+[source,cpp]
 ----
 return get_gravity();
 ----

@@ -2,7 +2,7 @@
 
 The first seed of what would become GPUSPH was developed by Alexis Hérault,
 and presented for the first time at the 3^rd^ SPHERIC Workshop in Lausanne, Switzerland in 2008.
-cite:[herault_laval_2008]
+cite:[herault_lava_2008]
 
 The motivation to use graphic processing units (GPUs) as computing platform for weakly-compressible SPH
 was motivated by a combination of the embarrassingly parallel nature of the standard WCSPH formulation,
@@ -42,18 +42,18 @@ This code, intially called GPU-SPHysics, was developed in cooperation with
 Prof. Robert A. Dalrymple at the Johns Hopkints University in Baltimore, MD (USA).
 cite:[dalrymple_levee_2009,herault_modeling_2009,herault_sph_2010].
 
-GPUSPH v1.0 was first released in 2011.
-Simulations could be run with real-time rendering using OpenG
+GPUSPH v1.0:: was first released in 2011.
+Simulations could be run with real-time rendering using OpenGL
 and the possibility to take screeshots during the simulation.
 Moving bodies were limited to fixed motion patterns (pistons, paddles, gates).
 
-GPUSPH v2.0 was first released in 2012.
+GPUSPH v2.0:: was first released in 2012.
 Introduces support for moving bodies with generic imposed motion,
 optimizations for the Fermi architeture,
 a faster neighbors list construction,
 and new sample test case.
 
-GPUSPH v3.0 was first released in 2014.
+GPUSPH v3.0:: was first released in 2014.
 This huge release saw the start of a much more active participation of partners such as
 the Coastal Studies Institude (CSI), Électricité de France (EDF), and the Bundesanstalt für Wasserbau (BAW)
 in the development of GPUSPH.
@@ -64,18 +64,18 @@ The graphical interface was removed (due to design incompatibilities with the mu
 and replaced by the `UDPWriter`, that sends packets over UDP for visualization via external tools
 such as https://github.com/kgamiel/seewaves[seewaves].
 
-GPUSPH v4.0 was first released in 2016.
+GPUSPH v4.0:: was first released in 2016.
 This release replaces ODE with Project Chrono for moving objects,
 introduces the new API for test case definition (`XProblem`),
 and adds features such as hot-start, debug flags,
 and several improvements, optimizations and bug-fixes.
 
-GPUSPH v5.0 was first released in 2019.
+GPUSPH v5.0:: was first released in 2019.
 Major features include support for the dummy boundary model,
 support for the Hu & Adams multi-fluid formulation,
 non-Newtonian rheological models, and the concept of versioned APIs for the `Problem` class.
 
-GPUSPH v6.0, the current version, was first released in 2021.
+GPUSPH v6.0 (current version):: was first released in 2021.
 Major features include support for fluid/structure interaction with deformable bodies
 through the Finite Element Analysis module of Project Chrono,
 the possibility to define truly 2D and 1D problems,
@@ -84,4 +84,5 @@ and the possibility to build the entire source code (both host and device parts)
 using the Clang compiler.
 A new neighbors traversal implementation also led to significant improved runtimes
 (between 2 and 5 times faster depending on hardware, framework options and number of particles).
+The documentation has also been cleaned up, expanded, and made more accessible through modern technologies.
 

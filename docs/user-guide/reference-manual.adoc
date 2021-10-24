@@ -116,9 +116,9 @@ For the viscous averaging model specifies how the viscosities of two
 interacting particles are averaged during the computation of
 the viscous forces. Possible choices are:
 [horizontal]
-`ARITHMETIC`:: arithmetic mean (\((a+b)/2\));
-`HARMONIC`:: harmonic mean (\(2ab/(a+b)\));
-`GEOMETRIC`:: geometric mean (\(\sqrt{ab}\));
+`ARITHMETIC`:: arithmetic mean stem:[(a+b)/2];
+`HARMONIC`:: harmonic mean \(2ab/(a+b)\);
+`GEOMETRIC`:: geometric mean \(\sqrt{ab}\);
 
 Some combinations of `visc_model`, `visc_average` and `computational_visc`
 will lead to specific optimizations in computations. While these generally
@@ -236,7 +236,7 @@ AbstractFilterEngine* addFilter(FilterType filtertype, int frequency)
 ----
 
 The possible `FilterType`s are:
-[[horziontal]]
+[horziontal]
 `SHEPARD_FILTER`:: reinitialize the particles' density through Shepard filtering;
 `MLS_FILTER`:: reinitialize the particles' density using Moving Least Square filtering
 
@@ -255,146 +255,198 @@ should be discretized.
 
 ==== addExtraWorldMargin
 
-`void addExtraWorldMargin(const double margin)`
-
+[source,cpp]
+----
+void addExtraWorldMargin(const double margin)
+----
 Expands the simulation domain by a specified size
 
 ==== setWaterLevel
 
-`void setWaterLevel(double waterLevel)`
-
+[source,cpp]
+----
+void setWaterLevel(double waterLevel)
+----
 Set the maximum fluid level for automatic assigment of hydrostatic pressure
 
 ==== setMaxFall
- 
-`void setMaxFall(double maxFall)`
 
+[source,cpp]
+----
+void setMaxFall(double maxFall)
+----
 Set the maximum fluid column expected during the simulation. This value is used for automatically setting
 SPH speed of sound.
 
 ==== setMaxParticleSpeed
 
-`void setMaxParticleSpeed(double maxParticleSpeed)`
-
+[source,cpp]
+----
+void setMaxParticleSpeed(double maxParticleSpeed)
+----
 Set maximum speed expected during the simulation. This value is used for automatically setting
 SPH speed of sound.
 
 ==== enableHydrostaticFilling
 
-`void enableHydrostaticFilling()`
-
+[source,cpp]
+----
+void enableHydrostaticFilling()
+----
 Enable automatic hydrostatic pressure assignment
 
 ==== disableHydrostaticFilling
 
-`void disableHydrostaticFilling()`
-
+[source,cpp]
+----
+void disableHydrostaticFilling()
+----
 Disable automatic hydrostatic pressure assignment
 
 ==== setDEMZminScale
 
-`void setDEMZminScale(double scale)`
-
+[source,cpp]
+----
+void setDEMZminScale(double scale)
+----
 demzmin will be computed as scale*m_deltap
 
 ==== setDEMZmin
 
-`void setDEMZmin(double demzmin)`
-
+[source,cpp]
+----
+void setDEMZmin(double demzmin)
+----
 Set demzmin to the given value
 
 ==== setDEMNormalDisplacementScale
 
-`void setDEMNormalDisplacementScale(double scalex, double scaley=NAN)`
-
+[source,cpp]
+----
+void setDEMNormalDisplacementScale(double scalex, double scaley=NAN)
+----
 ==== setDEMNormalDisplacement
 
-`void setDEMNormalDisplacement(double demdx, double demdy=NAN);`
-
+[source,cpp]
+----
+void setDEMNormalDisplacement(double demdx, double demdy=NAN);
+----
 ==== computeDEMphysparams
 
-`void computeDEMphysparams()`
-
+[source,cpp]
+----
+void computeDEMphysparams()
+----
 Compute DEM physical parameters. This is normally done automatically during the filling phase,
 but can be forced earlier if the user wants the information for other purposes
 
 ==== preferredDeltaP
 
-`double preferredDeltaP(GeometryType type)`
+[source,cpp]
+----
+double preferredDeltaP(GeometryType type)
+----
 
 Get the inter-particle spacing based on the geometry type
 
 ==== setDynamicBoundariesLayers
 
-`void setDynamicBoundariesLayers(const uint numLayers)`
+[source,cpp]
+----
+void setDynamicBoundariesLayers(const uint numLayers)
+----
 
 Set number of layers for multi-layer boundary models (e.g. Dynamic boundary and Dummy boundary).
 Default is 0, which means autocompute
 
 ==== getDynamicBoundariesLayers
 
-`uint getDynamicBoundariesLayers()`
+[source,cpp]
+----
+uint getDynamicBoundariesLayers()
+----
+
 Get number of layers used for multi-layer boundary models (e.g. Dynamic boundary and Dummy boundary.
 
 ==== get_worldorigin
 
-`double3 const& get_worldorigin(void) const`
-
+[source,cpp]
+----
+double3 const& get_worldorigin(void) const
+----
 Returns the coordinates of the origin of the simulation domain.
 
 ==== get_worldsize
 
-`double3 const& get_worldsize(void) const`
-
+[source,cpp]
+----
+double3 const& get_worldsize(void) const
+----
 Return the size of the simulation domain
 
 ==== get_cellsize
 
-`double3 const& get_cellsize(void) const`
-
+[source,cpp]
+----
+double3 const& get_cellsize(void) const
+----
 Return the size of cells in the simulation grid.
 
 ==== get_gridsize
 
-`uint3 const& get_gridsize(void) const`
-
+[source,cpp]
+----
+uint3 const& get_gridsize(void) const
+----
 Return the number of cells in the three dimensions that compose the simulation grid.
 
 ==== set_deltap
 
-`double set_deltap(const double dflt)`
-
+[source,cpp]
+----
+double set_deltap(const double dflt)
+----
 Set the initial inter-particle spacing.
 
 ==== get_deltap
 
-`double get_deltap() const`
-
+[source,cpp]
+----
+double get_deltap() const
+----
 Returns the initial inter-particle spacing.
 
 ==== set_timestep
 
-`float set_timestep(const float dt)`
-
+[source,cpp]
+----
+float set_timestep(const float dt)
+----
 Set the initial time-step. When the `ENABLE_DTADAPT` flag is not enabled the initial time-step will be maintained during the entire simulation.
 
 ==== get_timestep
 
-`float get_timestep() const`
-
+[source,cpp]
+----
+float get_timestep() const
+----
 Returns the initial time-step
 
 ==== set_smoothing
 
-`double set_smoothing(const double smooth)`
-
+[source,cpp]
+----
+double set_smoothing(const double smooth)
+----
 Set smoothing factor (the ratio between smoothing lenght and the initial inter-particle spacing). 
 The smoothing factor is set to 1.3 by default
 
 ==== set_neiblist_expansion
 
-`double set_neiblist_expansion(double alpha)`
-
+[source,cpp]
+----
+double set_neiblist_expansion(double alpha)
+----
 Set the expansion factor for the neighbor list search:
 when building the neighbor list, particles will be
 added to the list if they are within alpha*influenceRadius
@@ -403,12 +455,16 @@ Returns the new neighbor search radius
 
 ==== set_kernel_radius
 
-`void set_kernel_radius(double radius)`
-
+[source,cpp]
+----
+void set_kernel_radius(double radius)
+----
 ==== set_grid_params
 
-`void set_grid_params(void)`
-
+[source,cpp]
+----
+void set_grid_params(void)
+----
 
 
 :sectnums:
@@ -416,24 +472,29 @@ Returns the new neighbor search radius
 
 Physical parameters describe the physical components of the problem.
 
-=== Gravitational acceleration
+=== External body forces (gravitational acceleration)
 
-`float3 const& set_gravity(const float3 gravity)` set the three spatial components of gravity
+External body forces in GPUSPH are synthetically referred-to as “gravity”,
+even though they may refer to any force.
+They are set by providing the magnitude of the acceleration, with any
+of the following methods:
+[horizontal]
+`float3 const& set_gravity(const float3 gravity)`:: set the three spatial components of gravity from an existing vector;
+`float3 set_gravity(const float gravityX, const float gravityY, const float gravityZ)`:: set the three spatial components of gravity, component by component;
+`float3 set_gravity(const float gravityZ)`:: assume the gravity vertical and set only the vertical component.
 
-`float3 set_gravity(const float gravityX, const float gravityY, const float gravityZ)` set the three spatial components of gravity
+The set value can be retrived through
+[horizontal]
+`float3 const& get_gravity() const`:: to retrieve a vector with the three spatial components of gravity,
+`float get_gravity_magnitude() const`:: to retrieve the magnitude of gravity
 
-`float3 set_gravity(const float gravityZ)` assume the gravity vertical and set only the vertical component.
-
-`float3 const& get_gravity() const` Get the three spatial components of gravity
-
-`float get_gravity_magnitude() const` Get the magnitude of gravity
-
-=== Materials properties [[materials]]
+=== Materials and their properties [[materials]]
 
 ==== Density
 
-The density of a fluid can be specified while creating the new fluid using the function `size_t add_fluid(float rho)`. The function
-returns the index of the new created fluid, that can be stored in a variable to be used for easier referencing in the case of multi-fluid simulation.
+The density of a fluid can be specified while creating the new fluid using the function `size_t add_fluid(float rho)`.
+The function returns the index of the new created fluid,
+that can be stored in a variable to be used for easier referencing in the case of multi-fluid simulation.
 
 Example of usage:
 [source,cpp]
@@ -459,6 +520,7 @@ declared as `void set_equation_of_state(size_t fluid_idx, float gamma, float
 c0)`
 
 where:
+
 * `fluid_idx` is the id of the fluid
 * `gamma` is the polytropic constant of the fluid
 * `c0` is the speed of sound in the fluid
@@ -473,19 +535,21 @@ set_equation_of_state(0, 7, 100);
 set_equation_of_state(1, 7, NAN); // The sound speed for fluid 1 is auto-computed
 ----
 
-==== Interface consistency parameters
+=== Interface consistency parameters
 
 When using Grenier's <<formulation,formulation>> for multi-fluid simulations,
 `set_interface_epsilon` can be used to improve the sharpness of the interface
 between the fluids. The function, with signature
 
-`void set_interface_epsilon(float eps)`
-
+[source,cpp]
+----
+void set_interface_epsilon(float eps)
+----
 takes a single parameter that should be between 0 and 1.
 
 This parameter is global and not per-fluid.
 
-==== Artificial Viscosity
+=== Artificial Viscosity
 
 The alpha coefficient of Monaghan's artificial viscosity can be set with
 `void set_artificial_visc(float artvisc)`.
@@ -502,47 +566,55 @@ of each fluid. Some of them are only relevant with specific rheological models.
 When the <<rheology,rheological model>> is `NEWTONIAN`, the (Newtonian)
 viscosity of the each fluid can be set either by its kinematic or
 by its dynamic vlue, with:
-
-`void set_kinematic_visc(size_t fluid_idx, float nu)`
-
+[source,cpp]
+----
+void set_kinematic_visc(size_t fluid_idx, float nu)
+----
 and
-
-`void set_dynamic_visc(size_t fluid_idx, float mu)`
-
+[source,cpp]
+----
+void set_dynamic_visc(size_t fluid_idx, float mu)
+----
 where `nu` is the kinematic viscosity (in m²/s if using the MKS system),
 and `mu` is the dynamic viscosity (in Pa s if using the MKS system).
 
 Example of usage:
 [source,cpp]
 ----
-set_kinematic_visc(0, 1e-6); //Set the kinematic viscosity of fluid 0 to 1e-6 m²/s
+set_kinematic_visc(0, 1e-6); // Set the kinematic viscosity of fluid 0 to 1e-6 m²/s
 ----
-
 or
-
 [source,cpp]
 ----
-set_dynamic_visc(0, 1e-3); //Set the dynamic viscosity of fluid 0 to 1e-3 Pa*s
+set_dynamic_visc(0, 1e-3); // Set the dynamic viscosity of fluid 0 to 1e-3 Pa*s
 ----
 
 Internally, GPUSPH will store the dynamic or kinematic value based on the choice
 of the <<computational_visc,computational viscosity>>, by dividing or multiplying
-the user-specified value with the density (e.g. if the user selected the `DYNAMIC`
-computationa viscosity option, and then uses `set_kinematic_visc`, the dynamic
-viscosity will be computed by multiplying `nu` times the density of the specific
-fluid). Because of this, <<density,`set_density`>> should not be called _after_
+the user-specified value by the density fluid density, as appropriate
+(e.g. if the user selected the `DYNAMIC` computationa viscosity option,
+and then uses `set_kinematic_visc`, the dynamic viscosity will be computed
+multiplying `nu` by the density of the specific fluid).
+Because of this, <<density,`set_density`>> should not be called _after_
 setting the viscosity, as this may lead to inconsistent results.
 
-<!-- TODO this should probably be enforced in the code -->
+////
+TODO
+this should probably be enforced in the code
+////
 
 The user may retrieve the (specified or computed) value of the kinematic
 or dynamic viscosity using the corresponding functions:
 
-`float get_kinematic_visc(size_t fluid_idx) const`
-
+[source,cpp]
+----
+float get_kinematic_visc(size_t fluid_idx) const
+----
 and
-
-`float get_dynamic_visc(size_t fluid_idx) const`
+[source,cpp]
+----
+float get_dynamic_visc(size_t fluid_idx) const
+----
 
 Example of usage:
 [source,cpp]
@@ -556,8 +628,10 @@ float dyn_visc = get_dynamic_visc(0); // Get dynamic viscosity of fluid 0
 When using the <<visc_model,Español & Revenga>> viscosity model, the user
 can set the bulk viscosity with:
 
-`void set_bulk_visc(size_t fluid_idx, float zeta)`
-
+[source,cpp]
+----
+void set_bulk_visc(size_t fluid_idx, float zeta)
+----
 
 ==== Non-Newtonian rheological parameters (yield strength, consistency, flow index etc)
 
@@ -589,13 +663,29 @@ float tau = get_yield_strength(0); // Get the yeld strength of fluid 0 [Pa]
 
 If the stress/strain-rate relationship follows a power law (`HERSCHEL_BULKLEY`, `POWER_LAW`
 and `ALEXANDROU` <<rheology,rheological models>>, the exponent (flow index) can be
-set with `void set_visc_power_law(size_t fluid_idx, float n)` and retrieved with
-`float get_visc_power_law(size_t fluid_idx) const`.
+set with
+[source,cpp]
+----
+void set_visc_power_law(size_t fluid_idx, float n)
+----
+and retrieved with
+[source,cpp]
+----
+float get_visc_power_law(size_t fluid_idx) const
+----
+
 
 If the stress/strain-rate relationship is exponential (`DEKEE_TURCOTTE` and `ZHU`
-<<rheology,rheologicalmodels>>), the exponential coefficient can be set with
-`void set_visc_exponential_coeff(size_t fluid_idx, float n)` and retrieved with
-`float get_visc_exponential_coeff(size_t fluid_idx) const`
+<<rheology,rheological models>>), the exponential coefficient can be set with
+[source,cpp]
+----
+void set_visc_exponential_coeff(size_t fluid_idx, float n)
+----
+and retrieved with
+[source,cpp]
+----
+float get_visc_exponential_coeff(size_t fluid_idx) const
+----
 
 Many non-Newtonian rheological models have theoretically infinite effective
 viscosity in degenerate cases (e.g. fluids with yield in the unyielded region).
@@ -608,11 +698,14 @@ and it is fluid-independent.
 
 ==== Granular rheological parameters
 
-`void set_sinpsi(size_t fluid_idx, float sinpsivalue)`
-`float get_sinpsi(size_t fluid_idx) const`
+[source,cpp]
+----
+void set_sinpsi(size_t fluid_idx, float sinpsivalue)
+float get_sinpsi(size_t fluid_idx) const
 
-`void set_cohesion(size_t fluid_idx, float cohesionvalue)`
-`float get_cohesion(size_t fluid_idx) const`
+void set_cohesion(size_t fluid_idx, float cohesionvalue)
+float get_cohesion(size_t fluid_idx) const
+----
 
 
 
@@ -688,7 +781,6 @@ Built-in geometries:
 * <<Rectangle>>
 * <<Disk>>
 * <<Cone>>
-* <<Cube>>
 * <<Box>>
 * <<Cylinder>>
 * <<Sphere>>
@@ -718,23 +810,25 @@ addSphere(GT_FLUID, FT_SOLID, Point(5, 2, 4), 1);
 addSphere(GT_FLUID, FT_NOFILL, Point(5, 2, 4), 0.5);
 ----
 
-Follows a list of the geometries available in GPUSPH.
+Details about the geometries available in GPUSPH follow.
 
 :!sectnums:
 
 ==== Plane
 A `Plane` geometry is analytically defined using the coefficients of the plane equation:
-
+[stem]
+++++
 a x + b y + c z = d
+++++
 
 A `Plane` geometry can be used as a simple geometrical region to cut other geometries
 during problem setup
-(setting <<filltype,`FT_UNFILL`>>), erasing all particles located in its positive
+(fill type <<filltype,`FT_UNFILL`>>), erasing all particles located in its positive
 side; this plane will have no effects during the simulation.
 The plane can be additionally used as a solid border of indefinite size
 exerting a repulsive force on fluid particles during the simulation
-(setting <<filltype,`FT_NOFILL`>> instead).
-The FillType field can be omitted, then the default value `FT_NOFILL` will be assigned.
+(fill type <<filltype,`FT_NOFILL`>> instead).
+The <<filltype,FillType>> field can be omitted, in which case the default value `FT_NOFILL` will be used.
 
 Usage Example:
 [source,cpp]
@@ -804,7 +898,10 @@ Usage example:
 ----
 GeometryID myrectangle = addRect(GT_FIXED_BOUNDARY, FT_SOLID, Point(0.0, 0.0, 0.0), 1.0, 2.0);
 ----
-**TODO**: see what happens here for the several FillType, different boundary models, and in what coordinates are the two axis by default
+
+****
+#TODO see what happens here for the several FillType, different boundary models, and in what coordinates are the two axis by default
+****
 
 General syntax:
 [source,cpp]
@@ -818,7 +915,10 @@ Usage example:
 ----
 GeometryID mydisk = addDisk(GT_FIXED_BOUNDARY, FT_SOLID, Point(0.0, 0.0, 0.0), 1.0, 2.0);
 ----
-**TODO**: see what happens here for the several FillType, different boundary models, and in what coordinates are the two axis by default
+
+****
+#TODO# see what happens here for the several FillType, different boundary models, and in what coordinates are the two axis by default
+****
 
 General syntax:
 [source,cpp]
@@ -839,34 +939,9 @@ General syntax:
 GeometryID addCone(const GeometryType otype, const FillType ftype, const Point &origin, const double bottom_radius, const double top_radius, const double height);
 ----
 
-==== Cube
-The `Cube` object is actually a parallelepiped, defined by an origin,
-given by a Point object, and three vectors are used to define the size
-and orientation of the cube. For example, here is a box that delimits
-an experimental domain (taken from the DamBreak3D.cc example), called
-`experiment\_box`.
-
-[source,cpp]
-----
-Cube mycube = Cube(Point(0, 0, 0),Vector(1.6, 0, 0),Vector(0, 0.67, 0), Vector(0, 0, 0.4));
-----
-This box has a corner located at the origin of the domain, with `(x, y, z) = (0, 0, 0)`,
-and three vectors from this point describe the cube,
-which happens to be 1.6 m long in the x direction, 0.67 m long in the
-y direction, and 0.4 in the z direction.
-
-So far we have only defined the cube `experiment\-box`, we have
-given it no properties. For this particular box, which bounds the
-computational domain, its bottom and four sides will be set as boundary
-particles, as we will see later.
-
-Associated with the Cube object are commands to fill the inner part of
-the box with particles, or to fill the boundaries as with boundary
-particles. %Also there are drawing commands for openGL rendering of the cube.
-
-**TODO** use the definition of cube that we have in problem_api1, instead?
-
 ==== Box
+A parallelepiped with axes parallel to the coordinate axes.
+
 Usage example:
 [source,cpp]
 ----
@@ -885,14 +960,14 @@ Usage example:
 ----
 GeometryID mycylinder = addCylinder(GT_FIXED_BOUNDARY, FT_BORDER, Point(0, 0, 0), 1, 5);
 ----
-This command adds an empty (<<filltype,FT_BORDER>>) cylinder of fixed solid boundary ([GT_FIXED_BOUNDARY](geometrytype)) placed in
+This command adds an empty (<<filltype,FT_BORDER>>) cylinder of fixed solid boundary (<<geometrytype,GT_FIXED_BOUNDARY>>>) placed in
 the point with coordinates `(x, y, z) = (0, 0, 0)`, with a 1 m radius base and
 5 m high.
 
 General syntax:
 [source,cpp]
 ----
-GeometryID ProblemAPI<1>::addCylinder(const GeometryType otype, const FillType ftype, const Point &origin, const double outer_radius, const double height)
+GeometryID addCylinder(const GeometryType otype, const FillType ftype, const Point &origin, const double outer_radius, const double height)
 ----
 
 ////
@@ -922,12 +997,12 @@ Usage example:
 ----
 GeometryID mysphere = addSphere(GT_FIXED_BOUNDARY, FT_BORDER, Point(0, 0, 0), 1);
 ----
-This command adds an empty (<<filltype,FT_BORDER>>) sphere of fixed solid boundary ([GT_FIXED_BOUNDARY](geometrytype)) placed in
+This command adds an empty (<<filltype,FT_BORDER>>) sphere of fixed solid boundary (<<geometrytype,GT_FIXED_BOUNDARY>>) placed in
 the point with coordinates `(x,y,z) = (0,0,0), with radius 1 m.
 Syntax:
 [source,cpp]
 ----
-GeometryID ProblemAPI<1>::addSphere(const GeometryType otype, const FillType ftype, const Point &origin, const double radius)
+GeometryID addSphere(const GeometryType otype, const FillType ftype, const Point &origin, const double radius)
 ----
 The Sphere object is defined by a point that determines the center
 of the sphere, a vector that determines its radius (and equatorial
@@ -1153,8 +1228,9 @@ Note that particles belonging to moving or floating objects are never erased.
 
 A geometry with erase operations will erase particles only from the geometries previously defined.
 
-Example 1: cube with cylindrical hole
-
+.Cube with cylindrical hole
+[example]
+====
 [source,cpp]
 ----
 // Reference geometries position from their corner
@@ -1168,11 +1244,14 @@ GeometryID cylinder = addCylinder(GT_FIXED_BOUNDARY, FT_NOFILL, Point(1, 1, 0), 
 // Set to the cylinder the option to erase boundary particles
 setEraseOperation(cylinder, ET_ERASE_BOUNDARY);
 ----
+====
 
 In this case we want to make an empty hole, so the cylinder will not create any particle. This is set using
 `FT_NOFILL` as `FillType`.
 
-Example 2: We want to make a hole on a solid cylinder and fill it with fluid
+.We want to make a hole on a solid cylinder and fill it with fluid
+[example]
+====
 [source,cpp]
 ----
 // Reference geometries position from their corner
@@ -1186,6 +1265,8 @@ GeometryID cylinder = addCylinder(GT_FLUID, FT_SOLID, Point(1, 1, 1), 1, 3);
 // Set to the second cylinder the option to erase boundary particles
 setEraseOperation(cylinder, ET_ERASE_BOUNDARY);
 ----
+====
+
 ==== Unfill radius
 A geometry with erase option will erase particles that fall inside its boundary. In addition to these
 particles, we can erase particles outside the erasing geometry, that are within a certain distance from 
@@ -1196,13 +1277,16 @@ void setUnfillRadius(const GeometryID id, double unfillRadius);
 ----
 Geometries have unfill-radius equal to the inter-particle spacing (deltap) as default.
 
-Example of usage:
+.Sample usage of `setUnfillRadius`
+[example]
+====
 [source,cpp]
 ----
 GeometryID mycylinder = addCylinder(GT_FIXED_BOUNDARY, FT_SOLID, Point(0, 0, 0), 1, 4);
 setEraseOperation(mycylinder, ET_ERASE_BOUNDARY);
 setUnfillRadius(mycylinder, 2*m_deltap); // erase particles within two deltap
 ----
+====
 
 === Positioning Policy
 The positioning policy specifies which point of the geometries is used as a reference for the positioning.
@@ -1224,7 +1308,8 @@ PP_CENTER:: the reference is the center of the geometry
 PP_BOTTOM_CENTER:: the reference is the central point of the bottom face of a geoetry
 PP_CORNER:: the reference is the corner with minimum coordinates.
 
-Example of usage:
+.Sample usage of `setPositioning`
+====
 [source,cpp]
 ----
 setPositioning(PP_CORNER);
@@ -1236,6 +1321,7 @@ setPositioning(PP_CENTER);
 // This box is positioned referring to its center
 GeometryID box3 = addBox(GT_FIXED_BOUNDARY, FT_SOLID, Point(0.0, 0.0, 2.0), 1.0, 1.0, 1.0);
 ----
+====
 
 === Transformations
 ==== Rotation
@@ -1250,9 +1336,13 @@ void shift(const GeometryID gid, const double Xoffset, const double Yoffset, con
 ----
 
 == Auxiliary functions [[aux-funcs]]
+
+****
+#TODO# rewrite this introductory part
+****
+
 These functions are defined in the `problem_name.cu` file, outside the problem constructor, and must be
-declared in the See the `problem_name.h` file. See the
-[getting started guide]({{ site.baseurl }}/documentation/get-started-guide) for further detail.
+declared in the See the `problem_name.h` file.
 
 The auxiliary functions are defined as a method for the class associated to the problem,
 then the definition should begin with `problem_name::auxiliary_function_name`.
@@ -1290,34 +1380,33 @@ MyCase::moving_bodies_callback(const uint index, Object* object, const double t0
 {
 
     if (index == 0) {
-        
+
             // Set the center of rotation
             kdata.crot = make_double3(0.25f, m_deltap, 0.0f);
-            
+
             // Set the angular velocity [rad/s]
             kdata.avel = make_double3(1.0, 0.0, 0.0);
-            
-            // 
 
-    dx = make_double3(0.0);
-    kdata.lvel = make_double3(0.0f, 0.0f, 0.0f);
-    
-    kdata.crot = make_double3(0.25f, m_deltap, 0.0f);
-    
-    
-    if (t1> paddle_tstart && t1 < paddle_tend){
-	    kdata.avel = make_double3(0.0, paddle_amplitude*paddle_omega*sin(paddle_omega*(t1-paddle_tstart)),0.0);
-	    EulerParameters dqdt = 0.5*EulerParameters(kdata.avel)*kdata.orientation;
-	    dr = EulerParameters::Identity() + (t1-t0)*dqdt*kdata.orientation.Inverse();
-	    dr.Normalize();
-	    kdata.orientation = kdata.orientation + (t1 - t0)*dqdt;
-	    kdata.orientation.Normalize();
-    }
-    else {
-	    kdata.avel = make_double3(0.0,0.0,0.0);
-	    kdata.orientation = kdata.orientation;
-	    dr.Identity();
-    }
+            //  Set the displacement
+	    dx = make_double3(0.0);
+            //  Set the linear velocity and center of rotation
+	    kdata.lvel = make_double3(0.0f, 0.0f, 0.0f);
+	    kdata.crot = make_double3(0.25f, m_deltap, 0.0f);
+
+
+	    if (t1> paddle_tstart && t1 < paddle_tend) {
+		    kdata.avel = make_double3(0.0, paddle_amplitude*paddle_omega*sin(paddle_omega*(t1-paddle_tstart)),0.0);
+		    EulerParameters dqdt = 0.5*EulerParameters(kdata.avel)*kdata.orientation;
+		    dr = EulerParameters::Identity() + (t1-t0)*dqdt*kdata.orientation.Inverse();
+		    dr.Normalize();
+		    kdata.orientation = kdata.orientation + (t1 - t0)*dqdt;
+		    kdata.orientation.Normalize();
+	    } else {
+		    kdata.avel = make_double3(0.0,0.0,0.0);
+		    kdata.orientation = kdata.orientation;
+		    dr.Identity();
+	    }
+	}
 }
 ----
 
@@ -1383,30 +1472,34 @@ bool MyCase::need_write(double t) const
 Values to be set inside the problem file can be assigned at runtime from command line, as an argument of GPUSPH. As opposed to modifying the value from the `.cu` problem file, this avoid recompiling GPUSPH.
 
 In order to get a value from command line the `get_option` command is included in the constructor of the problem.
-The sysntax is 
+The syntax is
 [source,cpp]
 ----
 dataType get_option(std::string const& key, dataType default_value);
 ----
+
 Where:
 * `key` is the name of the argument that will be used from command line
 * `default_value` is the returned value when the argument is not specified from command line
 
-Example of usage:
-We want to assign the value to the variable `double viscosity`at runtime.
+.Sample usage of `get_option`
+[example]
+====
+We want to assign the value to the double-precision variable `viscosity` at runtime
+from a command-line parameter `--visc`, with default value \(10^{-6}\):
 [source,cpp]
 ----
-// Here we are inside the constructor of the problem
+// This line will be inside the constructor of the problem
 const double viscosity = get_option("visc", 1e-6);
 ----
-
-To assign a value to `viscosity` at runtime we will execute GPUSPH as:
-[source,sh]
+To assign a value to `viscosity` at runtime we will run GPUSPH as:
+[source,shell]
 ----
 ./GPUSPH --visc 1e-2
 ----
 
 The value \(10^{-2}\) will be assigned to the variable `viscosity`.
+====
 
 
 == Buffers

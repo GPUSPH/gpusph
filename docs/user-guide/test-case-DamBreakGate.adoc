@@ -15,7 +15,7 @@ gage motion.
 where a moving gate was important.)
 
 The moving gate is created by defining its geometry with a geometry type
-`GT_MOVING_BODY`, and overriding the `Problem`'s
+`GT_MOVING_BODY`, and overriding the `Problem`
 `moving_bodies_callback` member function to impose the linear and
 angular velocity of the body.
 
