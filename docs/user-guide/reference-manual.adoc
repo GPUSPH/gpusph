@@ -1,0 +1,1527 @@
+== Simulation Framework (`SETUP_FRAMEWORK`) [[setup_framework]]
+
+The simulation framework defines the abstract physical and numerical
+rules to be used in the simulation. It's a collection of specifications
+for things ranging from the rheological model to the smoothing kernel.
+
+The general format, when all options are included is something like:
+[source,cpp]
+----
+  SETUP_FRAMEWORK(
+    space_dimensions<R3>,
+    kernel<WENDLAND>,
+    formulation<SPH_F1>,
+    densitydiffusion<BREZZI>,
+    rheology<NEWTONIAN>,
+    turbulence_model<LAMINAR_FLOW>,
+    computational_visc<KINEMATIC>,
+    visc_model<MORRIS>,
+    visc_average<ARITHMETIC>,
+    boundary<SA_BOUNDARY>,
+    periodicity<PERIODIC_NONE>,
+    add_flags<ENABLE_INLET_OUTLET | ENABLE_DENSITY_SUM
+        | ENABLE_MOVING_BODIES | ENABLE_REPACKING>
+  );
+----
+where any of the options can be omitted to leave the default.
+
+=== Framework setup keys
+:!sectnums:
+
+Let's see in details the various options
+
+==== Dimensionality (`space_dimensions`) [[space-dimensions]]
+
+This is used to define the dimensionality of the problem.
+Currently supported valus are:
+[horizontal]
+`R1`:: one dimensions (\(x\) only),
+`R2`:: two dimensions (\(x, y\), with \(y\) being the vertical axis by default),
+`R3`:: (default) three dimensions (\(x, y, z\), with \(z\) being the vertical axis by default).
+
+The values `R1_5` and `R2_5` are also defined, reserved for future support for shallow-water formulations.
+
+==== SPH kernel function (`kernel`) [[kernel]]
+
+Type of SPH smoothing kernels.
+[horizontal]
+`QUADRATIC`:: quadratic spline
+`CUBICSPLINE`:: cubic spline
+`WENDLAND`:: (default) quintic Wendland
+`GAUSSIAN`:: truncated Gaussian
+
+****
+#TODO# formulas
+****
+
+==== SPH formulation (`formulation`) [[formulation]]
+
+Several SPH formulations are availbale:
+[horizontal]
+`SPH_F1`:: (default) standard WCSPH single-fluid formulation following Monaghan's “golden rule”;
+`SPH_F2`:: WCSPH formulation for multiple fluids following Colagrossi & Landrini;
+`SPH_GRENIER`:: Grenier's WCSPH formulation for multiple fluids;
+`SPH_HA`:: Hu & Adams' WCSPH formulation for multiple fluids;
+
+****
+#TODO# formulas and bib references
+****
+
+==== Density diffusion (`densitydiffusion`) [[densitydiffusion]]
+
+Diffusive term added to the mass continuity equation to filter out high frequency density oscillations:
+[horizontal]
+`DENSITY_DIFFUSION_NONE`:: (default) no density diffusion;
+`FERRARI`:: Ferrari diffusion term (Mayrhofer et al 2013, CPC);
+`BREZZI`:: Brezzi diffusion term (Ferrand et al. 2017, CPC)
+`COLAGROSSI`:: Molteni & Colagrossi (2009);
+`ANTUONO` or `DELTA_SPH`:: the revised version of the Molteni & Colagrossi density diffusion term,
+used in the \(\delta\)-SPH formulation (see Marrone et al. 2010)
+
+****
+#TODO# formulas and revise/extend bib references
+****
+
+==== Rheology (`rheology`) [[rheology]]
+
+Available rheological models are:
+[horizontal]
+`INVISCID`:: (default) no laminar viscous contribution;
+`NEWTONIAN`:: constant (per-fluid) kinematic viscosity;
+`GRANULAR`:: granular flows rheology;
+`BINGHAM`::  Bingham plastic rheology (constant viscosity with a yield strength);
+`PAPANASTASIOU`:: regularized Bingham plastic;
+`POWER_LAW`:: power-law rheology (stress proportional to a power of the strain rate);
+`HERSCHEL_BULKLEY`:: power-law rheology with a yield strength;
+`ALEXANDROU`:: regularized Herschel–Bulkley rheology;
+`DEKEE_TURCOTTE`:: exponential rheology with a yield strength;
+`ZHU`:: regularized DeKee & Turcotte rheology;
+
+****
+#TODO# bib references
+****
+
+==== Viscous model (`visc_model`) [[visc_model]]
+
+The viscous model indicates how the viscous term of the momentum equation is
+discretized. The following formulations are available:
+[horizontal]
+`MORRIS`:: (default) from Morris et al., JCP 1997
+`MONAGHAN`:: from Monaghan & Gingold, JCP 1983
+`ESPANOL_REVENGA`:: from Español & Revenga, Phys Rev E 2003
+
+==== Viscous averaging (`visc_average`) [[visc_average]]
+
+For the viscous averaging model specifies how the viscosities of two
+interacting particles are averaged during the computation of
+the viscous forces. Possible choices are:
+[horizontal]
+`ARITHMETIC`:: arithmetic mean (\((a+b)/2\));
+`HARMONIC`:: harmonic mean (\(2ab/(a+b)\));
+`GEOMETRIC`:: geometric mean (\(\sqrt{ab}\));
+
+Some combinations of `visc_model`, `visc_average` and `computational_visc`
+will lead to specific optimizations in computations. While these generally
+have little impact on performance, they can affect the accuracy of the results.
+
+==== Computational viscosity (`computational_visc`) [[computational_visc]]
+
+This parameter selects which viscosity is tracked internally; possible values are
+[horizontal]
+`KINEMATIC`:: computations are built around the kinematic viscosity (SI units: \(\text{m}^2 \text{s}^{-1}\));
+`DYNAMIC`:: computations are built around the dynamic viscosity (SI units: (\text{Pa}\;\text{s}\));
+
+==== Turbulence model (`turbulence_model`) [[turbulence_model]]
+
+Contributions to the viscous forces come also from turbulence. The available turbulence models are:
+[horizontal]
+`LAMINAR_FLOW`:: turbulence is not taken into account (purely laminar flow);
+`SPS`:: sub-particle scale turbulence model;
+`KEPSILON`:: $\kappa-\varepsilon$ turbulence model (<<boundary,`SA_BOUNDARY`>> only);
+`ARTIFICIAL`:: (default) Monaghan's artificial viscosity;
+ while strictly speaking not a turbulence model, it behaves in a similar way and is thus included here;
+ usually used in combination with the <<rheology,INVISCID>> rheological model;
+
+==== Boundary moduel (`boundary`) [[boundary]]
+
+Different formulations are available for the solid boundaries:
+[horizontal]
+`LJ_BOUNDARY`:: Lennard–Jones
+`MK_BOUNDARY`:: Monaghan–Kajtar
+`DYN_BOUNDARY`:: dynamic particles;
+`DUMMY_BOUNDARY`:: dummy boundary model, from Adami et al. 2011;
+`SA_BOUNDARY`:: semi-analytical model (Ferrand et al.);
++
+CAUTION: the `SA_BOUNDARY` model is deprecated, and may be removed in a future version of GPUSPH;
+if you are familiar with the model and interested in maintaining its support,
+please contact the developers.
+
+****
+#TODO# bib references
+****
+==== Periodicity (`periodicity`) [[periodicity]]
+
+This is used to specify that the domain is periodic in one or more directions:
+[horizontal]
+`PERIODIC_NONE`:: (default) no periodicity
+`PERIODIC_X`:: periodic in the X direction;
+`PERIODIC_Y`:: periodic in the Y direction;
+`PERIODIC_Z`:: periodic in the Z direction;
+`PERIODIC_XY`:: periodic in X and Y;
+`PERIODIC_XZ`:: periodic in X and Z;
+`PERIODIC_YZ`:: periodic in Y and Z;
+`PERIODIC_XYZ`:: periodic in all directions;
+
+==== Miscellaneous boolean flags (`add_flags`, `disable_flags`) [[add_flags,disable_flags]]
+
+Can be used to enable individual features, such as support for open boundaries
+or adaptive time-stepping; flags that are enabled by default can be
+disabled with the `disable_flags` option; possible values:
+[horizontal]
+`ENABLE_DTADAPT`:: (enabled by default) adaptive time-stepping;
+`ENABLE_XSPH`:: XSPH correction;
+`ENABLE_CCSPH`:: enable Conservative Corrective SPH;
+`ENABLE_PLANES`:: support for geometric plane boundaries
+`ENABLE_DEM`:: support for geometric Digital Elevation Model boundaries;
+`ENABLE_MOVING_BODIES`:: support for moving boundaries;
+`ENABLE_FEA`:: support for Finite Element Analysis of deformable objects through Chono;
+`ENABLE_INLET_OUTLET`:: support for open boundaries;
+`ENABLE_WATER_DEPTH`:: computation of water depth at pressure boundaries;
+`ENABLE_DENSITY_SUM`:: use density summation instead of continuity equation (<<boundary,`SA_BOUNDARY`>> only);
+`ENABLE_GAMMA_QUADRATURE`:: numerical quadrature of semi-analytical gamma (<<boundary,`SA_BOUNDARY`>> only);
+`ENABLE_INTERNAL_ENERGY`:: internal energy computation;
+`ENABLE_REPACKING`:: (experimental) repacking feature;
+`ENABLE_MULTIFLUID`:: support for multiple fluids;
+
+
+
+:sectnums:
+== Postprocessing and filtering
+
+Post-processing and filtering are elaborations of the particle system that are
+run when saving data or at the beginning of the time-step, respectively.
+They share similar mechanism but are intended for distinct purposes:
+<<postprocessing,post-processing>> is used to compute specific values which do not affect the simulation,
+but are of interested when running the testcase, while
+<<filtering,filtering>> is used (essentially) to smooth out particle properties (typically the density).
+
+=== Post-processing [[postprocessing]]
+
+Post-processing engines are added using the command `addPostProcess`:
+[source,cpp]
+----
+AbstractPostProcessEngine* addPostProcess(PostProcessType pptype, flag_t options=NO_FLAGS);
+----
+where `PostProcessType` is one of the following post-processing engines:
+[horizontal]
+`VORTICITY`:: for the computation of vorticity;
+`TESTPOINTS`:: to compute pressure at designated <<testpoint,testpoints>>;
+`SURFACE_DETECTION`:: to enable the detection of surface particles
+`INTERFACE_DETECTION`:: to enable the detection of interfaces between multiple fluids;
+this is needed by the <<rheology,`GRANULAR` rheology>>;
+`FLUX_COMPUTATION`:: to enable computation of total flux at open boundaries, as required in
+some cases to impose the correct open boundary conditions;
+`CALC_PRIVATE`::  user-defined post-processing filters; the `options` flags
+can be used to determine what kind of data will be saved by the filter,
+as a combination of `BUFFER_PRIVATE` (one `float` value per particle),
+`BUFFER_PRIVATE2` (one `float2` value per particle) and/or
+`BUFFER_PRIVATE4` (one `float4` value per particle)
+
+=== Filtering [[filtering]]
+
+Filters are added using the command `addFilter`:
+[source,cpp]
+----
+AbstractFilterEngine* addFilter(FilterType filtertype, int frequency)
+----
+
+The possible `FilterType`s are:
+[[horziontal]]
+`SHEPARD_FILTER`:: reinitialize the particles' density through Shepard filtering;
+`MLS_FILTER`:: reinitialize the particles' density using Moving Least Square filtering
+
+The second argument of the `addFilter` takes an integer number that indicates
+every how many SPH iterations the filter should be executed.
+
+
+
+== Simulation parameters [[sim-params]]
+
+Simulation parameters are general parameters that concern how the simulated physical world
+should be discretized.
+
+=== Details
+:!sectnums:
+
+==== addExtraWorldMargin
+
+`void addExtraWorldMargin(const double margin)`
+
+Expands the simulation domain by a specified size
+
+==== setWaterLevel
+
+`void setWaterLevel(double waterLevel)`
+
+Set the maximum fluid level for automatic assigment of hydrostatic pressure
+
+==== setMaxFall
+ 
+`void setMaxFall(double maxFall)`
+
+Set the maximum fluid column expected during the simulation. This value is used for automatically setting
+SPH speed of sound.
+
+==== setMaxParticleSpeed
+
+`void setMaxParticleSpeed(double maxParticleSpeed)`
+
+Set maximum speed expected during the simulation. This value is used for automatically setting
+SPH speed of sound.
+
+==== enableHydrostaticFilling
+
+`void enableHydrostaticFilling()`
+
+Enable automatic hydrostatic pressure assignment
+
+==== disableHydrostaticFilling
+
+`void disableHydrostaticFilling()`
+
+Disable automatic hydrostatic pressure assignment
+
+==== setDEMZminScale
+
+`void setDEMZminScale(double scale)`
+
+demzmin will be computed as scale*m_deltap
+
+==== setDEMZmin
+
+`void setDEMZmin(double demzmin)`
+
+Set demzmin to the given value
+
+==== setDEMNormalDisplacementScale
+
+`void setDEMNormalDisplacementScale(double scalex, double scaley=NAN)`
+
+==== setDEMNormalDisplacement
+
+`void setDEMNormalDisplacement(double demdx, double demdy=NAN);`
+
+==== computeDEMphysparams
+
+`void computeDEMphysparams()`
+
+Compute DEM physical parameters. This is normally done automatically during the filling phase,
+but can be forced earlier if the user wants the information for other purposes
+
+==== preferredDeltaP
+
+`double preferredDeltaP(GeometryType type)`
+
+Get the inter-particle spacing based on the geometry type
+
+==== setDynamicBoundariesLayers
+
+`void setDynamicBoundariesLayers(const uint numLayers)`
+
+Set number of layers for multi-layer boundary models (e.g. Dynamic boundary and Dummy boundary).
+Default is 0, which means autocompute
+
+==== getDynamicBoundariesLayers
+
+`uint getDynamicBoundariesLayers()`
+Get number of layers used for multi-layer boundary models (e.g. Dynamic boundary and Dummy boundary.
+
+==== get_worldorigin
+
+`double3 const& get_worldorigin(void) const`
+
+Returns the coordinates of the origin of the simulation domain.
+
+==== get_worldsize
+
+`double3 const& get_worldsize(void) const`
+
+Return the size of the simulation domain
+
+==== get_cellsize
+
+`double3 const& get_cellsize(void) const`
+
+Return the size of cells in the simulation grid.
+
+==== get_gridsize
+
+`uint3 const& get_gridsize(void) const`
+
+Return the number of cells in the three dimensions that compose the simulation grid.
+
+==== set_deltap
+
+`double set_deltap(const double dflt)`
+
+Set the initial inter-particle spacing.
+
+==== get_deltap
+
+`double get_deltap() const`
+
+Returns the initial inter-particle spacing.
+
+==== set_timestep
+
+`float set_timestep(const float dt)`
+
+Set the initial time-step. When the `ENABLE_DTADAPT` flag is not enabled the initial time-step will be maintained during the entire simulation.
+
+==== get_timestep
+
+`float get_timestep() const`
+
+Returns the initial time-step
+
+==== set_smoothing
+
+`double set_smoothing(const double smooth)`
+
+Set smoothing factor (the ratio between smoothing lenght and the initial inter-particle spacing). 
+The smoothing factor is set to 1.3 by default
+
+==== set_neiblist_expansion
+
+`double set_neiblist_expansion(double alpha)`
+
+Set the expansion factor for the neighbor list search:
+when building the neighbor list, particles will be
+added to the list if they are within alpha*influenceRadius
+rather than just influenceRadius
+Returns the new neighbor search radius
+
+==== set_kernel_radius
+
+`void set_kernel_radius(double radius)`
+
+==== set_grid_params
+
+`void set_grid_params(void)`
+
+
+
+:sectnums:
+== Physical parameters [[phys-params]]
+
+Physical parameters describe the physical components of the problem.
+
+=== Gravitational acceleration
+
+`float3 const& set_gravity(const float3 gravity)` set the three spatial components of gravity
+
+`float3 set_gravity(const float gravityX, const float gravityY, const float gravityZ)` set the three spatial components of gravity
+
+`float3 set_gravity(const float gravityZ)` assume the gravity vertical and set only the vertical component.
+
+`float3 const& get_gravity() const` Get the three spatial components of gravity
+
+`float get_gravity_magnitude() const` Get the magnitude of gravity
+
+=== Materials properties [[materials]]
+
+==== Density
+
+The density of a fluid can be specified while creating the new fluid using the function `size_t add_fluid(float rho)`. The function
+returns the index of the new created fluid, that can be stored in a variable to be used for easier referencing in the case of multi-fluid simulation.
+
+Example of usage:
+[source,cpp]
+----
+size_t water = add_fluid(1000); // Create a new fluid with density 1000 kg/m³. The index stored in `water` is 0
+size_t oil = add_fluid(850); // Create a new fluid with density 850 kg/m³. The index stored in `oil` is 1
+----
+
+The functions to set and get the density of an already existent fluid are declared respectively as `void set_density(size_t fluid_idx, float _rho0)`
+and `float get_density(size_t fluid_idx)`.
+
+Example of usage:
+[source,cpp]
+----
+set_density(0, 2000); // Set the density of fluid 0 to 2000 kg/m³.
+float rho = get_density(0); // Gets the density of fluid 0 [kg/m³]
+----
+
+==== Equation of state
+
+The function to set the parameters of the equation of state of a fluid is
+declared as `void set_equation_of_state(size_t fluid_idx, float gamma, float
+c0)`
+
+where:
+* `fluid_idx` is the id of the fluid
+* `gamma` is the polytropic constant of the fluid
+* `c0` is the speed of sound in the fluid
+
+`c0` can be set to `NAN` in order to have the sound speed auto-computed.
+
+Example of usage:
+[source,cpp]
+----
+set_equation_of_state(0, 7, 100);
+
+set_equation_of_state(1, 7, NAN); // The sound speed for fluid 1 is auto-computed
+----
+
+==== Interface consistency parameters
+
+When using Grenier's <<formulation,formulation>> for multi-fluid simulations,
+`set_interface_epsilon` can be used to improve the sharpness of the interface
+between the fluids. The function, with signature
+
+`void set_interface_epsilon(float eps)`
+
+takes a single parameter that should be between 0 and 1.
+
+This parameter is global and not per-fluid.
+
+==== Artificial Viscosity
+
+The alpha coefficient of Monaghan's artificial viscosity can be set with
+`void set_artificial_visc(float artvisc)`.
+
+This parameter is global and not per-fluid.
+
+=== Physical viscosity
+
+Several functions are available to set/get the physical viscosity parameters
+of each fluid. Some of them are only relevant with specific rheological models.
+
+==== Kinematic and dynamic viscosity
+
+When the <<rheology,rheological model>> is `NEWTONIAN`, the (Newtonian)
+viscosity of the each fluid can be set either by its kinematic or
+by its dynamic vlue, with:
+
+`void set_kinematic_visc(size_t fluid_idx, float nu)`
+
+and
+
+`void set_dynamic_visc(size_t fluid_idx, float mu)`
+
+where `nu` is the kinematic viscosity (in m²/s if using the MKS system),
+and `mu` is the dynamic viscosity (in Pa s if using the MKS system).
+
+Example of usage:
+[source,cpp]
+----
+set_kinematic_visc(0, 1e-6); //Set the kinematic viscosity of fluid 0 to 1e-6 m²/s
+----
+
+or
+
+[source,cpp]
+----
+set_dynamic_visc(0, 1e-3); //Set the dynamic viscosity of fluid 0 to 1e-3 Pa*s
+----
+
+Internally, GPUSPH will store the dynamic or kinematic value based on the choice
+of the <<computational_visc,computational viscosity>>, by dividing or multiplying
+the user-specified value with the density (e.g. if the user selected the `DYNAMIC`
+computationa viscosity option, and then uses `set_kinematic_visc`, the dynamic
+viscosity will be computed by multiplying `nu` times the density of the specific
+fluid). Because of this, <<density,`set_density`>> should not be called _after_
+setting the viscosity, as this may lead to inconsistent results.
+
+<!-- TODO this should probably be enforced in the code -->
+
+The user may retrieve the (specified or computed) value of the kinematic
+or dynamic viscosity using the corresponding functions:
+
+`float get_kinematic_visc(size_t fluid_idx) const`
+
+and
+
+`float get_dynamic_visc(size_t fluid_idx) const`
+
+Example of usage:
+[source,cpp]
+----
+float kin_visc = get_kinematic_visc(0); // Get kinematic viscosity of fluid 0
+float dyn_visc = get_dynamic_visc(0); // Get dynamic viscosity of fluid 0
+----
+
+==== Bulk Viscosity
+
+When using the <<visc_model,Español & Revenga>> viscosity model, the user
+can set the bulk viscosity with:
+
+`void set_bulk_visc(size_t fluid_idx, float zeta)`
+
+
+==== Non-Newtonian rheological parameters (yield strength, consistency, flow index etc)
+
+The yield strength of a non-Newtonian fluid with yield can be set
+using `void set_yield_strength(size_t fluid_idx, float ys)`, and
+retrieved with `float get_yield_strength(size_t fluid_idx) const`.
+
+The consistency of the fluid (generalization of the dynamic viscosity)
+can be set with `void set_consistency_index(size_t fluid_idx, float k)`
+and retrieved with `float get_consistency_index(size_t fluid_idx) const`.
+
+
+Example of usage for a Bingham fluid:
+[source,cpp]
+----
+set_consistency_index(0, 1e-2); //Set the consistency index of fluid 0 to 1e-2 Pa*s
+
+set_yield_strength(0, 1e-2); //Set the yeld strength of fluid 0 to 1e-2 Pa
+----
+
+and to retrieve that information:
+
+[source,cpp]
+----
+float k = get_consistency_index(0); // Get the consistency index of fluid 0 [Pa*s]
+
+float tau = get_yield_strength(0); // Get the yeld strength of fluid 0 [Pa]
+----
+
+If the stress/strain-rate relationship follows a power law (`HERSCHEL_BULKLEY`, `POWER_LAW`
+and `ALEXANDROU` <<rheology,rheological models>>, the exponent (flow index) can be
+set with `void set_visc_power_law(size_t fluid_idx, float n)` and retrieved with
+`float get_visc_power_law(size_t fluid_idx) const`.
+
+If the stress/strain-rate relationship is exponential (`DEKEE_TURCOTTE` and `ZHU`
+<<rheology,rheologicalmodels>>), the exponential coefficient can be set with
+`void set_visc_exponential_coeff(size_t fluid_idx, float n)` and retrieved with
+`float get_visc_exponential_coeff(size_t fluid_idx) const`
+
+Many non-Newtonian rheological models have theoretically infinite effective
+viscosity in degenerate cases (e.g. fluids with yield in the unyielded region).
+To avoid the numerical complications of an infinite viscosity,
+a large limiting viscosity can be set for the whole simulation with
+`void set_limiting_kinvisc(float max_visc)`.
+
+Note that this is an upper bound to the  _kinematic_ effective viscosity,
+and it is fluid-independent.
+
+==== Granular rheological parameters
+
+`void set_sinpsi(size_t fluid_idx, float sinpsivalue)`
+`float get_sinpsi(size_t fluid_idx) const`
+
+`void set_cohesion(size_t fluid_idx, float cohesionvalue)`
+`float get_cohesion(size_t fluid_idx) const`
+
+
+
+== Writers
+
+Writers are used to save to file data from the simulation. A writer is added using the command `add_writer` declared as
+[source,cpp]
+----
+void add_writer(WriterType wt, double time_interval);
+----
+
+The parameters to be set are:
+[horizontal]
+`wt`:: the type of writer
+`time_interval`:: time period (in simulated seconds) between saves;
+ this parameter can be overridden by the <<need_write,`need_write`>> auxiliary function,
+that can request to save data at every SPH iteration with a condition depending on simulation time.
+
+The possible choices of `WriterType` are:
+[horizontal]
+COMMONWRITER:: this writer is automatically enabled and it manages the writing of common results from
+energy computation, wave gages, rigid bodies,
+that will be wrriten out to dedicated files inside the output folder;
+`addWriter` can be used to change the frequency at which this output happens
+(by default, the common writer will use the same frequency as the other writers enabled)
+TEXTWRITER:: a text-only writer; #TODO#
+VTKWRITER:: this writer is automatically enabled if no other writers are selected by the user;
+it writes out the entire particle system in VTK format;
+the resulting `.vtp` files can be opened by software like Paraview.
+VTKLEGACYWRITER:: this writer outputs data in legacy VTK format; its use is discouraged for large particle systems
+due to enormous file size;
+CALLBACKWRITER:: #TODO#
+CUSTOMTEXTWRITER:: #TODO#
+UDPWRITER:: this writes out particle data as UDP packets to the network interfaces;
+software such as `seewaves` can be used to visualize the particle system while the simulation is ongoing;
+HOTWRITER:: this writer is automatically enabled and it dumps the state of the simulator in a way
+that allows simulations to be resumed;
+DISPLAYWRITER:: #TODO# integration with Paraview Catalyst
+
+
+
+== Geometries [[geometries]]
+
+The geometries needed to setup a new problem can be either
+imported or generated within GPUSPH. Both solid and liquid bodies
+can be included in this way. Solid objects can be assigned a mass and a center of gravity,
+they can be fixed in space, floating, or undergoing predefined motions.
+
+The geometries available in GPUSPH are defined in the `src/geometry` folder.
+The problem API 1` makes it possible to apply geometrical transformations
+to the objects and manage their interaction.
+
+////
+TODO
+In two dimensions, the objects (in \cpp\ terms, classes) include {\em
+Point, Vector, Segment, Rect (rectangle), Circle}. In three
+dimensions, there are additional objects: {\em Cone, Cube, Cylinder,
+Sphere and TopoCube}.
+////
+
+=== GPUSPH geometrical elements
+New geometries are added to the problem with commands of the form
+`add` (e.g. `addCylider` to add a Cylinder) that take as parameter a
+<<_geometrytype,`GeometryType`>>, a <<_filltype,`FillType`>>, the reference point location,
+and the dimension(s).
+
+Built-in geometries:
+
+* <<Plane>>
+* <<Point>>
+* <<Vector>>
+* Segment
+* <<Rectangle>>
+* <<Disk>>
+* <<Cone>>
+* <<Cube>>
+* <<Box>>
+* <<Cylinder>>
+* <<Sphere>>
+* <<Torus>>
+
+External geometries that can be imported:
+
+* <<TopoCube>>
+* <<STLmesh>>
+* <<OBJmesh>>
+* <<HDF5File>>
+* <<XYZFile>>
+* <<DEM>>
+* <<DEMFluidBox>>
+
+Example of use:
+[source,cpp]
+----
+// add a boundary cube with corner in the origin. The side lengths are specified
+// in the order X, Y, Z
+addCube(GT_FIXED_BOUNDARY, FT_BORDER, Point(0, 0, 0), 10, 4, 8);
+
+// add a sphere of fluid centered in (5, 2, 4) with radius 1m
+addSphere(GT_FLUID, FT_SOLID, Point(5, 2, 4), 1);
+
+// remove a smaller sphere inside the previous fluid sphere
+addSphere(GT_FLUID, FT_NOFILL, Point(5, 2, 4), 0.5);
+----
+
+Follows a list of the geometries available in GPUSPH.
+
+:!sectnums:
+
+==== Plane
+A `Plane` geometry is analytically defined using the coefficients of the plane equation:
+
+a x + b y + c z = d
+
+A `Plane` geometry can be used as a simple geometrical region to cut other geometries
+during problem setup
+(setting <<filltype,`FT_UNFILL`>>), erasing all particles located in its positive
+side; this plane will have no effects during the simulation.
+The plane can be additionally used as a solid border of indefinite size
+exerting a repulsive force on fluid particles during the simulation
+(setting <<filltype,`FT_NOFILL`>> instead).
+The FillType field can be omitted, then the default value `FT_NOFILL` will be assigned.
+
+Usage Example:
+[source,cpp]
+----
+GeometryID myplane = addPlane(0, 0, 0, 1, FT_NOFILL);
+----
+This command adds a horizontal plane at 1 m level from the origin;
+this plane will interact with fluid particles during the simulation and can be used as a ground surface.
+
+General syntax:
+[source,cpp]
+----
+GeometryID addPlane(const double a_coeff, const double b_coeff, const double c_coeff, const double d_coeff, const FillType ftype)
+----
+
+==== Point
+The `Point` object is usually used as a three dimensional object
+containing the location of a point in three dimensions. All numbers are
+double precision. Associated with the Point object are functions that
+determine distance (or distance squared) of a point from the origin or
+the distance from another point.
+
+Usage Example:
+[source,cpp]
+----
+Point mypoint1 = Point(0, 0, 0);  // add a point in the origin (mass is null if not specified)
+
+// or
+
+Point mypoint2 = Point(0, 0, 0, 1);  // add a point in the origin with mass 1 kg
+
+// or
+
+double3 coordinates = make_double3(0.0, 0.0, 0.0);  // mass can be specified with a fourth component using double4.
+                                                    // float could be used, then we need float3 or float4, respectively
+Point mypoint3 = Point(coordinates);
+----
+
+==== Vector
+The `Vector` object is a three dimensional double precision object of
+three space coordinates, x,y and z. Vector has a number of associated
+functions such as Vector.norm, for the length of the vector.
+
+Usage Example:
+[source,cpp]
+----
+Vector myvector1 = Vector(1, 0);  // defines a two components unity vector
+
+// or
+
+Vector myvector2 = Vector(1, 0, 0);  // defines a three components unity vector (mass is null if not specified)
+
+// or
+
+Vector myvector3 = Vector(1, 0, 0, 2);  // defines a three components unity vector with mass 2 kg
+
+// or
+
+double3 coordinates = make_double3(0.0, 0.0, 0.0);  // mass can be specified with a fourth component using double4.
+                                                    // float could be used, then we need float3 or float4, respectively
+Vector myvector4 = Vector(coordinates);
+----
+
+==== Rectangle
+Usage example:
+[source,cpp]
+----
+GeometryID myrectangle = addRect(GT_FIXED_BOUNDARY, FT_SOLID, Point(0.0, 0.0, 0.0), 1.0, 2.0);
+----
+**TODO**: see what happens here for the several FillType, different boundary models, and in what coordinates are the two axis by default
+
+General syntax:
+[source,cpp]
+----
+GeometryID addRect(const GeometryType otype, const FillType ftype, const Point &origin, const double side1, const double side2);
+----
+
+==== Disk
+Usage example:
+[source,cpp]
+----
+GeometryID mydisk = addDisk(GT_FIXED_BOUNDARY, FT_SOLID, Point(0.0, 0.0, 0.0), 1.0, 2.0);
+----
+**TODO**: see what happens here for the several FillType, different boundary models, and in what coordinates are the two axis by default
+
+General syntax:
+[source,cpp]
+----
+GeometryID addDisk(const GeometryType otype, const FillType ftype, const Point &origin, const double radius);
+----
+
+==== Cone
+Usage example:
+[source,cpp]
+----
+GeometryID mycone = addCone(GT_FIXED_BOUNDARY, FT_SOLID, Point(0.0, 0.0, 0.0), 1.0, 0.5, 1.0);
+----
+
+General syntax:
+[source,cpp]
+----
+GeometryID addCone(const GeometryType otype, const FillType ftype, const Point &origin, const double bottom_radius, const double top_radius, const double height);
+----
+
+==== Cube
+The `Cube` object is actually a parallelepiped, defined by an origin,
+given by a Point object, and three vectors are used to define the size
+and orientation of the cube. For example, here is a box that delimits
+an experimental domain (taken from the DamBreak3D.cc example), called
+`experiment\_box`.
+
+[source,cpp]
+----
+Cube mycube = Cube(Point(0, 0, 0),Vector(1.6, 0, 0),Vector(0, 0.67, 0), Vector(0, 0, 0.4));
+----
+This box has a corner located at the origin of the domain, with `(x, y, z) = (0, 0, 0)`,
+and three vectors from this point describe the cube,
+which happens to be 1.6 m long in the x direction, 0.67 m long in the
+y direction, and 0.4 in the z direction.
+
+So far we have only defined the cube `experiment\-box`, we have
+given it no properties. For this particular box, which bounds the
+computational domain, its bottom and four sides will be set as boundary
+particles, as we will see later.
+
+Associated with the Cube object are commands to fill the inner part of
+the box with particles, or to fill the boundaries as with boundary
+particles. %Also there are drawing commands for openGL rendering of the cube.
+
+**TODO** use the definition of cube that we have in problem_api1, instead?
+
+==== Box
+Usage example:
+[source,cpp]
+----
+GeometryID mybox = addBox(GT_FIXED_BOUNDARY, FT_SOLID, Point(0.0, 0.0, 0.0), 1.0, 2.0, 3.0);
+----
+
+General syntax:
+[source,cpp]
+----
+GeometryID addBox(const GeometryType otype, const FillType ftype, const Point &origin, const double side1, const double side2, const double side3);
+----
+
+==== Cylinder
+Usage example:
+[source,cpp]
+----
+GeometryID mycylinder = addCylinder(GT_FIXED_BOUNDARY, FT_BORDER, Point(0, 0, 0), 1, 5);
+----
+This command adds an empty (<<filltype,FT_BORDER>>) cylinder of fixed solid boundary ([GT_FIXED_BOUNDARY](geometrytype)) placed in
+the point with coordinates `(x, y, z) = (0, 0, 0)`, with a 1 m radius base and
+5 m high.
+
+General syntax:
+[source,cpp]
+----
+GeometryID ProblemAPI<1>::addCylinder(const GeometryType otype, const FillType ftype, const Point &origin, const double outer_radius, const double height)
+----
+
+////
+TODO
+The Cylinder object is defined by a point that determines the
+location of the center of the disk that forms its base, a vector that
+defines the radius about the point, and then another vector that defined
+the height of the cylinder. The cylinder object also has fill and
+FillBorder commands. For example,
+
+jet = Cylinder(Point(0.,0.,0.), Vector(0.5,0.,0.), Vector(0.,0.,1.));
+
+would define a cylinder located at the origin with radius 0.5 and
+height 1.0 with the name jet. The Cylinder object can be used to
+define a cylindrical column of fluid, using the \verb!jet.Fill!
+command for the defined cylinder, jet. The mass of the particles
+forming jet is set by \verb!jet.SetPartMass! function. If the jet was
+supposed to be a pipe, the \verb!jet.FillBorder!, with suitable
+arguments, would use boundary particles for the pipe called jet. Two
+of the arguments (Booleans: true or false) of the method determine if
+the cylinder is closed on the bottom or the top.
+////
+
+==== Sphere
+Usage example:
+[source,cpp]
+----
+GeometryID mysphere = addSphere(GT_FIXED_BOUNDARY, FT_BORDER, Point(0, 0, 0), 1);
+----
+This command adds an empty (<<filltype,FT_BORDER>>) sphere of fixed solid boundary ([GT_FIXED_BOUNDARY](geometrytype)) placed in
+the point with coordinates `(x,y,z) = (0,0,0), with radius 1 m.
+Syntax:
+[source,cpp]
+----
+GeometryID ProblemAPI<1>::addSphere(const GeometryType otype, const FillType ftype, const Point &origin, const double radius)
+----
+The Sphere object is defined by a point that determines the center
+of the sphere, a vector that determines its radius (and equatorial
+normal), and a vector pointing to the sphere's pole. For a sphere,
+these two vectors have equal magnitude and are normal to each other.
+The Sphere object uses the Circle object in layers to create a sphere.
+
+==== Torus
+Usage example:
+[source,cpp]
+----
+GeometryID mytorus = addTorus(GT_FIXED_BOUNDARY, FT_BORDER, Point(0, 0, 0), 1.0, 0.5);
+----
+
+Syntax:
+[source,cpp]
+----
+GeometryID addTorus(const GeometryType otype, const FillType ftype, const Point &origin, const double major_radius, const double minor_radius);
+----
+
+
+
+==== TopoCube
+
+****
+#TODO# rewrite and link to addDEM and addDEMFluidBox
+****
+
+A TopoCube object is used to define a domain that has the bottom
+of the cube provided by a data file. The geometry of the TopoCube is
+determined the same was as in the Cube object. The data file has a
+strict format; for example: \\\\ north: 13.2 \\ south: -0.2\\ east:
+43.2 \\ west: 0.54 \\ rows: 134\\ cols: 432 \\ \{data in 134 rows
+with 432 entries per line; numbers space separated\}\\ \\ The numbers
+following the compass directions are the length of the domain described
+by the data, in meters. (North and south correspond to the +Y axis and
+the -Y axis, while E and W are aligned with the +X and -X directions.)
+The internal variables (see problem TestTopo.cc) $nsres$ and $ewres$ are
+grid resolutions determined by $nsres= (north-south)/(nrows-1)$ and
+$ewres= (east -west)/(ncols-1)$.
+
+The data file is read using the TopoCube.SetCubeDem function, which is
+called with arguments (float H, float *dem, int ncols, int nrows, float
+nsres, float ewres, bool interpol), where H is the depth of the cube,
+*dem points to the array of bathymetric data in the data file, ncols and
+nrows are the number of columns and rows in the dem data set, nsres and
+ewres is the spacing between the bathymetric data in the north/south
+direction and the east/west direction, and interpol (not the police) is
+the boolean variable for interpolation. FillBorder will fill a face
+with particles--the particular face is determined by face\_num, which
+takes on the values of (0,1,2,3), for the front face, the right side
+face, the back face, and the left side face (facing the -$x$ direction)
+for a rectangular box.
+
+Other objects can be defined and added to the source directory to allow
+for additional flexibility.
+
+
+==== STLmesh
+Syntax:
+[source,cpp]
+----
+GeometryID addSTLMesh(const GeometryType otype, const FillType ftype, const Point &origin, const char *fname);
+----
+
+==== OBJmesh
+Syntax:
+[source,cpp]
+----
+GeometryID addOBJMesh(const GeometryType otype, const FillType ftype, const Point &origin, const char *fname);
+----
+
+==== HDF5File
+Syntax:
+[source,cpp]
+----
+GeometryID addHDF5File(const GeometryType otype, const Point &origin, const char *fname_hdf5, const char *fname_stl = NULL);
+----
+
+
+
+The fluid initialization performed by the Particle preprocessor and stored in the H5SPH 
+files can be used by GPUSPH to start the simulation with any type of boundary conditions.
+The specification of the file containing the fluid particles occurs with the following statement:
+
+[source,cpp]
+----
+addHDF5File(GT_FLUID, Point(0,0,0), 
+"./data_files/MyCase/my_case.fluid.h5sph",
+NULL);
+----
+The specification of the file containing the special boundary particles occurs with the following statement:
+
+[source,cpp]
+----
+// Main container
+GeometryID container =
+addHDF5File(GT_FIXED_BOUNDARY, Point(0,0,0), 
+  "./data_files/MyCase/my_case.boundary.h5sph",
+  NULL);
+disableCollisions(container);
+  
+// Inflow boundary 
+GeometryID inlet =
+  addHDF5File(GT_OPENBOUNDARY, Point(0,0,0), 
+  "./data_files/MyProject/0.my_project.boundary.kent1.h5sph",
+  NULL);
+disableCollisions(inlet);
+
+GeometryID cube =
+  addHDF5File(GT_FLOATING_BODY, Point(0,0,0), 
+  "./data_files/MyProject/0.my_project.boundary.kent2.h5sph",
+  "./data_files/MyProject/MyProject_object_file.stl");
+// output forces on the cube
+enableFeedback(cube);
+// set the cube density
+setMassByDensity(cube, 500);
+----
+
+In order to specify whether the open boundary is pressure driven or velocity driven, the following lines
+are used:
+[source,cpp]
+----
+setVelocityDriven(inlet, 1);
+setVelocityDriven(outlet, 0);
+----
+
+==== XYZFile
+
+Syntax:
+[source,cpp]
+----
+GeometryID addXYZFile(const GeometryType otype, const Point &origin, const char *fname_xyz, const char *fname_stl = NULL);
+----
+
+==== DEM
+
+Syntax:
+[source,cpp]
+----
+GeometryID addDEM(const char *fname_dem, const TopographyFormat dem_fmt = DEM_FMT_ASCII, const FillType fill_type = FT_NOFILL);
+
+// or
+
+GeometryID addDEM(std::string const& fname_dem, const TopographyFormat dem_fmt = DEM_FMT_ASCII, const FillType fill_type = FT_NOFILL)
+----
+
+==== DEMFluidBox
+[source,cpp]
+----
+GeometryID addDEMFluidBox(double height, GeometryID dem_gid = INVALID_GEOMETRY);
+----
+
+
+:sectnums:
+
+=== GeometryType
+
+The `GeometryType` option selects the behavior of the geometry in
+the simulation.
+[horizontal]
+GT_FLUID:: for fluid bodies;
+GT_FIXED_BOUNDARY:: for fixed boundaries such as walls;
+GT_OPEN_BOUNDARY:: for open boundaries (inlets, outlets);
+GT_FLOATING_BODY:: for floating rigid bodies. The motions is determined
+by exteral forces that can be due to interaction with the fluid;
+GT_MOVING_BODY:: for objects which motions is prescribed by the
+user (using the <<movingbodiescallback,`moving_bodies_callback`>> auxiliary function that must
+be defined in the test case);
+GT_PLANE, GT_DEM:: special fixed boundaries for which the interaction with
+the fluid can be described geometrically; this is an internal type and
+there is no need to specify it explicitly (`addPlane` and
+`addDEM` handle them automatically);
+GT_TESTPOINTS:: special particles that act as probes; this is an
+internal type and there is no need to specify it explicitly when
+defining a testpoint using the `addTestPoint` command;
+GT_FREE_SURFACE:: a sepcial set of particles used to describe the
+free surface during the initial repacking (if repacking enabled);
+
+=== FillType
+
+The `FillType` option selects what region of the geometry will be filled with particles.
+[horizontal]
+FT_NOFILL, FT_UNFILL:: no particles are created for the geometry;
+the geometry is used to cut (by intersection or subtraction) other geometries;
+these fill-types act the same for all geometries except planes and DEMs:
++
+[horizontal]
+FT_NOFILL::: is used to defined geometric planes and DEMs
+ (also needs <<add_flags,ENABLE_PLANES>>/<<add_flags,ENABLE_DEM>>),
+FT_UNFILL::: is used for geometries that only need to cut other geometries;
++
+FT_INNER_BORDER:: only the borders of the geometry are filled with particles;
+if this option is chosen while using a multi-layer boundary model,
+layers of particles are by default built inwards, so that the size set for the geometry is
+maintained on the external surface;
+FT_OUTER_BORDER:: is like `FT_INNER_BORDER`, but for multi-layer models the filling
+is done outwards instead of inwards; this is intended for “outer” boundaries
+such as the experiment box;
+FT_SOLID:: both the boundary and the interior of the geometrare filled with particles;
+FT_SOLID_BORDERLESS:: only the interior of the geometry will be
+filled with particles;
+
+=== Interactions
+When geometries intersect each other an erase operation can be set. This operation can be ment
+to avoid filling the intersection region multiple times, but also as a way to obtain complex geometries
+as the subtraction of elementary ones.
+
+Each geometry can be assigned an `EraseType` using the command 
+[source,cpp]
+----
+setEraseOperation(const GeometryID id, const EraseOperation erasetype);
+----
+
+The possible choices of erase operations are:
+[horizontal]
+ET_ERASE_NOTHING:: the new geometry does not perform erase operations
+ET_ERASE_FLUID:: the new geometry erases only the fluid particles that intersects
+ET_ERASE_BOUNDARY:: the new geometry erases only the boundary paricles that intersects
+ET_ERASE_ALL:: the new geometry erases intersected particles from both fluid and boundary geometries
+
+Note that particles belonging to moving or floating objects are never erased.
+
+A geometry with erase operations will erase particles only from the geometries previously defined.
+
+Example 1: cube with cylindrical hole
+
+[source,cpp]
+----
+// Reference geometries position from their corner
+setPositioning(PP_CORNER);
+
+// Define a cube with side 4m
+GeometryID cube = addBox(GT_FIXED_BOUNDARY, FT_SOLID, Point(0.0, 0.0, 0.0), 4.0, 4.0, 4.0);
+
+// Define a Cylinder of radius 1m and height 4m, placed in the middle of the cube
+GeometryID cylinder = addCylinder(GT_FIXED_BOUNDARY, FT_NOFILL, Point(1, 1, 0), 1, 4);
+// Set to the cylinder the option to erase boundary particles
+setEraseOperation(cylinder, ET_ERASE_BOUNDARY);
+----
+
+In this case we want to make an empty hole, so the cylinder will not create any particle. This is set using
+`FT_NOFILL` as `FillType`.
+
+Example 2: We want to make a hole on a solid cylinder and fill it with fluid
+[source,cpp]
+----
+// Reference geometries position from their corner
+setPositioning(PP_CORNER);
+
+// Define the solid cylinder with diameter 2m and height 4m
+GeometryID cylinder1 = addCylinder(GT_FIXED_BOUNDARY, FT_SOLID, Point(0, 0, 0), 1, 4);
+
+// Define the inner Cylinder with radius 1m and height 3m, placed in the middle of the solid cylinder
+GeometryID cylinder = addCylinder(GT_FLUID, FT_SOLID, Point(1, 1, 1), 1, 3);
+// Set to the second cylinder the option to erase boundary particles
+setEraseOperation(cylinder, ET_ERASE_BOUNDARY);
+----
+==== Unfill radius
+A geometry with erase option will erase particles that fall inside its boundary. In addition to these
+particles, we can erase particles outside the erasing geometry, that are within a certain distance from 
+the surface. This distance is specified by the unfill-radius, assigned with:
+[source,cpp]
+----
+void setUnfillRadius(const GeometryID id, double unfillRadius);
+----
+Geometries have unfill-radius equal to the inter-particle spacing (deltap) as default.
+
+Example of usage:
+[source,cpp]
+----
+GeometryID mycylinder = addCylinder(GT_FIXED_BOUNDARY, FT_SOLID, Point(0, 0, 0), 1, 4);
+setEraseOperation(mycylinder, ET_ERASE_BOUNDARY);
+setUnfillRadius(mycylinder, 2*m_deltap); // erase particles within two deltap
+----
+
+=== Positioning Policy
+The positioning policy specifies which point of the geometries is used as a reference for the positioning.
+The coordinates given during the definition of a geometry will be thus assigned to the chosen point.
+
+The Poditioning policy is not a per-geometry attribute, but when specified in the problem is effective
+for all the geometries defined afterwards.
+
+The positioning policy is specified using the command
+[source,cpp]
+----
+void setPositioning(PositioningPolicy ppolicy);
+----
+
+The possible choices for the `PositioningPolicy` are:
+[horizontal]
+PP_NONE:: customized for specific geometries
+PP_CENTER:: the reference is the center of the geometry
+PP_BOTTOM_CENTER:: the reference is the central point of the bottom face of a geoetry
+PP_CORNER:: the reference is the corner with minimum coordinates.
+
+Example of usage:
+[source,cpp]
+----
+setPositioning(PP_CORNER);
+// The following two boxes are positioned referring to their corner with minimum coordinates
+GeometryID box1 = addBox(GT_FIXED_BOUNDARY, FT_SOLID, Point(0.0, 0.0, 0.0), 1.0, 1.0, 1.0);
+GeometryID box2 = addBox(GT_FIXED_BOUNDARY, FT_SOLID, Point(2.0, 0.0, 0.0), 1.0, 1.0, 1.0);
+
+setPositioning(PP_CENTER);
+// This box is positioned referring to its center
+GeometryID box3 = addBox(GT_FIXED_BOUNDARY, FT_SOLID, Point(0.0, 0.0, 2.0), 1.0, 1.0, 1.0);
+----
+
+=== Transformations
+==== Rotation
+[source,cpp]
+----
+void rotate(const GeometryID gid, const double Xrot, const double Yrot, const double Zrot);
+----
+==== Shifting
+[source,cpp]
+----
+void shift(const GeometryID gid, const double Xoffset, const double Yoffset, const double Zoffset);
+----
+
+== Auxiliary functions [[aux-funcs]]
+These functions are defined in the `problem_name.cu` file, outside the problem constructor, and must be
+declared in the See the `problem_name.h` file. See the
+[getting started guide]({{ site.baseurl }}/documentation/get-started-guide) for further detail.
+
+The auxiliary functions are defined as a method for the class associated to the problem,
+then the definition should begin with `problem_name::auxiliary_function_name`.
+
+
+=== moving_bodies_callback
+This function assigns the motion to moving bodies, i.e. bodies that are marked as `GT_MOVING_BODY`, and it is
+executed at every time-step for every moving body.
+
+The available variables inside the function are:
+
+* const uint index: Index of the moving body for which the function is being called;
+* Object* object: Pointer to the moving body `Object`
+* const double t0: time reached with the last time-step
+* const double t1: time that will be reached with the upcoming time-step
+* const float3& force: 
+* const float3& torque
+* const KinematicData& initial_kdata: kinematic status at `t0`
+* KinematicData& kdata: kinematic status at `t1`
+* double3& dx: body linear displacement during the upcoming time-step
+* EulerParameters& dr: body angular displacement during the upcoming time-step
+
+The last three parameters need to be computed as part of the function.
+
+In the follow eexample we show of how to define the `moving_bodies_callback` for a problem that we name `MyCase`.
+We will impose a rotational motion to the moving object with index `0` and a translational motion to the moving object with index `1`.
+
+In file `MyCase.cu`
+[source,cpp]
+----
+void
+MyCase::moving_bodies_callback(const uint index, Object* object, const double t0, const double t1,
+			const float3& force, const float3& torque, const KinematicData& initial_kdata,
+			KinematicData& kdata, double3& dx, EulerParameters& dr)
+{
+
+    if (index == 0) {
+        
+            // Set the center of rotation
+            kdata.crot = make_double3(0.25f, m_deltap, 0.0f);
+            
+            // Set the angular velocity [rad/s]
+            kdata.avel = make_double3(1.0, 0.0, 0.0);
+            
+            // 
+
+    dx = make_double3(0.0);
+    kdata.lvel = make_double3(0.0f, 0.0f, 0.0f);
+    
+    kdata.crot = make_double3(0.25f, m_deltap, 0.0f);
+    
+    
+    if (t1> paddle_tstart && t1 < paddle_tend){
+	    kdata.avel = make_double3(0.0, paddle_amplitude*paddle_omega*sin(paddle_omega*(t1-paddle_tstart)),0.0);
+	    EulerParameters dqdt = 0.5*EulerParameters(kdata.avel)*kdata.orientation;
+	    dr = EulerParameters::Identity() + (t1-t0)*dqdt*kdata.orientation.Inverse();
+	    dr.Normalize();
+	    kdata.orientation = kdata.orientation + (t1 - t0)*dqdt;
+	    kdata.orientation.Normalize();
+    }
+    else {
+	    kdata.avel = make_double3(0.0,0.0,0.0);
+	    kdata.orientation = kdata.orientation;
+	    dr.Identity();
+    }
+}
+----
+
+=== initializeParticles
+This function is executed only once, after all the particles have been generated, and allows
+to access and modify the the content of the buffers for any particle.
+It can be used to set intial conditions.
+
+The available variables inside the function are:
+[horizontal]
+`BufferList &buffer`:: Pointer to the list of buffers (check the <<_buffers,list of buffers>>);
+`const uint numParticle`:: number of particles.
+
+In the follow example we define the `initializeParticles` function for a problem that we name `MyCase`.
+We will define an initial velocity field by assigning the velocity to particles according to
+their position.
+
+In file `MyCase.cu`
+[source,cpp]
+----
+void MyCase::initializeParticles(BufferList &buffer, const uint numParticle)
+{
+    // We access the arrays of the data that we need
+    double4 *gpos = buffer.getData<BUFFER_POS_GLOBAL>();
+    float4 *vel = buffer.getData<BUFFER_VEL>();
+    const ushort4 *pinfo = buffer.getData<BUFFER_INFO>();
+
+    // We sweep over all the particles
+    for (uint i = 0 ; i < numParticle ; i++) {
+
+            // and act only on flud particles
+            if (FLUID(pinfo[i])){
+                // we get the x coordinate of the particle
+                double p = gpos[i].x;
+                // and assign the velocity according to the position
+                vel[i].z = 0.1*sin(2*M_PI*p);
+         }
+    }
+}
+----
+
+=== need_write
+From this function we can ask to save data at every iteration with a condition depending on time.
+It can be used to investigate the evolution of the simulation withing a limited time-window without while saving at lower rate
+during the remaining part of the simulation.
+
+The available variables inside the function are:
+
+* double t: Simulation time in seconds
+
+In the follow example we define the `need_write` function for a problem that we name `MyCase`.
+We will request the data saving at every iteration after one simulated second.
+In file `MyCase.cu`:
+[source,cpp]
+----
+bool MyCase::need_write(double t) const
+{
+    return t > 1.0;
+}
+----
+
+== Customized runtime options
+Values to be set inside the problem file can be assigned at runtime from command line, as an argument of GPUSPH. As opposed to modifying the value from the `.cu` problem file, this avoid recompiling GPUSPH.
+
+In order to get a value from command line the `get_option` command is included in the constructor of the problem.
+The sysntax is 
+[source,cpp]
+----
+dataType get_option(std::string const& key, dataType default_value);
+----
+Where:
+* `key` is the name of the argument that will be used from command line
+* `default_value` is the returned value when the argument is not specified from command line
+
+Example of usage:
+We want to assign the value to the variable `double viscosity`at runtime.
+[source,cpp]
+----
+// Here we are inside the constructor of the problem
+const double viscosity = get_option("visc", 1e-6);
+----
+
+To assign a value to `viscosity` at runtime we will execute GPUSPH as:
+[source,sh]
+----
+./GPUSPH --visc 1e-2
+----
+
+The value \(10^{-2}\) will be assigned to the variable `viscosity`.
+
+
+== Buffers
+
+****
+#TODO# autogenerate, update and complete
+****
+
+|===
+|Buffer Name|number of buffers|data type|Description| Existence condition| size
+
+|`BUFFER_POS_GLOBAL`| 1 | `double4` | Global position|Always| Particle System
+
+|`BUFFER_POS`| 1 | `float4` | Position relative to cell|Always| Particle System
+
+|`BUFFER_VEL`| 1 | `float4` | Velocity|Always| Particle System
+
+|`BUFFER_INFO`| 1 | `particleinfo` | Particleinfo|Always| Particle System
+
+|`BUFFER_HASH`| 1 | `hashkey` | Particle Hash|Always| Particle System
+
+|`BUFFER_INDEX`| 1 | `uint` | Particle Index|Always| Particle System
+
+|`BUFFER_CELLSTART`| 1 | `uint` |Index of the first particle in each cell|Always| Number of cells
+
+|`BUFFER_CELLEND`| 1 | `uint` | Cell-related buffer: Index of the last particle in each cell|Always| Number of cells
+
+|`BUFFER_COMPACT_DEV_MAP`| 1 | `uint` | Compact device map; only use 2 bits per cell|Always| Particle System
+
+|`BUFFER_NEIBSLIST`| 1 | `neibdata` | Neighbor List|Always| Particle System
+
+|`BUFFER_FORCES`| 1 | `float4` | Forces|?| Particle System
+
+|`BUFFER_RB_FORCES`| 1 | `float4` | Forces acting on rigid body particles|?| Number of object particles
+
+|`BUFFER_RB_TORQUES`| 1 | `float4` | Torques acting on rigid body particles|?| Number of object particles
+
+|`BUFFER_RB_KEYS`| 1 | `uint` | Object number for each object particle|?| Number of object particles
+
+|`BUFFER_INTERNAL_ENERGY`| 1 | `float` | Internal Energy|?| Particle System
+
+|`BUFFER_INTERNAL_ENERGY_UPD`| 1 | `float` | Internal Energy derivative|?| Particle System
+
+|`BUFFER_XSPH`| 1 | `float4` | XSPH|?| Particle System
+
+|`BUFFER_TAU`| 3 | `float2` | Tau|?| Particle System
+
+|`BUFFER_VORTICITY`| 1 | `float3` | Vorticity|?| Particle System
+
+|`BUFFER_NORMALS`| 1 | `float4` | Normals|?| Particle System
+
+|`BUFFER_BOUNDELEMENTS`| 1 | `float4` | Boundary Elements|?| ?
+
+|`BUFFER_GRADGAMMA`| 1 | `float4` | Gamma Gradient|?| ?
+
+|`BUFFER_VERTICES`| 1 | `vertexinfo` | Vertices|?| ?
+
+|`BUFFER_VERTPOS`| 3 | `float2` | For each boundary element holds the local planar offset of each vertex to the boundary element|?|?
+
+|`BUFFER_DUMMY_VEL`| 1 | `float4` | Interpolated Dummy boundary velocity|?|?
+
+|`BUFFER_TKE`| 1 | `float` | Turbulent Kinetic Energy|?|?
+
+|`BUFFER_EPSILON`| 1 | `float` | Turbulent Dissipation Rate|?|?
+
+|`BUFFER_TURBVISC`| 1 | `float` | Eddy Viscosity|?|?
+
+|`BUFFER_DKDE`| 1 | `float3` | [k]-[e] derivatives|?|?
+
+|`BUFFER_EFFVISC`| 1 | `float` | per-particle effective viscosity |?| Particle System
+
+|`BUFFER_EFFPRES`| 1 | `float` | Effective pressure in sediment in models |Granular viscosity| ?
+
+|`BUFFER_JACOBI`| 1 | `float4` | Jacobi vectors |Granular viscosity| ?
+
+|`BUFFER_EULERVEL`| 1 | `float4` | Eulerian velocity|?| ?
+
+|`BUFFER_NEXTID`| 1 | `uint` | Next generated ID|Open Boundaries| ?
+
+|`BUFFER_CFL`| 1 | `float` | CFL array|?| ?
+
+|`BUFFER_CFL_GAMMA`| 1 | `float` | CFL gamma array|?| ?
+
+|`BUFFER_CFL_TEMP`| 1 | `float` | CFL aux array|?| ?
+
+|`BUFFER_CFL_KEPS`| 1 | `float` | Turbulent Viscosity CFL array|?| ?
+
+|`BUFFER_SPS_TURBVISC`| 1 | `float` | SPS Turbulent viscosity|?| ?
+
+|`BUFFER_VOLUME`| 1 | `float4` | Paritcle Volume|?| Particle System
+
+|`BUFFER_SIGMA`| 1 | `float` | Sigma (discrete specific volume)|?| Particle System
+
+|`BUFFER_PRIVATE`| 1 | `float` | Private scalar|?| ?
+
+|`BUFFER_PRIVATE2`| 1 | `float2` | Private vector4|?|?
+
+|`BUFFER_PRIVATE4`| 1 | `float2` | Private vector4|?|?
+
+|===
+
+
+|===
+|Shortcut| Corresponding buffers
+
+|BUFFERS_POS_VEL_INFO| BUFFER_POS \| BUFFER_VEL \| BUFFER_INFO
+
+|BUFFERS_CFL| BUFFER_CFL \| BUFFER_CFL_TEMP \| BUFFER_CFL_KEPS \| BUFFER_CFL_GAMMA
+
+|BUFFERS_CELL| BUFFER_CELLSTART \| BUFFER_CELLEND \| BUFFER_COMPACT_DEV_MAP
+
+|ALL_DEFINED_BUFFERS | ( (FIRST_DEFINED_BUFFER-1) ^ (LAST_DEFINED_BUFFER-1) ) \| LAST_DEFINED_BUFFER
+
+|BUFFERS_RB_PARTICLES| BUFFER_RB_FORCES \| BUFFER_RB_TORQUES \| BUFFER_RB_KEYS
+
+|ALL_PARTICLE_BUFFERS| ALL_DEFINED_BUFFERS & ~(BUFFERS_RB_PARTICLES \| BUFFERS_CFL \| BUFFERS_CELL \| BUFFER_NEIBSLIST)
+|===
+

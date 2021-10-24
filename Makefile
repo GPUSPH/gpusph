@@ -1570,6 +1570,7 @@ USER_GUIDE := $(DOCSDIR)/user-guide.html
 PROBLEM_LIST_DOCS := DamBreak3D DamBreakGate OpenChannel WaveTank SolitaryWave Seiche DEMExample
 
 $(USER_GUIDE): $(patsubst %,$(DOCSDIR)/user-guide/test-case-%.adoc,$(PROBLEM_LIST_DOCS))
+$(USER_GUIDE): $(DOCSDIR)/user-guide/reference-manual.adoc
 $(USER_GUIDE): $(DOCSDIR)/user-guide/appendix-history.adoc
 $(USER_GUIDE): $(DOCSDIR)/appendix-license.adoc
 

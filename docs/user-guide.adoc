@@ -527,19 +527,24 @@ defined in source files matching the test case name and placed under the `src/pr
 Users are encouraged to put their test cases under `src/problems/user/` to keep them separate from
 the <<Sample test cases>>.
 
-For example, to create a `ValidationCase` test case, one would create
-`src/problems/user/ValidationCase.h` containing the declaration of the `ValidationCase` class,
-and a `src/problems/user/ValidationCase.cu` containing its implementation, with the definition
+For example, to create a `MyCase` test case, one would create
+`src/problems/user/MyCase.h` containing the declaration of the `MyCase` class,
+and a `src/problems/user/MyCase.cu` containing its implementation, with the definition
 of the geometry, simulation settings, physical parameters, etc.
 
 <<chrono-v-cuda,Under some circumstances>>, it may be necessary to split the implementation
 into separate host and device parts, see <<chrono-v-cuda,the relevant section>> for further details.
 
-== First steps
+As a general rule, a test case only needs to define a constructor
+(e.g. `MyCase::MyCase`), that <<setup-framework,sets up the simulation framework>>,
+defines any needed <<sim-params,simulation parameters>>,
+<<phys-params,physical parameters>> and <<materials, material properties>>,
+defines the domain <<geometries>> and chooses <<writers,how to output the data>>.
 
-****
-#TODO# Vito's beta content
-****
+In some cases, it may be useful or necessary to define some <<aux-funcs,auxiliary functions>>
+to take care of things such as moving bodies or custom particle initialization.
+
+include::user-guide/reference-manual.adoc[]
 
 == Chrono and CUDA conflicts [[chrono-v-cuda]]
 
