@@ -332,7 +332,7 @@ const	float		boundNlSqInflRad)
 #if CPU_BACKEND_ENABLED
 	const uint numBlocks = div_up(particleRangeEnd, numThreads);
 #else
-	const uint numBlocks = gridCells;
+	const uint numBlocks = div_up(gridCells, BUILDNEIBS_CELLS_PER_BLOCK);
 #endif
 
 	using buildNeibsListDevice = cuneibs::buildNeibsListDevice<dimensions,
@@ -345,7 +345,10 @@ const	float		boundNlSqInflRad)
 	// we also use this shared memory for the count_neighbors shared memory arrays, for which we need
 	// to store 1 uint for the total and either 1 or 2 for the per-chunk subtotals (fluid/boundary, and vertex):
 	// 3 uints are less than 1 float4, so the sizing for the cache is sufficient
-	const size_t shMemSize = BLOCK_SIZE_BUILDNEIBS*( sizeof(float4) + sizeof(particleinfo) );
+	// Since we do warp-based chunking (\see get_buildNeibsShared_base),
+	// we actually allocate enough for 2*sizeof(float4) instead of sizeof(float4) + sizeof(particleinfo),
+	// as the latter would lead warps past the first to access memory out of bounds
+	const size_t shMemSize = BLOCK_SIZE_BUILDNEIBS*sizeof(float4)*2;
 #endif
 
 	execute_kernel(
