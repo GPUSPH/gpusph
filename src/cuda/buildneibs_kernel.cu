@@ -269,6 +269,9 @@ struct BuildNeibsMapping :
 
 	__device__ __forceinline__
 	static void sync()
+#if CPU_BACKEND_ENABLED
+	;
+#else
 	{
 		switch (type) {
 		case BY_PARTICLE: __syncthreads(); break;
@@ -279,13 +282,16 @@ struct BuildNeibsMapping :
 			break;
 		}
 	}
+#endif
 
 };
 
 template<> __device__ __forceinline__ uint BuildNeibsMapping<BY_PARTICLE>::warp_base() const { return 0; }
 template<> __device__ __forceinline__ uint BuildNeibsMapping<BY_CELL>::warp_base() const { return warp_index*WARP_SIZE; }
 
+#if !CPU_BACKEND_ENABLED
 template<> __device__ __forceinline__ uint BuildNeibsMapping<BY_PARTICLE>::get_lane() const { return threadIdx.x; }
+#endif
 template<> __device__ __forceinline__ uint BuildNeibsMapping<BY_CELL>::get_lane() const { return warp_cell_data::lane; }
 
 template<>
@@ -816,7 +822,7 @@ neibsInCellOfType(
 {
 	var.encode_cell = true;
 
-	for ( ; var.on_neib_of_type<nptype>(params); var.next_neib()) {
+	for ( ; var.template on_neib_of_type<nptype>(params); var.next_neib()) {
 
 		// nothing to do if we don't need to build the neighbors list
 		// (i.e. we're thread running just to load neighbor data into the cache)
@@ -1803,6 +1809,9 @@ struct buildNeibsListDevice : params_t
 	enable_if_t<Mapping::type == BY_CELL>
 	do_mapping(params_t const& params, Mapping& mapping, simple_work_item const& item) const
 	{
+#if CPU_BACKEND_ENABLED
+		throw std::runtime_error("cell-based neighbor building not supported on CPU device");
+#else
 		// When building neighbors by cell, each work-group takes care of BUILDNEIBS_CELLS_PER_BLOCK cells,
 		// with each WARP taking care of a cell
 		// TODO we might want to find a way to detect empty cells and distribute the workload
@@ -1830,6 +1839,7 @@ struct buildNeibsListDevice : params_t
 				bn_type, neibcount, debug_planes>(params, base_idx + mapping.lane, end_idx, mapping);
 			base_idx += WARP_SIZE;
 		}
+#endif
 	}
 
 	__device__ void operator()(simple_work_item item) const
