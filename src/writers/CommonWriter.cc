@@ -528,10 +528,20 @@ CommonWriter::write_physparams(ostream &out)
 	}
 }
 
+static const char* const BuildNeibsMappingTypeName[] =
+{
+	"by particle",
+	"by cell"
+};
+
 void
 CommonWriter::write_options(ostream &out)
 {
 	const Options *OP = gdata->clOptions;
+
+	out << "Neighbors list construction logic: " << BuildNeibsMappingTypeName[
+		gdata->simframework->getNeibsEngine()->mapping_type()
+	] << endl;
 	out << "Comman-line options:" << endl;
 	out << " problem: " << OP->problem << endl;
 	out << " dem: " << OP->dem << endl;

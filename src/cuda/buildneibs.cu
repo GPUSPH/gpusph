@@ -113,6 +113,9 @@ class CUDANeibsEngine : public AbstractNeibsEngine
 {
 public:
 
+BuildNeibsMappingType mapping_type() const
+{ return bn_type; }
+
 /** \name Constants upload/download and timing related function
  *  @{ */
 

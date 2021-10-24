@@ -48,6 +48,8 @@ class AbstractNeibsEngine
 public:
 	virtual ~AbstractNeibsEngine() {}
 
+	virtual BuildNeibsMappingType mapping_type() const = 0;
+
 	/// Set the device constants
 	virtual void
 	setconstants(const SimParams *simparams, const PhysParams *physparams,
