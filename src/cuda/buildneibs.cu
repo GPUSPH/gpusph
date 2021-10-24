@@ -329,18 +329,14 @@ const	float		sqinfluenceradius,
 const	float		boundNlSqInflRad)
 {
 	const uint numThreads = BLOCK_SIZE_BUILDNEIBS;
-#if CPU_BACKEND_ENABLED
-	const uint numBlocks = div_up(particleRangeEnd, numThreads);
-#else
-	const uint numBlocks = div_up(gridCells, BUILDNEIBS_CELLS_PER_BLOCK);
-#endif
+	const uint numBlocks =
+		BUILDNEIBS_BY_PARTICLE	? div_up(particleRangeEnd, numThreads)
+								: div_up(gridCells, BUILDNEIBS_CELLS_PER_BLOCK);
 
 	using buildNeibsListDevice = cuneibs::buildNeibsListDevice<dimensions,
 		sph_formulation, ViscSpec, boundarytype, periodicbound, simflags, neibcount, debug_planes>;
 
-#if CPU_BACKEND_ENABLED
-	const size_t shMemSize = 0;
-#else
+	// When building by cell,
 	// we need enough shared memory to store BLOCK_SIZE_BUILDNEIBS float4 and particleinfo for the cache.
 	// we also use this shared memory for the count_neighbors shared memory arrays, for which we need
 	// to store 1 uint for the total and either 1 or 2 for the per-chunk subtotals (fluid/boundary, and vertex):
@@ -348,8 +344,11 @@ const	float		boundNlSqInflRad)
 	// Since we do warp-based chunking (\see get_buildNeibsShared_base),
 	// we actually allocate enough for 2*sizeof(float4) instead of sizeof(float4) + sizeof(particleinfo),
 	// as the latter would lead warps past the first to access memory out of bounds
-	const size_t shMemSize = BLOCK_SIZE_BUILDNEIBS*sizeof(float4)*2;
-#endif
+	// When building by particle, we only need enough shared memory for 2 (3 in the SA case)
+	// arrays of uint
+	const size_t shMemSize =
+		BUILDNEIBS_BY_PARTICLE	? BLOCK_SIZE_BUILDNEIBS*sizeof(uint)*( 2 + (boundarytype == SA_BOUNDARY) )
+								: BLOCK_SIZE_BUILDNEIBS*sizeof(float4)*2;
 
 	execute_kernel(
 		buildNeibsListDevice(bufread, bufwrite, numParticles, gridCells, sqinfluenceradius, boundNlSqInflRad),

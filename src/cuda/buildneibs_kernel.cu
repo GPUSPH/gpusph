@@ -68,12 +68,22 @@
 
 #include "posvel_struct.h"
 
+//! We have two ways to build the neighbors list: by particle or by cell
+#ifndef BUILDNEIBS_BY_PARTICLE
+#define BUILDNEIBS_BY_PARTICLE CPU_BACKEND_ENABLED
+#endif
+#define BUILDNEIBS_BY_CELL (!BUILDNEIBS_BY_PARTICLE)
+
+
 /* Important notes on block sizes:
 	- a parallel reduction for max neibs number is done inside neiblist, block
 	size for neiblist MUST BE A POWER OF 2
  */
 
-/* When buildNeibsList is issued with per-cell blocks, this defines the number of blocks issued by a cell
+/* On GPU, BLOCK_SIZE_BUILDNEIBS is built as the product of BUILDENEIBS_CELLS_PER_BLOCK and WARP_SIZE.
+ * This is meaningful when building neighbors by cell, but it also affects the block size when building by particle.
+ * (We could have a more complex set of defines, but I don't think it's worth it.)
+ * Note that this changes the default from 256 to 128 when building by particle
  */
 #define BUILDNEIBS_CELLS_PER_BLOCK	4U
 #define WARP_SIZE 32U
@@ -108,10 +118,18 @@
 	#define MIN_BLOCKS_BUILDNEIBS	1
 #endif
 
+//! Building by particle, we need block-wide synchronization
+//! When building by cell, we only need warp-level sync
+#if BUILDNEIBS_BY_PARTICLE
+#define BUILD_NEIBS_SYNC __syncthreads()
+#define REDUCTION_SIZE BLOCK_SIZE_BUILDNEIBS
+#else
 #if CUDA_MAJOR >= 9
 #define BUILD_NEIBS_SYNC __syncwarp()
 #else
 #define BUILD_NEIBS_SYNC /* empty statement */
+#endif
+#define REDUCTION_SIZE WARP_SIZE
 #endif
 
 /** \namespace cuneibs
@@ -225,61 +243,69 @@ struct sa_boundary_niC_vars
 };
 
 // This structure holds the variables that are necessary to manage the cell/warp mapping
-// which is not used in the CPU case
-#if CPU_BACKEND_ENABLED
-struct warp_cell_t {};
-
-#else
-
-struct warp_cell_t
-{
+struct warp_cell_t {
+#if BUILDNEIBS_BY_CELL
 	uint cell_index;
 	uint warp_index;
 	uint lane;
+#endif
 };
 
-//! backend for the shared memory cache
-//! it is typed as float4 because this type has stricter alignment requirements than particleinfo
-//! USAGE NOTE: since we use warp-based indexing, each section of this memory area
-//! must be chucked based on the largest data type + the warp index, and _then_ specialized by pointer type
-extern __shared__ float4 buildNeibsShared[];
+//! buildNeibsListDevice uses shared memory in two cases:
+//! 1. in count_neighbors for the reductions (total and max neighbors)
+//! 2. during the neighbors list construction as a cache when building by cell
+//!
+//! In the latter case, it needs to be typed as float4, because this type is the widest used,
+//! otherwise, uint will suffice
 
-template<typename T=float4>
+typedef
+#if BUILDNEIBS_BY_PARTICLE
+uint
+#else
+float4
+#endif
+buildNeibsShared_t;
+
+extern __shared__ buildNeibsShared_t buildNeibsShared[];
+
+template<typename T=buildNeibsShared_t>
 __device__ __forceinline__
-enable_if_t< (sizeof(T) <= sizeof(float4)), T* >
+enable_if_t< (sizeof(T) <= sizeof(buildNeibsShared_t)), T* >
 get_buildNeibsShared_base(warp_cell_t const& warp_cell, int chunk_number = 0)
 {
-	return (T*)(buildNeibsShared + chunk_number*BLOCK_SIZE_BUILDNEIBS + warp_cell.warp_index*WARP_SIZE);
-}
+	return (T*)(buildNeibsShared + chunk_number*BLOCK_SIZE_BUILDNEIBS
+#if BUILDNEIBS_BY_CELL
+		+ warp_cell.warp_index*WARP_SIZE
 #endif
+		);
+}
 
 /// Cache the neighbor cell particle data in shared memory
+/// (this is only actually done if building neighbors by cell
 template<BoundaryType boundarytype, flag_t simflags>
 struct niC_cache : warp_cell_t
 {
 	using params_t = buildneibs_params<boundarytype, simflags>;
 
-#if CPU_BACKEND_ENABLED
-	__device__ __forceinline__
-	niC_cache(warp_cell_t const& warp_cell) : warp_cell_t(warp_cell) {}
-
-#else
+#if BUILDNEIBS_BY_CELL
 	// pointers into the buildNeibsShared shared memory region
 	float4* neib_pos_cache;
 	particleinfo* neib_info_cache;
+#endif
 
 	__device__ __forceinline__
-	niC_cache(warp_cell_t const& warp_cell) :
-		warp_cell_t(warp_cell),
-		neib_pos_cache( get_buildNeibsShared_base<float4>(warp_cell) ),
-		neib_info_cache( get_buildNeibsShared_base<particleinfo>(warp_cell, 1) )
-	{}
+	niC_cache(warp_cell_t const& warp_cell)
+	: warp_cell_t(warp_cell)
+#if BUILDNEIBS_BY_CELL
+		, neib_pos_cache( get_buildNeibsShared_base<float4>(warp_cell) )
+		, neib_info_cache( get_buildNeibsShared_base<particleinfo>(warp_cell, 1) )
 #endif
+	{}
 
 	__device__ __forceinline__
 	void prime(params_t const& bparams, const uint bucketEnd, uint& cache_base, uint& cache_index)
 	{
-#if !CPU_BACKEND_ENABLED
+#if BUILDNEIBS_BY_CELL
 
 		BUILD_NEIBS_SYNC;
 
@@ -298,7 +324,7 @@ struct niC_cache : warp_cell_t
 	__device__ __forceinline__
 	particleinfo fetch_neib_info(params_t const& bparams, uint neib_or_cache_index ) const
 	{
-#if CPU_BACKEND_ENABLED
+#if BUILDNEIBS_BY_PARTICLE
 		return bparams.fetchInfo(neib_or_cache_index);
 #else
 		return neib_info_cache[neib_or_cache_index];
@@ -308,7 +334,7 @@ struct niC_cache : warp_cell_t
 	__device__ __forceinline__
 	float4 fetch_neib_pos(params_t const& bparams, uint neib_or_cache_index ) const
 	{
-#if CPU_BACKEND_ENABLED
+#if BUILDNEIBS_BY_PARTICLE
 		return bparams.fetchPos(neib_or_cache_index);
 #else
 		return neib_pos_cache[neib_or_cache_index];
@@ -328,10 +354,15 @@ struct niC_vars :
 	common_niC_vars,
 	COND_STRUCT(boundarytype == SA_BOUNDARY, sa_boundary_niC_vars)
 {
-#if !CPU_BACKEND_ENABLED
+#if BUILDNEIBS_BY_PARTICLE
+	// when building by particle, the cache index is the neib index
+#define CACHE_INDEX neib_index
+#else
 	// index of the first neighbor stored in cache
 	uint cache_base;
+	// index of the current neighbor in the cache
 	uint cache_index;
+#define CACHE_INDEX cache_index
 #endif
 
 	template<flag_t simflags>
@@ -340,13 +371,10 @@ struct niC_vars :
 		buildneibs_params<boundarytype, simflags> const& bparams,
 		niC_cache<boundarytype, simflags>& cache)
 	{
-#if CPU_BACKEND_ENABLED
-		return cache.fetch_neib_info(bparams, neib_index);
-#else
+#if BUILDNEIBS_BY_CELL
 		if (cache_index >= WARP_SIZE) cache.prime(bparams, bucketEnd, cache_base, cache_index);
-		return cache.fetch_neib_info(bparams, cache_index);
 #endif
-
+		return cache.fetch_neib_info(bparams, CACHE_INDEX);
 	}
 
 	template<flag_t simflags>
@@ -356,11 +384,7 @@ struct niC_vars :
 		niC_cache<boundarytype, simflags> const& cache)
 	{
 		// this is only called with a primed cache, so no need to check
-#if CPU_BACKEND_ENABLED
-		return cache.fetch_neib_pos(bparams, neib_index);
-#else
-		return cache.fetch_neib_pos(bparams, cache_index);
-#endif
+		return cache.fetch_neib_pos(bparams, CACHE_INDEX);
 	}
 
 	template<flag_t simflags>
@@ -385,7 +409,7 @@ struct niC_vars :
 		common_niC_vars(bparams, gridPos, gridOffset, pos),
 		COND_STRUCT(boundarytype == SA_BOUNDARY, sa_boundary_niC_vars)(index, bparams)
 	{
-#if CUDA_BACKEND_ENABLED
+#if BUILDNEIBS_BY_CELL
 		cache_base = bucketStart;
 		cache_index = WARP_SIZE; // force a cache priming
 #endif
@@ -395,7 +419,7 @@ struct niC_vars :
 	void next_neib()
 	{
 		++neib_index;
-#if CUDA_BACKEND_ENABLED
+#if BUILDNEIBS_BY_CELL
 		++cache_index;
 #endif
 	}
@@ -1476,30 +1500,34 @@ count_neighbors(const uint *neibs_num, warp_cell_t const& warp_cell) // computed
 #endif
 #else // CUDA_BACKEND_ENABLED
 	BUILD_NEIBS_SYNC; // make sure we're not conflicting with the cache usage
-	const uint lane = warp_cell.lane;
+#if BUILDNEIBS_BY_PARTICLE
+#define LANE threadIdx.x
+#else
+#define LANE warp_cell.lane
+#endif
 
-	sm_total_neibs_num[lane] = total_neibs_num;
-	sm_neibs_max[lane] = neibs_max[0];
+	sm_total_neibs_num[LANE] = total_neibs_num;
+	sm_neibs_max[LANE] = neibs_max[0];
 	if (num_sm_neibs_max > 1)
-		sm_neibs_max[lane + BLOCK_SIZE_BUILDNEIBS] = neibs_max[1];
+		sm_neibs_max[LANE + BLOCK_SIZE_BUILDNEIBS] = neibs_max[1];
 
-	for (unsigned int i = WARP_SIZE/2; i > 0; i /= 2) {
+	for (unsigned int i = REDUCTION_SIZE/2; i > 0; i /= 2) {
 		BUILD_NEIBS_SYNC;
-		if (lane < i) {
-			total_neibs_num += sm_total_neibs_num[lane + i];
-			sm_total_neibs_num[lane] = total_neibs_num;
+		if (LANE < i) {
+			total_neibs_num += sm_total_neibs_num[LANE + i];
+			sm_total_neibs_num[LANE] = total_neibs_num;
 
 #pragma unroll
 			for (int o = 0; o < num_sm_neibs_max; ++o) {
-				const uint n2 = sm_neibs_max[lane + i + o*BLOCK_SIZE_BUILDNEIBS];
+				const uint n2 = sm_neibs_max[LANE + i + o*BLOCK_SIZE_BUILDNEIBS];
 				if (n2 > neibs_max[o]) {
-					sm_neibs_max[lane + o*BLOCK_SIZE_BUILDNEIBS] = neibs_max[o] = n2;
+					sm_neibs_max[LANE + o*BLOCK_SIZE_BUILDNEIBS] = neibs_max[o] = n2;
 				}
 			}
 		}
 	}
 
-	if (!lane) {
+	if (!LANE) {
 		atomicMax(&d_maxFluidBoundaryNeibs, neibs_max[0]);
 		if (num_sm_neibs_max > 1) {
 			atomicMax(&d_maxVertexNeibs, neibs_max[1]);
@@ -1563,16 +1591,12 @@ buildNeibsListOfParticle(params_t const& params, const uint index, const uint nu
 
 	// Rather than nesting if's, use a do { } while (0) loop with breaks
 	// for early bail outs
-	// NOTE: the early bail-outs are only used on CPU, since GPU needs all threads to get into
+	// NOTE: the early bail-outs are only when building neighbors by particle
 	// neibsInCell, as it needs them to load neighbors data through shared memory
 	do {
-#if CPU_BACKEND_ENABLED
-		if (index >= numParticlesInBlock)
+		const bool IS_VALID = (index < numParticlesInBlock);
+		if (BUILDNEIBS_BY_PARTICLE && !IS_VALID)
 			break;
-#define IS_VALID true
-#else
-#define IS_VALID (index < numParticlesInBlock)
-#endif
 
 		// Read particle info from texture
 		const particleinfo info = IS_VALID ? params.fetchInfo(index) : particleinfo{};
@@ -1599,7 +1623,7 @@ buildNeibsListOfParticle(params_t const& params, const uint index, const uint nu
 		    ViscSpec::rheologytype == GRANULAR)
 			build_nl = build_nl || BOUNDARY(info);
 
-#if CPU_BACKEND_ENABLED
+#if BUILDNEIBS_BY_PARTICLE
 		// Exit if we have nothing to do
 		if (!build_nl)
 			break;
@@ -1608,27 +1632,22 @@ buildNeibsListOfParticle(params_t const& params, const uint index, const uint nu
 			build_nl = false;
 #endif
 
-
 		// Get particle position
 		const pos_mass pdata = IS_VALID ? params.fetchPos(index) : float4{};
 
 		// If the particle is inactive we have nothing to do
 		if (is_inactive(pdata)) {
-#if CPU_BACKEND_ENABLED
+#if BUILDNEIBS_BY_PARTICLE
 			break;
 #else
 			build_nl = false;
 #endif
 		}
 
-#if CPU_BACKEND_ENABLED
+#if BUILDNEIBS_BY_PARTICLE
 		// Get particle grid position computed from particle hash
 		const int3 gridPos = calcGridPosFromParticleHash(params.particleHash[index]);
 #else
-#if 0 // debugging in case of failure of the next assumption
-		if (params.particleHash[index] != warp_cell.cell_index)
-			printf("WTF %d != %d\n", params.particleHash[index], warp_cell.cell_index);
-#endif
 		// We're iterating by cell, and the hash of the particle is just the cell index
 		// we already have. There isn't even a need to remove the extra bits used for multi-GPU
 		// because this kernel is GPU-local
@@ -1736,16 +1755,15 @@ struct buildNeibsListDevice : params_t
 	__device__ void operator()(simple_work_item item) const
 {
 	params_t const& params(*this);
-#if CPU_BACKEND_ENABLED
+#if BUILDNEIBS_BY_PARTICLE
 	buildNeibsListOfParticle<dimensions, sph_formulation, ViscSpec, boundarytype, periodicbound, simflags,
-		neibcount, debug_planes>(params, item.get_id(), numParticles, warp_cell_t{});
+		neibcount, debug_planes>(params, item.get_id(), params.numParticles, warp_cell_t{});
 #else
-	// On GPU, each block takes care of BUILDNEIBS_CELLS_PER_BLOCK,
+	// When building neighbors by cell, each work-group takes care of BUILDNEIBS_CELLS_PER_BLOCK cells,
 	// with each WARP taking care of a cell
 	// TODO we might want to find a way to detect empty cells and distribute the workload
 	// in a more homogeneous manner
-	// TODO cells typically have less than 32 particles in fact, so even with BLOCK_SIZE_BUILDNEIBS 32
-	// we're going to waste some resources
+	// TODO cells typically have less than WARP_SIZE particles in fact, so we're going to waste some resources
 
 	struct warp_cell_t warp_cell;
 
