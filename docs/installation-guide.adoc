@@ -88,7 +88,7 @@ The public version of GPUSPH is available on {url-github}[GitHub].
 You can fetch the source code for the current release (v{version}) {url-tag}[from the GitHub tag page],
 as either a {url-archive}.zip[zip package] or {url-archive}.tar.gz[gzipped tarball].
 
-[source,shell,subs="+attributes"]
+[source,shell,subs="attributes+"]
 .Example: setting up the working directory from the tarball
 ----
 wget {url-archive}.tar.gz -O gpusph-{version}.tar.gz
@@ -98,7 +98,7 @@ cd gpusph-{version}
 
 If you intend to keep up with GPUSPH development, or wish to contribute, you should use https://git-scm.org[git]
 
-[source,shell,subs="+attributes"]
+[source,shell,subs="attributes+"]
 .Example: setting up the working directory from git
 ----
 # use {url-git} if you have enabled SSH access on GitHub
@@ -111,7 +111,7 @@ whereas `git` creates a working directory named `gpusph`.
 
 == Building GPUSPH
 
-From the <<<workdir-setup,GPUSPH working directory>>, just run
+From the <<workdir-setup,GPUSPH working directory>>, just run
 
 [source,shell]
 ----
@@ -217,11 +217,10 @@ to show the current configuration.
 If you need to {url-github}issues/[report an issue],
 it's a good idea to attach the output of `make show` to your bug report.
 You can save the output of the command to disk, together with any warnings or errors
-
+[source,shell]
 ----
 make show > make-show.log 2>&
 ----
-
 and then attach `make-show.log` to your report.
 ====
 

@@ -1,3 +1,6 @@
+:source-highlighter: rouge
+:rouge-style: pastie
+
 :version: 6.0
 :url-project: https://www.gpusph.org/
 :url-forum: https://gpusph.discourse.group/
@@ -11,4 +14,3 @@
 :url-chrono: https://www.projectchrono.org/
 
 :stem: latexmath
-:source-highlighter: rouge

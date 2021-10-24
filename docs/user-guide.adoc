@@ -114,6 +114,7 @@ will show the current configuration.
 If you need to {url-github}issues/[report an issue],
 it's a good idea to attach the output of `make show` to your bug report.
 You can save the output of the command to disk, together with any warnings or errors
+[source,shell]
 ----
 make show > make-show.log 2>&
 ----
