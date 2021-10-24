@@ -107,6 +107,7 @@ struct ptype_hash_compare :
 */
 template<Dimensionality dimensions,
 	SPHFormulation sph_formulation, typename ViscSpec, BoundaryType boundarytype, Periodicity periodicbound, flag_t simflags,
+	BuildNeibsMappingType bn_type,
 	bool neibcount, bool debug_planes>
 class CUDANeibsEngine : public AbstractNeibsEngine
 {
@@ -330,11 +331,12 @@ const	float		boundNlSqInflRad)
 {
 	const uint numThreads = BLOCK_SIZE_BUILDNEIBS;
 	const uint numBlocks =
-		BUILDNEIBS_BY_PARTICLE	? div_up(particleRangeEnd, numThreads)
+		bn_type == BY_PARTICLE	? div_up(particleRangeEnd, numThreads)
 								: div_up(gridCells, BUILDNEIBS_CELLS_PER_BLOCK);
 
 	using buildNeibsListDevice = cuneibs::buildNeibsListDevice<dimensions,
-		sph_formulation, ViscSpec, boundarytype, periodicbound, simflags, neibcount, debug_planes>;
+		sph_formulation, ViscSpec, boundarytype, periodicbound, simflags,
+		bn_type, neibcount, debug_planes>;
 
 	// When building by cell,
 	// we need enough shared memory to store BLOCK_SIZE_BUILDNEIBS float4 and particleinfo for the cache.
@@ -347,7 +349,7 @@ const	float		boundNlSqInflRad)
 	// When building by particle, we only need enough shared memory for 2 (3 in the SA case)
 	// arrays of uint
 	const size_t shMemSize =
-		BUILDNEIBS_BY_PARTICLE	? BLOCK_SIZE_BUILDNEIBS*sizeof(uint)*( 2 + (boundarytype == SA_BOUNDARY) )
+		bn_type == BY_PARTICLE	? BLOCK_SIZE_BUILDNEIBS*sizeof(uint)*( 2 + (boundarytype == SA_BOUNDARY) )
 								: BLOCK_SIZE_BUILDNEIBS*sizeof(float4)*2;
 
 	execute_kernel(

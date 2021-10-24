@@ -48,7 +48,7 @@ class simple_work_item
 public:
 	simple_work_item(unsigned i) : m_id(i) {}
 
-	unsigned get_id() { return m_id; }
+	unsigned get_id() const { return m_id; }
 };
 
 //! Wrapper kernel invocation function template

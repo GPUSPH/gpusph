@@ -385,6 +385,12 @@ const char *PostProcessName[INVALID_POSTPROC+1]
 #endif
 ;
 
+enum BuildNeibsMappingType
+{
+	BY_PARTICLE,
+	BY_CELL
+};
+
 //! SPS model storage flags
 enum SPSKernelSimFlags {
 	SPSK_STORE_TAU = 1,

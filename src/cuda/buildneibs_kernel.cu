@@ -118,20 +118,6 @@
 	#define MIN_BLOCKS_BUILDNEIBS	1
 #endif
 
-//! Building by particle, we need block-wide synchronization
-//! When building by cell, we only need warp-level sync
-#if BUILDNEIBS_BY_PARTICLE
-#define BUILD_NEIBS_SYNC __syncthreads()
-#define REDUCTION_SIZE BLOCK_SIZE_BUILDNEIBS
-#else
-#if CUDA_MAJOR >= 9
-#define BUILD_NEIBS_SYNC __syncwarp()
-#else
-#define BUILD_NEIBS_SYNC /* empty statement */
-#endif
-#define REDUCTION_SIZE WARP_SIZE
-#endif
-
 /** \namespace cuneibs
  *  \brief Contains all device functions/kernels/variables used for neighbor list construction
  *
@@ -243,105 +229,194 @@ struct sa_boundary_niC_vars
 };
 
 // This structure holds the variables that are necessary to manage the cell/warp mapping
-struct warp_cell_t {
-#if BUILDNEIBS_BY_CELL
+struct warp_cell_data
+{
 	uint cell_index;
 	uint warp_index;
 	uint lane;
-#endif
 };
 
-//! buildNeibsListDevice uses shared memory in two cases:
-//! 1. in count_neighbors for the reductions (total and max neighbors)
-//! 2. during the neighbors list construction as a cache when building by cell
-//!
-//! In the latter case, it needs to be typed as float4, because this type is the widest used,
-//! otherwise, uint will suffice
-
-typedef
-#if BUILDNEIBS_BY_PARTICLE
-uint
-#else
-float4
-#endif
-buildNeibsShared_t;
-
-extern __shared__ buildNeibsShared_t buildNeibsShared[];
-
-template<typename T=buildNeibsShared_t>
-__device__ __forceinline__
-enable_if_t< (sizeof(T) <= sizeof(buildNeibsShared_t)), T* >
-get_buildNeibsShared_base(warp_cell_t const& warp_cell, int chunk_number = 0)
+template<BuildNeibsMappingType bn_type>
+struct BuildNeibsMapping :
+	COND_STRUCT(bn_type == BY_CELL, warp_cell_data)
 {
-	return (T*)(buildNeibsShared + chunk_number*BLOCK_SIZE_BUILDNEIBS
-#if BUILDNEIBS_BY_CELL
-		+ warp_cell.warp_index*WARP_SIZE
+	static constexpr BuildNeibsMappingType type = bn_type;
+
+	//! buildNeibsListDevice uses shared memory in two cases:
+	//! 1. in count_neighbors for the reductions (total and max neighbors)
+	//! 2. during the neighbors list construction as a cache when building by cell
+	//!
+	//! In the latter case, it needs to be typed as float4, because this type is the widest used,
+	//! otherwise, uint will suffice
+	using shared_t = typename std::conditional<type == BY_CELL, float4, uint>::type;
+
+	//! get the base for a warp or block inside a chunk of shared memory
+	__device__ __forceinline__
+	uint warp_base() const;
+
+	//! get the lane for indexing inside the block or warp
+	__device__ __forceinline__
+	uint get_lane() const;
+
+	//! compute the cell hash from a given particle index
+	template<typename params_t>
+	__device__ __forceinline__
+	int3 calcGridPos(params_t const& params, uint index) const;
+
+	//! Building by particle, we need block-wide synchronization
+	//! When building by cell, we only need warp-level sync
+	static constexpr uint reduction_size = (type == BY_PARTICLE ? BLOCK_SIZE_BUILDNEIBS : WARP_SIZE);
+
+	__device__ __forceinline__
+	static void sync()
+	{
+		switch (type) {
+		case BY_PARTICLE: __syncthreads(); break;
+		case BY_CELL:
+#if CUDA_MAJOR >= 9
+			__syncwarp();
 #endif
-		);
+			break;
+		}
+	}
+
+};
+
+template<> __device__ __forceinline__ uint BuildNeibsMapping<BY_PARTICLE>::warp_base() const { return 0; }
+template<> __device__ __forceinline__ uint BuildNeibsMapping<BY_CELL>::warp_base() const { return warp_index*WARP_SIZE; }
+
+template<> __device__ __forceinline__ uint BuildNeibsMapping<BY_PARTICLE>::get_lane() const { return threadIdx.x; }
+template<> __device__ __forceinline__ uint BuildNeibsMapping<BY_CELL>::get_lane() const { return warp_cell_data::lane; }
+
+template<>
+template<typename params_t>
+__device__ __forceinline__
+int3
+BuildNeibsMapping<BY_PARTICLE>::calcGridPos(params_t const& params, uint index) const
+{
+	// Get particle grid position computed from particle hash
+	return calcGridPosFromParticleHash(params.particleHash[index]);
+}
+
+template<>
+template<typename params_t>
+__device__ __forceinline__
+int3
+BuildNeibsMapping<BY_CELL>::calcGridPos(params_t const& params, uint index) const
+{
+	// We're iterating by cell, and the hash of the particle is just the cell index
+	// we already have. There isn't even a need to remove the extra bits used for multi-GPU
+	// because this kernel is GPU-local
+	return calcGridPosFromCellHash(cell_index);
+}
+
+
+extern __shared__ char buildNeibsShared[];
+
+template<typename T, typename Mapping, typename base_t = typename Mapping::shared_t>
+__device__ __forceinline__
+enable_if_t< (sizeof(T) <= sizeof(base_t)), T* >
+get_buildNeibsShared_base(Mapping const& mapping, int chunk_number = 0)
+{
+	base_t *base = (base_t*)buildNeibsShared;
+	return (T*)(base + chunk_number*BLOCK_SIZE_BUILDNEIBS + mapping.warp_base());
 }
 
 /// Cache the neighbor cell particle data in shared memory
-/// (this is only actually done if building neighbors by cell
-template<BoundaryType boundarytype, flag_t simflags>
-struct niC_cache : warp_cell_t
+struct niC_cell_cache : BuildNeibsMapping<BY_CELL>
 {
-	using params_t = buildneibs_params<boundarytype, simflags>;
-
-#if BUILDNEIBS_BY_CELL
 	// pointers into the buildNeibsShared shared memory region
 	float4* neib_pos_cache;
 	particleinfo* neib_info_cache;
-#endif
+
+	uint cache_base;
+	uint cache_index;
 
 	__device__ __forceinline__
-	niC_cache(warp_cell_t const& warp_cell)
-	: warp_cell_t(warp_cell)
-#if BUILDNEIBS_BY_CELL
-		, neib_pos_cache( get_buildNeibsShared_base<float4>(warp_cell) )
-		, neib_info_cache( get_buildNeibsShared_base<particleinfo>(warp_cell, 1) )
-#endif
+	niC_cell_cache(BuildNeibsMapping<BY_CELL> const& mapping, uint bucketStart)
+	:
+		BuildNeibsMapping<BY_CELL>( mapping ),
+		neib_pos_cache( get_buildNeibsShared_base<float4>(mapping) ),
+		neib_info_cache( get_buildNeibsShared_base<particleinfo>(mapping, 1) ),
+		cache_base(bucketStart),
+		cache_index(WARP_SIZE) // force a cache priming
 	{}
 
 	__device__ __forceinline__
-	void prime(params_t const& bparams, const uint bucketEnd, uint& cache_base, uint& cache_index)
+	void next()
 	{
-#if BUILDNEIBS_BY_CELL
+		++cache_index;
+	}
 
-		BUILD_NEIBS_SYNC;
+	template<typename params_t>
+	__device__ __forceinline__
+	void prime(params_t const& bparams, const uint bucketEnd)
+	{
+		if (cache_index < WARP_SIZE)
+			return;
 
-		if (cache_base + lane < bucketEnd) {
-			neib_info_cache[lane] = bparams.fetchInfo(cache_base + lane);
-			neib_pos_cache[lane] = bparams.fetchPos(cache_base + lane);
+		sync();
+
+		const uint gidx = cache_base + lane;
+		if (gidx < bucketEnd) {
+			neib_info_cache[lane] = bparams.fetchInfo(gidx);
+			neib_pos_cache[lane] = bparams.fetchPos(gidx);
 		}
 
 		cache_base += WARP_SIZE;
 		cache_index -= WARP_SIZE;
 
-		BUILD_NEIBS_SYNC;
-#endif
+		sync();
 	}
 
+	template<typename params_t>
 	__device__ __forceinline__
-	particleinfo fetch_neib_info(params_t const& bparams, uint neib_or_cache_index ) const
+	particleinfo fetch_neib_info(params_t const& bparams, uint neib_index) const
 	{
-#if BUILDNEIBS_BY_PARTICLE
-		return bparams.fetchInfo(neib_or_cache_index);
-#else
-		return neib_info_cache[neib_or_cache_index];
-#endif
+		return neib_info_cache[cache_index];
 	}
 
+	template<typename params_t>
 	__device__ __forceinline__
-	float4 fetch_neib_pos(params_t const& bparams, uint neib_or_cache_index ) const
+	float4 fetch_neib_pos(params_t const& bparams, uint neib_index) const
 	{
-#if BUILDNEIBS_BY_PARTICLE
-		return bparams.fetchPos(neib_or_cache_index);
-#else
-		return neib_pos_cache[neib_or_cache_index];
-#endif
+		return neib_pos_cache[cache_index];
 	}
+
 };
 
+/// Don't cache the neighbor cell particle data in shared memory
+struct niC_cell_no_cache : BuildNeibsMapping<BY_PARTICLE>
+{
+	__device__ __forceinline__
+	niC_cell_no_cache(BuildNeibsMapping<BY_PARTICLE> const& mapping, uint bucketStart) {}
+
+	__device__ __forceinline__
+	void next() {}
+
+	template<typename params_t>
+	__device__ __forceinline__
+	void prime(params_t const& bparams, const uint bucketEnd)
+	{}
+
+	template<typename params_t>
+	__device__ __forceinline__
+	particleinfo fetch_neib_info(params_t const& bparams, uint neib_index) const
+	{
+		return bparams.fetchInfo(neib_index);
+	}
+
+	template<typename params_t>
+	__device__ __forceinline__
+	float4 fetch_neib_pos(params_t const& bparams, uint neib_index) const
+	{
+		return bparams.fetchPos(neib_index);
+	}
+
+};
+
+template<BuildNeibsMappingType bn_type>
+using niC_cache = typename std::conditional<bn_type == BY_CELL, niC_cell_cache, niC_cell_no_cache>::type;
 
 /// The actual neibInCell variables structure, which concatenates the above, as appropriate
 /*! This structure provides a constructor that takes as arguments the union of the
@@ -349,51 +424,34 @@ struct niC_cache : warp_cell_t
  *  It then delegates the appropriate subset of variables to the appropriate
  *  structures it derives from, in the correct order
  */
-template<BoundaryType boundarytype>
+template<BoundaryType boundarytype, BuildNeibsMappingType bn_type>
 struct niC_vars :
 	common_niC_vars,
-	COND_STRUCT(boundarytype == SA_BOUNDARY, sa_boundary_niC_vars)
+	COND_STRUCT(boundarytype == SA_BOUNDARY, sa_boundary_niC_vars),
+	niC_cache<bn_type>
 {
-#if BUILDNEIBS_BY_PARTICLE
-	// when building by particle, the cache index is the neib index
-#define CACHE_INDEX neib_index
-#else
-	// index of the first neighbor stored in cache
-	uint cache_base;
-	// index of the current neighbor in the cache
-	uint cache_index;
-#define CACHE_INDEX cache_index
-#endif
+	using cache = niC_cache<bn_type>;
 
 	template<flag_t simflags>
 	__device__ __forceinline__
-	particleinfo fetch_neib_info(
-		buildneibs_params<boundarytype, simflags> const& bparams,
-		niC_cache<boundarytype, simflags>& cache)
+	particleinfo fetch_neib_info(buildneibs_params<boundarytype, simflags> const& bparams)
 	{
-#if BUILDNEIBS_BY_CELL
-		if (cache_index >= WARP_SIZE) cache.prime(bparams, bucketEnd, cache_base, cache_index);
-#endif
-		return cache.fetch_neib_info(bparams, CACHE_INDEX);
+		cache::prime(bparams, bucketEnd);
+		return cache::fetch_neib_info(bparams, neib_index);
 	}
 
 	template<flag_t simflags>
 	__device__ __forceinline__
-	float4 fetch_neib_pos(
-		buildneibs_params<boundarytype, simflags> const& bparams,
-		niC_cache<boundarytype, simflags> const& cache)
+	float4 fetch_neib_pos(buildneibs_params<boundarytype, simflags> const& bparams)
 	{
-		// this is only called with a primed cache, so no need to check
-		return cache.fetch_neib_pos(bparams, CACHE_INDEX);
+		return cache::fetch_neib_pos(bparams, neib_index);
 	}
 
 	template<flag_t simflags>
 	__device__ __forceinline__
-	void load_neib_info(
-		buildneibs_params<boundarytype, simflags> const& bparams,
-		niC_cache<boundarytype, simflags>& cache)
+	void load_neib_info(buildneibs_params<boundarytype, simflags> const& bparams)
 	{
-		neib_info = fetch_neib_info(bparams, cache);
+		neib_info = fetch_neib_info(bparams);
 		neib_type = PART_TYPE(neib_info);
 	}
 
@@ -401,41 +459,35 @@ struct niC_vars :
 	__device__ __forceinline__
 	niC_vars(
 		buildneibs_params<boundarytype, simflags> const& bparams,
+		BuildNeibsMapping<bn_type> const& mapping,
 		const uint index,
 		int3 const& gridPos,
 		int3 const& gridOffset,
 		float3 const& pos)
 	:
 		common_niC_vars(bparams, gridPos, gridOffset, pos),
-		COND_STRUCT(boundarytype == SA_BOUNDARY, sa_boundary_niC_vars)(index, bparams)
-	{
-#if BUILDNEIBS_BY_CELL
-		cache_base = bucketStart;
-		cache_index = WARP_SIZE; // force a cache priming
-#endif
-	}
+		COND_STRUCT(boundarytype == SA_BOUNDARY, sa_boundary_niC_vars)(index, bparams),
+		cache(mapping, bucketStart)
+	{}
 
 	__device__ __forceinline__
 	void next_neib()
 	{
 		++neib_index;
-#if BUILDNEIBS_BY_CELL
-		++cache_index;
-#endif
+		cache::next();
 	}
 
 	//! Check if the neighbor index we're at corresponds to a neighbor of the specified type
 	template<ParticleType nptype, flag_t simflags>
 	__device__ __forceinline__
 	bool on_neib_of_type(
-		buildneibs_params<boundarytype, simflags> const& bparams,
-		niC_cache<boundarytype, simflags>& cache)
+		buildneibs_params<boundarytype, simflags> const& bparams)
 	{
 		// we're done? then the type is irrelevant 8-)
 		if (neib_index >= bucketEnd) return false;
 
 		// ok, we have a neighbor. load the data and check the type
-		load_neib_info(bparams, cache);
+		load_neib_info(bparams);
 		return neib_type == nptype;
 	}
 
@@ -657,23 +709,23 @@ isCloseEnough(float3 const& relPos, particleinfo const& neib_info,
  * 	\return : true if the distance is < to the squared influence radius, false otherwise
  * 	\tparam boundarytype : the boundary model used
  */
-template<BoundaryType boundarytype, flag_t simflags>
+template<BoundaryType boundarytype, flag_t simflags, BuildNeibsMappingType bn_type>
 __device__ __forceinline__
 enable_if_t<boundarytype != SA_BOUNDARY>
 process_niC_segment(const uint index, const uint neib_id, float3 const& relPos,
 	buildneibs_params<boundarytype, simflags> const& params,
-	niC_vars<boundarytype> const& var)
+	niC_vars<boundarytype, bn_type> const& var)
 { /* Do nothing by default */ }
 
 
 /// Specialization of process_niC_segment for SA boundaries
 /// \see process_niC_segment
-template<BoundaryType boundarytype, flag_t simflags>
+template<BoundaryType boundarytype, flag_t simflags, BuildNeibsMappingType bn_type>
 __device__ __forceinline__
 enable_if_t<boundarytype == SA_BOUNDARY>
 process_niC_segment(const uint index, const uint neib_id, float3 const& relPos,
 	buildneibs_params<boundarytype, simflags> const& params,
-	niC_vars<boundarytype> const& var)
+	niC_vars<boundarytype, bn_type> const& var)
 {
 	int i = -1;
 	if (neib_id == var.vertices.x)
@@ -748,13 +800,13 @@ bool too_many_neibs(const uint* neibs_num)
  * for everything except PT_VERTEX particles on non-SA boundaries
  */
 template<ParticleType nptype,
-SPHFormulation sph_formulation, typename ViscSpec, BoundaryType boundarytype, flag_t simflags>
+	SPHFormulation sph_formulation, typename ViscSpec, BoundaryType boundarytype, flag_t simflags,
+	BuildNeibsMappingType bn_type>
 __device__ __forceinline__
 enable_if_t< (boundarytype == SA_BOUNDARY) || (nptype != PT_VERTEX) >
 neibsInCellOfType(
 			buildneibs_params<boundarytype, simflags> const& params,			// build neibs parameters
-			niC_cache<boundarytype, simflags>& cache,
-			niC_vars<boundarytype>& var,
+			niC_vars<boundarytype, bn_type>& var,
 			const uchar		cell,		// cell number (0 ... 26)
 			const uint		index,		// current particle index
 			uint*			neibs_num,	// number of neighbors for the current particle
@@ -764,7 +816,7 @@ neibsInCellOfType(
 {
 	var.encode_cell = true;
 
-	for ( ; var.on_neib_of_type<nptype>(params, cache); var.next_neib()) {
+	for ( ; var.on_neib_of_type<nptype>(params); var.next_neib()) {
 
 		// nothing to do if we don't need to build the neighbors list
 		// (i.e. we're thread running just to load neighbor data into the cache)
@@ -788,7 +840,7 @@ neibsInCellOfType(
 			if (nptype == PT_BOUNDARY && boundarytype == DYN_BOUNDARY && sph_formulation != SPH_GRENIER)
 				continue;
 
-		const pos_mass neib = var.fetch_neib_pos(params, cache);
+		const pos_mass neib = var.fetch_neib_pos(params);
 
 		// Skip inactive particles
 		if (is_inactive(neib))
@@ -832,13 +884,13 @@ neibsInCellOfType(
 }
 
 template<ParticleType nptype,
-SPHFormulation sph_formulation, typename ViscSpec, BoundaryType boundarytype, flag_t simflags>
+	SPHFormulation sph_formulation, typename ViscSpec, BoundaryType boundarytype, flag_t simflags,
+	BuildNeibsMappingType bn_type>
 __device__ __forceinline__
 enable_if_t< (boundarytype != SA_BOUNDARY) && (nptype == PT_VERTEX) >
 neibsInCellOfType(
 			buildneibs_params<boundarytype, simflags> const& params,			// build neibs parameters
-			niC_cache<boundarytype, simflags>& cache,
-			niC_vars<boundarytype>& var,
+			niC_vars<boundarytype, bn_type>& var,
 			const uchar		cell,		// cell number (0 ... 26)
 			const uint		index,		// current particle index
 			uint*			neibs_num,	// number of neighbors for the current particle
@@ -875,7 +927,7 @@ neibsInCellOfType(
  * are read through texture fetches.
  */
 template <SPHFormulation sph_formulation, typename ViscSpec, BoundaryType boundarytype, Periodicity periodicbound,
-		 flag_t simflags>
+		 flag_t simflags, BuildNeibsMappingType bn_type>
 __device__ __forceinline__ void
 neibsInCell(
 			buildneibs_params<boundarytype, simflags> const& params,			// build neibs parameters
@@ -886,12 +938,10 @@ neibsInCell(
 			float3 const&	pos,		// current particle position
 			uint*			neibs_num,	// number of neighbors for the current particle
 			const bool		build_nl,   // build the NL for this particle (false = use it only to load neib data)
-			warp_cell_t const& warp_cell,
+			BuildNeibsMapping<bn_type> const& mapping,
 			const bool		central_is_boundary,
 			const bool		central_is_fea)
 {
-	niC_cache<boundarytype, simflags> cache(warp_cell);
-
 	// Compute the grid position of the current cell, and return if it's
 	// outside the domain
 	if (!calcNeibCell<periodicbound>(gridPos, gridOffset))
@@ -899,26 +949,26 @@ neibsInCell(
 
 	// Internal variables used by neibsInCell. Structure built on
 	// specialized template of niC_vars.
-	niC_vars<boundarytype> var(params, index, gridPos, gridOffset, pos);
+	niC_vars<boundarytype, bn_type> var(params, mapping, index, gridPos, gridOffset, pos);
 
 	// Return if the cell is empty
 	if (var.bucketStart == CELL_EMPTY)
 		return;
 
-	var.load_neib_info(params, cache);
+	var.load_neib_info(params);
 
 	// Process neighbors by type, leveraging the fact that within cell they are sorted by type
 	if (var.neib_type == PT_FLUID)
-		neibsInCellOfType<PT_FLUID, sph_formulation, ViscSpec, boundarytype, simflags>
-			(params, cache, var, cell, index, neibs_num, build_nl, central_is_boundary, central_is_fea);
+		neibsInCellOfType<PT_FLUID, sph_formulation, ViscSpec, boundarytype, simflags, bn_type>
+			(params, var, cell, index, neibs_num, build_nl, central_is_boundary, central_is_fea);
 
 	if (var.neib_type == PT_BOUNDARY)
-		neibsInCellOfType<PT_BOUNDARY, sph_formulation, ViscSpec, boundarytype, simflags>
-			(params, cache, var, cell, index, neibs_num, build_nl, central_is_boundary, central_is_fea);
+		neibsInCellOfType<PT_BOUNDARY, sph_formulation, ViscSpec, boundarytype, simflags, bn_type>
+			(params, var, cell, index, neibs_num, build_nl, central_is_boundary, central_is_fea);
 
 	if (boundarytype == SA_BOUNDARY && var.neib_type == PT_VERTEX)
-		neibsInCellOfType<PT_VERTEX, sph_formulation, ViscSpec, boundarytype, simflags>
-			(params, cache, var, cell, index, neibs_num, build_nl, central_is_boundary, central_is_fea);
+		neibsInCellOfType<PT_VERTEX, sph_formulation, ViscSpec, boundarytype, simflags, bn_type>
+			(params, var, cell, index, neibs_num, build_nl, central_is_boundary, central_is_fea);
 
 	// Testpoints have a neighbor list, but are not considered in the neighbor list of other points.
 	// Moreover, since they are sorted last, we can stop iterating over the cell when we come across one
@@ -1467,14 +1517,15 @@ findNeighboringPlanes(
 //! and the max number of neighbors of each type
 template< bool neibcount // should we actually count?
 	, int num_sm_neibs_max // number of neighbor type groups (2 if SA, 1 otherwise)
+	, typename Mapping
 	>
 __device__ __forceinline__
 enable_if_t<neibcount == true>
-count_neighbors(const uint *neibs_num, warp_cell_t const& warp_cell) // computed number of neighbors per type
+count_neighbors(const uint *neibs_num, Mapping const& mapping) // computed number of neighbors per type
 {
 #if CUDA_BACKEND_ENABLED
-	uint *sm_total_neibs_num = get_buildNeibsShared_base<uint>(warp_cell);
-	uint *sm_neibs_max = get_buildNeibsShared_base<uint>(warp_cell, 1);
+	uint *sm_total_neibs_num = get_buildNeibsShared_base<uint>(mapping);
+	uint *sm_neibs_max = get_buildNeibsShared_base<uint>(mapping, 1);
 #endif
 
 	uint neibs_max[num_sm_neibs_max];
@@ -1499,20 +1550,17 @@ count_neighbors(const uint *neibs_num, warp_cell_t const& warp_cell) // computed
 	}
 #endif
 #else // CUDA_BACKEND_ENABLED
-	BUILD_NEIBS_SYNC; // make sure we're not conflicting with the cache usage
-#if BUILDNEIBS_BY_PARTICLE
-#define LANE threadIdx.x
-#else
-#define LANE warp_cell.lane
-#endif
+	Mapping::sync(); // make sure we're not conflicting with the cache usage
+
+#define LANE mapping.get_lane()
 
 	sm_total_neibs_num[LANE] = total_neibs_num;
 	sm_neibs_max[LANE] = neibs_max[0];
 	if (num_sm_neibs_max > 1)
 		sm_neibs_max[LANE + BLOCK_SIZE_BUILDNEIBS] = neibs_max[1];
 
-	for (unsigned int i = REDUCTION_SIZE/2; i > 0; i /= 2) {
-		BUILD_NEIBS_SYNC;
+	for (unsigned int i = Mapping::reduction_size/2; i > 0; i /= 2) {
+		Mapping::sync();
 		if (LANE < i) {
 			total_neibs_num += sm_total_neibs_num[LANE + i];
 			sm_total_neibs_num[LANE] = total_neibs_num;
@@ -1537,10 +1585,10 @@ count_neighbors(const uint *neibs_num, warp_cell_t const& warp_cell) // computed
 #endif
 };
 
-template<bool neibcount, int num_sm_neibs_max>
+template<bool neibcount, int num_sm_neibs_max, typename Mapping>
 __device__ __forceinline__
 enable_if_t<neibcount == false>
-count_neighbors(const uint *neibs_num, warp_cell_t const&)
+count_neighbors(const uint *neibs_num, Mapping const&)
 { /* no counting case */ };
 
 
@@ -1564,7 +1612,7 @@ count_neighbors(const uint *neibs_num, warp_cell_t const&)
  *	\tparam neibcount : if true we compute maximum neighbor number
  */
 template<Dimensionality dimensions, SPHFormulation sph_formulation, typename ViscSpec, BoundaryType boundarytype,
-	Periodicity periodicbound, flag_t simflags,
+	Periodicity periodicbound, flag_t simflags, BuildNeibsMappingType bn_type,
 	bool neibcount,
 	bool debug_planes,
 	/* nmber of dimensions */
@@ -1583,7 +1631,7 @@ template<Dimensionality dimensions, SPHFormulation sph_formulation, typename Vis
 __device__ __forceinline__
 void
 buildNeibsListOfParticle(params_t const& params, const uint index, const uint numParticlesInBlock,
-	warp_cell_t const& warp_cell)
+	BuildNeibsMapping<bn_type> const& mapping)
 {
 	// Number of neighbors for the current particle for each neighbor type.
 	// One slot per supported particle type
@@ -1595,7 +1643,7 @@ buildNeibsListOfParticle(params_t const& params, const uint index, const uint nu
 	// neibsInCell, as it needs them to load neighbors data through shared memory
 	do {
 		const bool IS_VALID = (index < numParticlesInBlock);
-		if (BUILDNEIBS_BY_PARTICLE && !IS_VALID)
+		if (bn_type == BY_PARTICLE && !IS_VALID)
 			break;
 
 		// Read particle info from texture
@@ -1623,36 +1671,24 @@ buildNeibsListOfParticle(params_t const& params, const uint index, const uint nu
 		    ViscSpec::rheologytype == GRANULAR)
 			build_nl = build_nl || BOUNDARY(info);
 
-#if BUILDNEIBS_BY_PARTICLE
 		// Exit if we have nothing to do
-		if (!build_nl)
+		if (bn_type == BY_PARTICLE && !build_nl)
 			break;
-#else
+
 		if (!IS_VALID)
 			build_nl = false;
-#endif
 
 		// Get particle position
 		const pos_mass pdata = IS_VALID ? params.fetchPos(index) : float4{};
 
 		// If the particle is inactive we have nothing to do
 		if (is_inactive(pdata)) {
-#if BUILDNEIBS_BY_PARTICLE
-			break;
-#else
+			if (bn_type == BY_PARTICLE)
+				break;
 			build_nl = false;
-#endif
 		}
 
-#if BUILDNEIBS_BY_PARTICLE
-		// Get particle grid position computed from particle hash
-		const int3 gridPos = calcGridPosFromParticleHash(params.particleHash[index]);
-#else
-		// We're iterating by cell, and the hash of the particle is just the cell index
-		// we already have. There isn't even a need to remove the extra bits used for multi-GPU
-		// because this kernel is GPU-local
-		const int3 gridPos = calcGridPosFromCellHash(warp_cell.cell_index);
-#endif
+		const int3 gridPos = mapping.calcGridPos(params, index);
 
 		// neighbors list construction needs to know if the central particle is a boundary particle
 		// (in SA, a boundary segment), or a FEA node, because these influence the construction of the list
@@ -1671,7 +1707,7 @@ buildNeibsListOfParticle(params_t const& params, const uint index, const uint nu
 						pdata.pos,
 						neibs_num,
 						build_nl,
-						warp_cell,
+						mapping,
 						central_is_boundary,
 						central_is_fea);
 				}
@@ -1722,13 +1758,14 @@ buildNeibsListOfParticle(params_t const& params, const uint index, const uint nu
 		}
 	}
 
-	count_neighbors<neibcount, num_sm_neibs_max>(neibs_num, warp_cell);
+	count_neighbors<neibcount, num_sm_neibs_max>(neibs_num, mapping);
 }
 
 /// Build neighbors list for the particles
 /// \see buildNeibsListOfParticle for details.
 template<Dimensionality dimensions, SPHFormulation sph_formulation, typename ViscSpec, BoundaryType boundarytype, Periodicity periodicbound,
 	flag_t simflags,
+	BuildNeibsMappingType bn_type,
 	bool neibcount,
 	bool debug_planes,
 	// parameter structure we use
@@ -1752,43 +1789,53 @@ struct buildNeibsListDevice : params_t
 		params_t(bufread, bufwrite, numParticles, numCells, sqinfluenceradius, boundNlSqInflRad)
 	{}
 
+	template<typename Mapping>
+	__device__
+	enable_if_t<Mapping::type == BY_PARTICLE>
+	do_mapping(params_t const& params, Mapping& mapping, simple_work_item const& item) const
+	{
+		buildNeibsListOfParticle<dimensions, sph_formulation, ViscSpec, boundarytype, periodicbound, simflags,
+			bn_type, neibcount, debug_planes>(params, item.get_id(), params.numParticles, mapping);
+	}
+
+	template<typename Mapping>
+	__device__
+	enable_if_t<Mapping::type == BY_CELL>
+	do_mapping(params_t const& params, Mapping& mapping, simple_work_item const& item) const
+	{
+		// When building neighbors by cell, each work-group takes care of BUILDNEIBS_CELLS_PER_BLOCK cells,
+		// with each WARP taking care of a cell
+		// TODO we might want to find a way to detect empty cells and distribute the workload
+		// in a more homogeneous manner
+		// TODO cells typically have less than WARP_SIZE particles in fact, so we're going to waste some resources
+
+		mapping.warp_index = threadIdx.x / WARP_SIZE; // index of the warp in the block
+		mapping.lane = threadIdx.x & (WARP_SIZE - 1); // lane inside the warp
+		mapping.cell_index = blockIdx.x * BUILDNEIBS_CELLS_PER_BLOCK + mapping.warp_index;
+
+		if (mapping.cell_index >= params.numCells) return;
+
+		// First thing first, find the range of particles that this block needs to take care of
+		uint base_idx = params.fetchCellStart(mapping.cell_index);
+		const uint end_idx = params.fetchCellEnd(mapping.cell_index);
+
+		// if the cell is empty, we're done
+		if (base_idx == CELL_EMPTY) return;
+
+		// Each work-item in the work-group takes care of one particle:
+		// note that we pass end_idx so that the particle neighbors list construction
+		// will abort if we're past the end of the current cell
+		while (base_idx < end_idx) {
+			buildNeibsListOfParticle<dimensions, sph_formulation, ViscSpec, boundarytype, periodicbound, simflags,
+				bn_type, neibcount, debug_planes>(params, base_idx + mapping.lane, end_idx, mapping);
+			base_idx += WARP_SIZE;
+		}
+	}
+
 	__device__ void operator()(simple_work_item item) const
 {
-	params_t const& params(*this);
-#if BUILDNEIBS_BY_PARTICLE
-	buildNeibsListOfParticle<dimensions, sph_formulation, ViscSpec, boundarytype, periodicbound, simflags,
-		neibcount, debug_planes>(params, item.get_id(), params.numParticles, warp_cell_t{});
-#else
-	// When building neighbors by cell, each work-group takes care of BUILDNEIBS_CELLS_PER_BLOCK cells,
-	// with each WARP taking care of a cell
-	// TODO we might want to find a way to detect empty cells and distribute the workload
-	// in a more homogeneous manner
-	// TODO cells typically have less than WARP_SIZE particles in fact, so we're going to waste some resources
-
-	struct warp_cell_t warp_cell;
-
-	warp_cell.warp_index = threadIdx.x / WARP_SIZE; // index of the warp in the block
-	warp_cell.lane = threadIdx.x & (WARP_SIZE - 1); // lane inside the warp
-	warp_cell.cell_index = blockIdx.x * BUILDNEIBS_CELLS_PER_BLOCK + warp_cell.warp_index;
-
-	if (warp_cell.cell_index >= params.numCells) return;
-
-	// First thing first, find the range of particles that this block needs to take care of
-	uint base_idx = params.fetchCellStart(warp_cell.cell_index);
-	const uint end_idx = params.fetchCellEnd(warp_cell.cell_index);
-
-	// if the cell is empty, we're done
-	if (base_idx == CELL_EMPTY) return;
-
-	// Each work-item in the work-group takes care of one particle:
-	// note that we pass end_idx so that the particle neighbors list construction
-	// will abort if we're past the end of the current cell
-	while (base_idx < end_idx) {
-		buildNeibsListOfParticle<dimensions, sph_formulation, ViscSpec, boundarytype, periodicbound, simflags,
-			neibcount, debug_planes>(params, base_idx + warp_cell.lane, end_idx, warp_cell);
-		base_idx += WARP_SIZE;
-	}
-#endif
+	BuildNeibsMapping<bn_type> mapping;
+	do_mapping(*this, mapping, item);
 }
 };
 

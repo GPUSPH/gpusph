@@ -235,12 +235,13 @@ public:
 public:
 	CUDASimFrameworkImpl() : SimFramework()
 	{
+		constexpr BuildNeibsMappingType bn_type = CPU_BACKEND_ENABLED ? BY_PARTICLE : BY_CELL;
 		if (g_debug.planes) {
-			m_neibsEngine = new CUDANeibsEngine<dimensions, sph_formulation, ViscSpec, boundarytype, periodicbound, simflags,
+			m_neibsEngine = new CUDANeibsEngine<dimensions, sph_formulation, ViscSpec, boundarytype, periodicbound, simflags, bn_type,
 				true /* neibcount */,
 				true /* debug_planes */>();
 		} else {
-			m_neibsEngine = new CUDANeibsEngine<dimensions, sph_formulation, ViscSpec, boundarytype, periodicbound, simflags,
+			m_neibsEngine = new CUDANeibsEngine<dimensions, sph_formulation, ViscSpec, boundarytype, periodicbound, simflags, bn_type,
 				true /* neibcount */,
 				false /* debug_planes */>();
 		}

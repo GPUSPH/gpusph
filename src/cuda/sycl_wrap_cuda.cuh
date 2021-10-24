@@ -46,7 +46,7 @@
 struct simple_work_item
 {
 	__device__
-	unsigned get_id() {
+	unsigned get_id() const {
 		return INTMUL(blockIdx.x, blockDim.x) + threadIdx.x;
 	}
 };
