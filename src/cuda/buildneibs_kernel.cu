@@ -881,9 +881,9 @@ neibsInCellOfType(
 		}
 
 		// SA-specific: in this case central_is_boundary tells us that this is a boundary segment
-		// (or rathe the particle representing it)
-		// TODO FIXME this should only be invoked if the neighbor is a PT_VERTEX neighbor, right?
-		if (boundarytype == SA_BOUNDARY && central_is_boundary)
+		// (or rather the particle representing it), that needs to updates its relative position projection
+		// to its adjacent vertices
+		if (boundarytype == SA_BOUNDARY && nptype == PT_VERTEX && central_is_boundary)
 			process_niC_segment(index, id(var.neib_info), relPos, params, var);
 	}
 
