@@ -12,7 +12,7 @@ The information contained herein will help you navigate the many features of the
 through a selection of sample test cases (included in the distribution),
 and detailed instructions on how to set up your own.
 This document assumes you've already set up a working directory with GPUSPH,
-if you haven't, please refer to the xref:installation-guide[Installation Guide]
+if you haven't, please refer to the <<installation-guide.adoc#,Installation Guide>>
 for instructions on how to set up GPUSPH and its dependencies.
 
 = Introduction
@@ -27,7 +27,7 @@ include::common-introduction.adoc[]
 
 == Building GPUSPH
 
-As explained in the xref:installation-guide[Installation Guide],
+As explained in the <<installation-guide.adoc#,Installation Guide>>,
 each test-case for GPUSPH must be compiled independently,
 using
 [source,shell,subs="+quotes"]
@@ -130,9 +130,9 @@ with the CPU backend and OpenMP support can be launched with
 make -j$(nproc) backend=cpu openmp=1 DamBreak3D LidDrivenCavity2D
 ----
 
-CAUTION: a feature can only be enabled if the corresponding xref:installation-guide#optional[dependencies]
+CAUTION: a feature can only be enabled if the corresponding <<installation-guide.adoc#optional,dependencies>>
 can be found by the build process.
-Please refer to the xref:installation-guide[Installation and Quick Start Guide] for additional details.
+Please refer to the <<installation-guide.adoc#,Installation and Quick Start Guide>> for additional details.
 
 Option values are persistent across `make` invocations,
 so once an option is set (by the user, or through the build system auto-detection),
