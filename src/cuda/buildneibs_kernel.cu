@@ -1645,10 +1645,12 @@ buildNeibsListOfParticle(params_t const& params, const uint index, const uint nu
 
 	// Rather than nesting if's, use a do { } while (0) loop with breaks
 	// for early bail outs
-	// NOTE: the early bail-outs are only when building neighbors by particle
-	// neibsInCell, as it needs them to load neighbors data through shared memory
+	// NOTE: the early bail-outs are only used when building neighbors by particle
+	// neibsInCell, since in the by-cell processing all particles are needed,
+	// to load neighbors data through shared memory
 	do {
 		const bool IS_VALID = (index < numParticlesInBlock);
+
 		if (bn_type == BY_PARTICLE && !IS_VALID)
 			break;
 
@@ -1681,8 +1683,8 @@ buildNeibsListOfParticle(params_t const& params, const uint index, const uint nu
 		if (bn_type == BY_PARTICLE && !build_nl)
 			break;
 
-		if (!IS_VALID)
-			build_nl = false;
+		// Don't build the neighbors list unless valid
+		build_nl = build_nl && IS_VALID;
 
 		// Get particle position
 		const pos_mass pdata = IS_VALID ? params.fetchPos(index) : float4{};
