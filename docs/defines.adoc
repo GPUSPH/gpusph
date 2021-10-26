@@ -6,6 +6,7 @@
 :url-forum: https://gpusph.discourse.group/
 :url-github: https://github.com/GPUSPH/gpusph/
 :url-git: git@github.com:GPUSPH/gpusph
+:url-irc: link:irc://irc.libera.chat/#gpusph
 :url-tag: {url-github}releases/tags/v{version}
 :url-archive: {url-github}archive/refs/tags/v{version}
 

@@ -1,0 +1,23 @@
+= GPUSPH
+include::docs/defines.adoc[]
+v{version}
+
+== What is it
+
+This repository holds the source code for {url-proect}[GPUSPH],
+the first implementation of weakly-compressible Smoothed Particle Hydrodynamics (WCSPH)
+to run fully on Graphic Processing Units (GPU), using NVIDIA CUDA.
+
+== Quick start guide
+
+Run `make` followed by `make test` to compile and run the default test problem.
+You can see a list of available test problems using `make list-problems`
+and run any of them with `make $problem && ./GPUSPH` where `$problem` is the selected problem.
+
+Remember to check the <<docs/installation-guide.adoc#_requirements,Requirements>>,
+and consult the <<docs/installation-guide.adoc#,Installation Guide>> for further details
+on how to set up and configure your GPUSPH environment.
+
+== Contributing
+
+If you wish to contribute to GPUSPH, please consult <<CONTRIBUTING.adoc#,the CONTRIBUTING document>>.
