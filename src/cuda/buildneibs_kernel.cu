@@ -1720,7 +1720,8 @@ buildNeibsListOfParticle(params_t const& params, const uint index, const uint nu
 			}
 		}
 
-		findNeighboringPlanes<debug_planes>(params, gridPos, pdata.pos, index);
+		if (build_nl)
+			findNeighboringPlanes<debug_planes>(params, gridPos, pdata.pos, index);
 	} while (0);
 
 	// Each of the sections of the neighbor list is terminated by a NEIBS_END. This allow
