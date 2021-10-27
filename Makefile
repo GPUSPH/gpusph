@@ -925,19 +925,19 @@ ifneq ($(USE_CHRONO),0)
 endif
 LDFLAGS += $(LIBPATH)
 
-check_thrust = $(shell printf '\043include <thrust/version.h>\n:THRUST_VERSION' | $(CUXX) $(INCPATH) $(1) -x c++ -E - -o - 2> /dev/null | grep ^: | cut -f2 -d:)
+check_thrust = $(shell printf '\043include <thrust/version.h>\n:THRUST_VERSION' | $(CXX) $(INCPATH) $(1) -E -P - 2> /dev/null | grep ^: | cut -f2 -d: )
 THRUST_VERSION:=$(call check_thrust)
 
-ifeq ($(THRUST_VERSION),$(empty))
+ifeq ($(THRUST_VERSION),THRUST_VERSION)
  THRUST_PATH := ./thrust
  $(call traceconfig,looking for thrust in $(THRUST_PATH))
  THRUST_VERSION:=$(call check_thrust,-I$(THRUST_PATH))
- ifeq ($(THRUST_VERSION),$(empty))
+ ifeq ($(THRUST_VERSION),THRUST_VERSION)
   THRUST_PATH := ../thrust
   $(call traceconfig,looking for thrust in $(THRUST_PATH))
   THRUST_VERSION:=$(call check_thrust,-I$(THRUST_PATH))
  endif
- ifneq ($(THRUST_VERSION),$(empty))
+ ifneq ($(THRUST_VERSION),THRUST_VERSION)
   INCPATH += -I$(THRUST_PATH)
  else
   $(error could not find Thrust in default include path, ./thrust or ../thrust)
