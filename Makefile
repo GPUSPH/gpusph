@@ -925,7 +925,7 @@ ifneq ($(USE_CHRONO),0)
 endif
 LDFLAGS += $(LIBPATH)
 
-check_thrust = $(shell printf '\043include <thrust/version.h>\n:THRUST_VERSION' | $(CUXX) $(INCPATH) $(1) -x cu -E - -o - 2> /dev/null | grep ^: | cut -f2 -d:)
+check_thrust = $(shell printf '\043include <thrust/version.h>\n:THRUST_VERSION' | $(CUXX) $(INCPATH) $(1) -x c++ -E - -o - 2> /dev/null | grep ^: | cut -f2 -d:)
 THRUST_VERSION:=$(call check_thrust)
 
 ifeq ($(THRUST_VERSION),$(empty))
