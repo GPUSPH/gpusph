@@ -192,35 +192,56 @@ size_t GPUWorker::computeMemoryPerCell()
 // Compute the maximum number of particles we can allocate according to the available device memory
 void GPUWorker::computeAndSetAllocableParticles()
 {
-	size_t totMemory, memPerCells, freeMemory, safetyMargin;
+	size_t totMemory, freeMemory;
 	getMemoryInfo(&freeMemory, &totMemory);
+	cout << "Device idx " << getHardwareDeviceNumber() <<
+		": free memory " << gdata->memString(freeMemory) <<
+		": total memory " << gdata->memString(totMemory) << endl;
+
+	// compute how much memory is required for the cells arrays
+	const size_t nCells = gdata->nGridCells;
+	const size_t cellsMem = nCells*computeMemoryPerCell();
+	const string descCellsMem = to_string(nCells) + " cells (" + gdata->memString(cellsMem) + ")";
+	// compute how much memory is required for the particles arrays
+	const size_t memPerParticle = computeMemoryPerParticle();
+	const size_t partsMem = m_numParticles*memPerParticle;
+	const string descPartsMem = to_string(m_numParticles) + " particles (" + gdata->memString(partsMem) + ")";
+
+	// The minimum amount of free memory should match what we need for the assigned particles
+	// plus the cells. We add another 16 MiB to account for alignments and what not.
 	// TODO configurable
-	#define TWOTO32 (float) (1<<20)
-	printf("Device idx %u: free memory %u MiB, total memory %u MiB\n", getHardwareDeviceNumber(),
-			(uint)(((float)freeMemory)/TWOTO32), (uint)(((float)totMemory)/TWOTO32));
-	safetyMargin = totMemory/32; // 16MB on a 512MB GPU, 64MB on a 2GB GPU
-	// compute how much memory is required for the cells array
-	memPerCells = (size_t)gdata->nGridCells * computeMemoryPerCell();
+	const size_t safetyMargin = 16*1024*1024;
+	const size_t minMem = partsMem + cellsMem + safetyMargin;
 
-	if (freeMemory < 16 + safetyMargin){
-		fprintf(stderr, "FATAL: not enough free device memory for safety margin (%u MiB) \n", (uint)((float) (16 + safetyMargin)/TWOTO32));
-		exit(1);
-	}
-	#undef TWOTO32
-	// TODO what are segments ?
-	// Why subtract 16B of mem when we are taking MiB od safety margin ?
-	freeMemory -= 16; // segments
-	freeMemory -= safetyMargin;
+	// TODO sanity checks for no overflow in the computations of cellsMem, partsMem and minMem
 
-	if (memPerCells > freeMemory) {
-		fprintf(stderr, "FATAL: not enough free device memory to allocate %s cells\n", gdata->addSeparators(gdata->nGridCells).c_str());
-		exit(1);
+	const string msg_base = "cannot fit " + descCellsMem + " and " + descPartsMem +
+		" with " + gdata->memString(safetyMargin) + " safety margin";
+
+	// First check: minMem must not be larger than totMemory
+	if (totMemory < minMem) {
+		cerr << "FATAL: " << msg_base + " in " + gdata->memString(totMemory) + " of total device memory" << endl;
+		throw bad_alloc();
 	}
 
-	freeMemory -= memPerCells;
+	// Second check: minMem should be less than freeMemory,
+	// but at least on CPU we can try and start GPUSPH even if we overflow that,
+	// since the operating system can probably swap something out
+
+	if (freeMemory < minMem) {
+		const string msg = msg_base + " in " + gdata->memString(freeMemory) + " of free device memory";
+		const bool try_anyway = this->getDeviceType() == CPU_DEVICE;
+		cerr << (try_anyway ? "WARNING: " : "FATAL: ") << msg << endl;
+		if (!try_anyway)
+			throw bad_alloc();
+	}
+
+	// Now that the two basic checks are out, see how many particles we can actually allocate
+	// from the memory left over by the cells and the safety margin
+	freeMemory -= cellsMem + safetyMargin;
 
 	// keep num allocable particles rounded to the next multiple of 4, to improve reductions' performances
-	uint numAllocableParticles = round_up<uint>(freeMemory / computeMemoryPerParticle(), 4);
+	uint numAllocableParticles = round_up<uint>(freeMemory / memPerParticle, 4);
 
 	if (numAllocableParticles < gdata->allocatedParticles)
 		printf("NOTE: device %u can allocate %u particles, while the whole simulation might require %u\n",
@@ -229,16 +250,10 @@ void GPUWorker::computeAndSetAllocableParticles()
 	// allocate at most the number of particles required for the whole simulation
 	m_numAllocatedParticles = min( numAllocableParticles, gdata->allocatedParticles );
 
+	// Sanity check: this shouldn't happen because of the two checks before
 	if (m_numAllocatedParticles < m_numParticles) {
-		fprintf(stderr, "FATAL: thread %u needs %u (and up to %u) particles, but we can only store %u in %s available of %s total with %s safety margin\n",
-			m_deviceIndex, m_numParticles, gdata->allocatedParticles, m_numAllocatedParticles,
-			gdata->memString(freeMemory).c_str(), gdata->memString(totMemory).c_str(),
-			gdata->memString(safetyMargin).c_str());
-#if 1
-		exit(1);
-#else
-		fputs("expect failures\n", stderr);
-#endif
+		throw logic_error("allocated particles " + to_string(m_numAllocatedParticles) +
+				" < num particles " +  to_string(m_numParticles));
 	}
 }
 

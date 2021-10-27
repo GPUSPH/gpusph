@@ -42,6 +42,10 @@ class CUDAWorker : public GPUWorker {
 private:
 	unsigned int m_cudaDeviceNumber;
 	const char *getHardwareType() const override;
+
+	SupportedDeviceTypes getDeviceType() const override
+	{ return CUDA_DEVICE; }
+
 	int getHardwareDeviceNumber() const override;
 
 	// it would be easier to put the device properties in a shared array in GlobalData;

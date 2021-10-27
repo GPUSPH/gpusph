@@ -99,6 +99,7 @@ protected:
 	devcount_t getDeviceIndex();
 
 	virtual const char *getHardwareType() const = 0;
+	virtual SupportedDeviceTypes getDeviceType() const = 0;
 	virtual int getHardwareDeviceNumber() const = 0;
 	virtual void setDeviceProperties() = 0;
 

@@ -42,6 +42,10 @@ class CPUWorker : public GPUWorker {
 private:
 	unsigned int m_cpu_core;
 	const char *getHardwareType() const override;
+
+	SupportedDeviceTypes getDeviceType() const override
+	{ return CPU_DEVICE; }
+
 	int getHardwareDeviceNumber() const override;
 
 	// the setter is private and meant to be called only by the simulation thread
