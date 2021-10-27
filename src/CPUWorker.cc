@@ -78,7 +78,13 @@ void CPUWorker::getMemoryInfo(size_t *freeMem, size_t *totMem)
 	// sysconf returns a long, but we cast to size_t for our needs
 	const size_t pg_size = sysconf(_SC_PAGE_SIZE);
 	const size_t pg_phys = sysconf(_SC_PHYS_PAGES);
+#ifdef _SC_AVPHYS_PAGES
 	const size_t pg_avail = sysconf(_SC_AVPHYS_PAGES);
+#else
+#warning "no SC_AVPHYS_PAGES, GPUSPH will not be able to determine the available free memory"
+	fprintf(stderr, "WARNING: cannot determine available free memory on this OS (no _SC_AVPHYS_PAGES)\n");
+	const size_t pg_avail = pg_phys;
+#endif
 	*totMem = pg_size*pg_phys;
 	*freeMem = pg_size*pg_avail;
 }
