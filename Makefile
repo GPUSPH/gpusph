@@ -69,9 +69,6 @@ ifeq ($(GPUSPH_VERSION), $(empty))
 endif
 export GPUSPH_VERSION
 
-# Git info output
-GIT_INFO_OUTPUT := $(shell git branch -vv)
-
 # system information
 platform := $(shell uname -s 2>/dev/null)
 ifeq ($(platform),Linux)
@@ -1252,15 +1249,15 @@ $(CATALYST_SELECT_OPTFILE): | $(OPTSDIR)
 # TODO proper escaping for special characters in the GIT_INFO_OUTPUT
 $(GIT_INFO_OPTFILE): | $(OPTSDIR)
 	@echo "/* git branch --v. */" > $@
-	@echo -n "#define GIT_INFO_OUTPUT \"" >> $@
-	@echo -n "$(GIT_INFO_OUTPUT)" >> $@
+	@printf "#define GIT_INFO_OUTPUT \"" >> $@
+	@git branch -vv | sed -e 's/"/\\"/' -e 's/$$/\\n\\/' >> $@
 	@echo "\"" >> $@
 
 # TODO proper escaping for special characters in the MAKE_SHOW_TXT
 # Presently we only handle EOL and double-quotes
 $(MAKE_SHOW_OPTFILE): $(MAKE_SHOW_TXT) | $(OPTSDIR)
 	@echo "/* make show of GPUSPH. */" > $@
-	@echo -n "#define MAKE_SHOW_OUTPUT \"" >> $@
+	@printf "#define MAKE_SHOW_OUTPUT \"" >> $@
 	@sed -e 's/"/\\"/' -e 's/$$/\\n\\/' $(MAKE_SHOW_TXT) >> $@
 	@echo "\"" >> $@
 
