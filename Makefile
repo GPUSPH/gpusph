@@ -925,6 +925,26 @@ ifneq ($(USE_CHRONO),0)
 endif
 LDFLAGS += $(LIBPATH)
 
+check_thrust = $(shell printf '\043include <thrust/version.h>\n:THRUST_VERSION' | $(CUXX) $(INCPATH) $(1) -x cu -E - -o - 2> /dev/null | grep ^: | cut -f2 -d:)
+THRUST_VERSION:=$(call check_thrust)
+
+ifeq ($(THRUST_VERSION),$(empty))
+ THRUST_PATH := ./thrust
+ $(call traceconfig,looking for thrust in $(THRUST_PATH))
+ THRUST_VERSION:=$(call check_thrust,-I$(THRUST_PATH))
+ ifeq ($(THRUST_VERSION),$(empty))
+  THRUST_PATH := ../thrust
+  $(call traceconfig,looking for thrust in $(THRUST_PATH))
+  THRUST_VERSION:=$(call check_thrust,-I$(THRUST_PATH))
+ endif
+ ifneq ($(THRUST_VERSION),$(empty))
+  INCPATH += -I$(THRUST_PATH)
+ else
+  $(error could not find Thrust in default include path, ./thrust or ../thrust)
+ endif
+endif
+$(call traceconfig,Thrust version $(THRUST_VERSION) found in $(if $(THRUST_PATH),$(THRUST_PATH),default path))
+
 LDLIBS += $(CXXFLAGS_OPENMP) $(LIBS)
 
 # -- Includes and library section end ---

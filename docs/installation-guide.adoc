@@ -36,7 +36,8 @@ As of version {version}, the tools and libraries that are *required* to build GP
   GPUSPH has been tested with the GNU compiler and Clang;
 * the {url-thrust}[Thrust] library;
   this is distributed with CUDA,
-  but may also be installed separately if needed;
+  but may also be installed separately if needed
+(e.g. if you only want to run GPUSPH on the CPU, and thus don't need to install the CUDA toolkit);
 * common command-line utitlities such as `sed` and `awk`.
 
 On a Debian or Ubuntu systems (including the Windows WSL),
@@ -108,6 +109,26 @@ cd gpusph
 
 NOTE: the zip package and tarball create a working directory named `gpusph-{version}`,
 whereas `git` creates a working directory named `gpusph`.
+
+=== A note on the Thrust library
+
+The Thrust library is a <<Must-have,hard requirement>> for GPUSPH.
+We recommend installing it from distribution packages, if possible,
+e.g. with
+[source,shell]
+----
+sudo apt-get install libthrust-dev
+----
+on Debian or Ubuntu.
+
+If you do not have permission to install new packages on the machine,
+or if your operating system does not have packages for the Thrust library,
+you can install it locally. From the GPUSPH working directory, run
+[source,shell]
+----
+git clone --recursive https://github.com/NVIDIA/thrust/
+----
+and GPUSPH will automatically detect the presence of the library.
 
 == Building GPUSPH
 
