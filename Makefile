@@ -1451,7 +1451,7 @@ $(MAKE_SHOW_TMP): | $(INFODIR)
 	@$(show) "Current dir" "$(CURDIR)"							>> $@
 	@$(show) "This Makefile" "$(MAKEFILE)"						>> $@
 	@$(show) "Used Makefiles" "$(MAKEFILE_LIST)"					>> $@
-	@$(show) "Problem" "$(PROBLEM)"								>> $@
+	@$(show) "Problem" "$(LAST_BUILT_PROBLEM)"						>> $@
 	@$(show) "Linearization" "$(LINEARIZATION)"					>> $@
 #	@$(show) "   last" "$(LAST_PROBLEM)"							>> $@
 	@$(show) "Snapshot file" "$(SNAPSHOT_FILE)"					>> $@
