@@ -47,7 +47,7 @@ vector<int> parse_devices_string(const char *argv)
 
 	string dev_string;
 	while (getline(tokenizer, dev_string, ',')) {
-		int first_dev, last_dev;
+		int first_dev = 0, last_dev = 0;
 		int cvt = sscanf(dev_string.c_str(), "%u-%u", &first_dev, &last_dev);
 		if (cvt == 0 /* no specification */ || first_dev < 0 || last_dev < 0) {
 			throw invalid_argument("device specification " + dev_string + " is not a (range of) non-negative integers");
