@@ -714,7 +714,7 @@ else
  endif
 endif
 # split the linearization string into individual characters, space-separated
-LINEARIZATION_WORDS:=$(shell echo $(LINEARIZATION) | sed 's/./\0 /g')
+LINEARIZATION_WORDS:=$(shell echo $(LINEARIZATION) | sed 's/./& /g')
 
 # option: cpu_block_size - block size (used as OpenMP chunk size) for the CPU backend
 ifdef cpu_block_size
