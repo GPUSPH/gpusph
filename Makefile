@@ -1277,9 +1277,9 @@ $(GIT_INFO_OPTFILE): | $(OPTSDIR)
 # Presently we only handle EOL and double-quotes
 $(MAKE_SHOW_OPTFILE): $(MAKE_SHOW_TXT) | $(OPTSDIR)
 	@echo "/* make show of GPUSPH. */" > $@
-	@printf "#define MAKE_SHOW_OUTPUT \"" >> $@
-	@sed -e 's/"/\\"/' -e 's/$$/\\n\\/' $(MAKE_SHOW_TXT) >> $@
-	@echo "\"" >> $@
+	@echo "static const char* MAKE_SHOW_OUTPUT =" >> $@
+	@sed -e 's/"/\\"/g' -e 's/^/"/' -e 's/$$/\\n"/' $(MAKE_SHOW_TXT) >> $@
+	@echo ";" >> $@
 
 $(OBJS): $(DBG_SELECT_OPTFILE)
 
