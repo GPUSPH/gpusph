@@ -796,9 +796,11 @@ INCPATH += -I$(SRCDIR) \
 # include path. This is particularly important in the case where CUDA_INCLUDE_PATH
 # is /usr/include, since otherwise GCC 6 (and later) will fail to find standard
 # includes such as stdint.h
-CUDA_INCLUDE_PATH := $(abspath $(CUDA_INSTALL_PATH)/include)
-ifneq ($(CUDA_INCLUDE_PATH),$(filter $(CUDA_INCLUDE_PATH),$(CXX_SYSTEM_INCLUDE_PATH)))
- CC_INCPATH += -I $(CUDA_INCLUDE_PATH)
+ifeq ($(cuda.backend.enabled),1)
+ CUDA_INCLUDE_PATH := $(abspath $(CUDA_INSTALL_PATH)/include)
+ ifneq ($(CUDA_INCLUDE_PATH),$(filter $(CUDA_INCLUDE_PATH),$(CXX_SYSTEM_INCLUDE_PATH)))
+  CC_INCPATH += -I $(CUDA_INCLUDE_PATH)
+ endif
 endif
 
 # LIBPATH
@@ -812,16 +814,18 @@ endif
 
 
 # CUDA libaries
-CUDA_LIBRARY_PATH=$(CUDA_INSTALL_PATH)/lib$(LIB_PATH_SFX)
-LIBPATH += -L$(CUDA_LIBRARY_PATH)
-ifeq ($(cuxx.is.nvcc),1)
- LDFLAGS += --linker-options -rpath,$(CUDA_LIBRARY_PATH)
-else
- LDFLAGS += -Wl,-rpath -Wl,$(CUDA_LIBRARY_PATH)
-endif
-
-# link to the CUDA runtime library
 ifeq ($(cuda.backend.enabled),1)
+ CUDA_LIBRARY_PATH=$(CUDA_INSTALL_PATH)/lib$(LIB_PATH_SFX)
+
+ # add the CUDA library path both to the linker and to the rpath
+ LIBPATH += -L$(CUDA_LIBRARY_PATH)
+ ifeq ($(cuxx.is.nvcc),1)
+  LDFLAGS += --linker-options -rpath,$(CUDA_LIBRARY_PATH)
+ else
+  LDFLAGS += -Wl,-rpath -Wl,$(CUDA_LIBRARY_PATH)
+ endif
+
+ # link to the CUDA runtime library
  LIBS += -lcudart
 endif
 
