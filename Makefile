@@ -1269,9 +1269,9 @@ $(CATALYST_SELECT_OPTFILE): | $(OPTSDIR)
 # TODO proper escaping for special characters in the GIT_INFO_OUTPUT
 $(GIT_INFO_OPTFILE): | $(OPTSDIR)
 	@echo "/* git branch --v. */" > $@
-	@printf "#define GIT_INFO_OUTPUT \"" >> $@
-	@git branch -vv | sed -e 's/"/\\"/' -e 's/$$/\\n\\/' >> $@
-	@echo "\"" >> $@
+	@echo "static const char* GIT_INFO_OUTPUT =" >> $@
+	@git branch -vv | sed -e 's/"/\\"/g' -e 's/^/"/' -e 's/$$/\\n"/' >> $@
+	@echo ";" >> $@
 
 # TODO proper escaping for special characters in the MAKE_SHOW_TXT
 # Presently we only handle EOL and double-quotes
