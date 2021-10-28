@@ -45,18 +45,26 @@ If a single test-case is built, it becomes the “default” test case, and it c
 by simply running `make`. This is very useful during the edit/compiler/run cycle of development.
 
 We also recommend running parallel builds by adding the `-j` \(n\) command line option to `make`
-to run \(n\) compile jobs at once. To use all the machine's processors, you can use
+to run \(n\) compile jobs at once. To use all the machine's processors, you can set
+\(n\) to the output of the `nproc` command on Linux systems, or the `sysctl -n hw.logicalcpu` command
+on macOS, e.g.
 [source,shell,subs="+quotes"]
 ----
+# on Linux
 make -j$(nproc) _ProblemName1_ _ProblemName2_ _etc_
+# on MacOS
+make -j$(sysctl -n hw.logicalcpu) _ProblemName1_ _ProblemName2_ _etc_
 ----
-
 If you run
 [source,shell,subs="+quotes"]
 ----
+# on Linux
 export MAKEFLAGS=-j$(nproc)
+# on macOS
+export MAKEFLAGS=-j$(sysctl -n hw.logicalcpu)
 ----
 then all subsequent invokations of `make` will automatically use all available processors.
+
 
 === Built-in documentation and help system
 
@@ -123,11 +131,11 @@ and then attach `make-show.log` to your report.
 
 Build-time configuration options can be changed by adding `option=value` pairs to the `make` command line.
 These can be specified together with any test case name and other `make` options.
-For example, a parallel build of the `DamBreak3D` and `LidDrivenCavity2D` test cases
+For example, a parallel build using 4 cores of the `DamBreak3D` and `LidDrivenCavity2D` test cases
 with the CPU backend and OpenMP support can be launched with
 [source,shell]
 ----
-make -j$(nproc) backend=cpu openmp=1 DamBreak3D LidDrivenCavity2D
+make -j4 backend=cpu openmp=1 DamBreak3D LidDrivenCavity2D
 ----
 
 CAUTION: a feature can only be enabled if the corresponding <<installation-guide.adoc#optional,dependencies>>
