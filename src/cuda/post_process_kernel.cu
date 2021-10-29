@@ -455,8 +455,6 @@ struct calcSurfaceparticleDevice : params_t
 		}
 	}
 
-	const float normal_length = length(normal);
-
 	// Checking the planes
 	if (HAS_PLANES(simflags))
 		for (uint i = 0; i < d_numplanes; ++i) {
@@ -464,9 +462,11 @@ struct calcSurfaceparticleDevice : params_t
 			if (r < params.influenceradius) {
 				// since our current normal is still unnormalized, the plane normal
 				// contribution must be scaled up to match the length of the current normal
-				normal += d_plane[i].normal*normal_length;
+				normal += d_plane[i].normal*length(normal);
 			}
 		}
+
+	const float normal_length = length(normal);
 
 	int nc = 0;
 
