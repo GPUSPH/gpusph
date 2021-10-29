@@ -68,7 +68,7 @@ WaveTank2D::WaveTank2D(GlobalData *_gdata) : Problem(_gdata)
 		boundary<DUMMY_BOUNDARY>
 	).select_options(
 		RHODIFF,
-//		use_planes, add_flags<ENABLE_PLANES>(),
+		use_planes, add_flags<ENABLE_PLANES>(),
 		USE_CCSPH, add_flags<ENABLE_CCSPH>()
 	);
 
