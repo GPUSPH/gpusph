@@ -374,10 +374,49 @@ struct calcTestpointsDevice : params_t
 }
 };
 
+//! Fix the outer normal of the particles taking planes into account.
+//! This is done by adding the plane normal to the computed normal,
+//! but since our current normal is not actually normalized yet, the plane normal
+//! contribution must be scaled up to match the length of the current normal
+template<BoundaryType boundarytype, flag_t simflags,
+	typename params_t = neibs_planes_interaction_params<boundarytype, simflags>
+>
+__device__ __forceinline__
+enable_if_t<HAS_DEM_OR_PLANES(simflags)>
+surfacePlanesFixup(params_t const& params, int3 const& gridPos, float4 const& pos, const int index,
+	float3& normal)
+{
+	const int *neib_plane_idx = &(params.neibPlanes[index].x);
+	for (int i = 0; i < 4; ++i) {
+		const int p = *neib_plane_idx;
+		if (p < 0) break; // done
+		++neib_plane_idx;
+
+		if (HAS_PLANES(simflags) && p < d_numplanes) {
+			const float r = PlaneDistance(gridPos, pos, d_plane[i]);
+			if (r < params.influenceradius) {
+				normal += d_plane[i].normal*length(normal);
+			}
+		} else if (HAS_DEM(simflags) && p == MAX_PLANES) {
+			// TODO
+		} else {
+			printf("This can't happen: %d: %d / %d\n", index, p, d_numplanes);
+		}
+	}
+}
+
+template<BoundaryType boundarytype, flag_t simflags,
+	typename params_t = neibs_planes_interaction_params<boundarytype, simflags>
+>
+__device__ __forceinline__
+enable_if_t<!HAS_DEM_OR_PLANES(simflags)>
+surfacePlanesFixup(params_t const& params, int3 const& gridPos, float4 const& pos, const int index,
+	float3& normal)
+{ /* no planes, no fixup */ }
 
 //! Identifies particles which form the free-surface
 template<KernelType kerneltype, BoundaryType boundarytype, flag_t simflags, bool savenormals,
-	typename params_t = neibs_interaction_params<boundarytype>
+	typename params_t = neibs_planes_interaction_params<boundarytype, simflags>
 >
 struct calcSurfaceparticleDevice : params_t
 {
@@ -456,15 +495,7 @@ struct calcSurfaceparticleDevice : params_t
 	}
 
 	// Checking the planes
-	if (HAS_PLANES(simflags))
-		for (uint i = 0; i < d_numplanes; ++i) {
-			const float r = PlaneDistance(gridPos, pos, d_plane[i]);
-			if (r < params.influenceradius) {
-				// since our current normal is still unnormalized, the plane normal
-				// contribution must be scaled up to match the length of the current normal
-				normal += d_plane[i].normal*length(normal);
-			}
-		}
+	surfacePlanesFixup<boundarytype, simflags>(params, gridPos, pos, index, normal);
 
 	const float normal_length = length(normal);
 
