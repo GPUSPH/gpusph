@@ -86,4 +86,26 @@ struct neibs_interaction_params :
 	{}
 };
 
+/// Parameters needed to iterate over the neighboring particles and planes
+template<BoundaryType boundarytype, flag_t simflags
+	, typename planes_params =
+		typename COND_STRUCT(HAS_DEM_OR_PLANES(simflags), neib_planes_params)
+>
+struct neibs_planes_interaction_params :
+	neibs_interaction_params<boundarytype>,
+	planes_params
+{
+	neibs_planes_interaction_params(
+		BufferList const& bufread,
+		const	uint	numParticles,
+		const	float	slength,
+		const	float	influenceradius)
+	:
+		neibs_interaction_params<boundarytype>(bufread, numParticles, slength, influenceradius),
+		planes_params(bufread)
+	{}
+};
+
+
+
 #endif

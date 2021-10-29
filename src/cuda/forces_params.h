@@ -133,15 +133,6 @@ struct common_forces_params :
 	{}
 };
 
-/// Parameters needed when using ENABLE_PLANES and/or ENABLE_DEM
-struct planes_forces_params
-{
-	const int4 * __restrict__ neibPlanes;
-	planes_forces_params(BufferList const& bufread) :
-		neibPlanes(bufread.getData<BUFFER_NEIBPLANES>())
-	{}
-};
-
 template<RunMode run_mode>
 struct common_finalize_forces_params;
 
@@ -524,7 +515,7 @@ template<SPHFormulation _sph_formulation,
 	bool _has_planes = HAS_PLANES(_simflags),
 	bool _has_dem = HAS_DEM(_simflags),
 	typename planes_cond =
-		typename COND_STRUCT(_has_planes || _has_dem, planes_forces_params),
+		typename COND_STRUCT(_has_planes || _has_dem, neib_planes_params),
 	// DEM specifically also needs the demTex texture object
 	typename dem_cond =
 		typename COND_STRUCT(_has_dem, dem_params),

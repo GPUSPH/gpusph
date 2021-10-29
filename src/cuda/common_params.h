@@ -345,4 +345,13 @@ struct cspm_params
 	cspm_params(cspm_params const&) = default;
 };
 
+/// Parameters needed when using ENABLE_PLANES and/or ENABLE_DEM
+struct neib_planes_params
+{
+	const int4 * __restrict__ neibPlanes;
+	neib_planes_params(BufferList const& bufread) :
+		neibPlanes(bufread.getData<BUFFER_NEIBPLANES>())
+	{}
+};
+
 #endif
