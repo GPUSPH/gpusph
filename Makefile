@@ -836,17 +836,19 @@ ifneq ($(platform), Darwin)
  LIBS += -lrt
 endif
 
-# override: CATALYST_INCLUDE_PATH - where ParaView Catalyst heaers can be found
-# override:                         defaults to /usr/include/paraview
-CATALYST_INCLUDE_PATH ?= /usr/include/paraview
+# override: PARAVIEW_VERSION      - version of ParaView used for development
+# override:                         this controls the default for CATALYST_INCLUDE_PATH and CATALYST_LIB_SFX
+PARAVIEW_VERSION ?= 5.9
+# override: CATALYST_INCLUDE_PATH - where ParaView Catalyst headers can be found
+# override:                         defaults to /usr/include/paraview-${PARAVIEW_VERSION}
+CATALYST_INCLUDE_PATH ?= /usr/include/paraview-${PARAVIEW_VERSION}
 # override: CATALYST_LIB_PATH     - where ParaView Catalyst libraries can be found
 # override:                         defaults to the empty string, indicating they
 # override:                         can be found in the default library path
 CATALYST_LIB_PATH ?=
 # override: CATALYST_LIB_SFX      - suffix for the Paraview Catalyst libraries
-# override:                         this is typically something -pv5.9 if the libraries
-# override:                         ship with ParaView 5.9
-CATALYST_LIB_SFX ?=
+# override:                         this is typically something -pv${PARAVIEW_VERSION}
+CATALYST_LIB_SFX ?= -pv${PARAVIEW_VERSION}
 
 ifneq ($(CATALYST_INCLUDE_PATH),$(empty))
  CATALYST_INCPATH += -isystem $(CATALYST_INCLUDE_PATH)
