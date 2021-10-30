@@ -739,13 +739,6 @@ else
  USE_CATALYST ?= 0
 endif
 
-# If Catalyst is disabled - exclude adaptors and display writer from the list of .cc files
-ifeq ($(USE_CATALYST),0)
- CCFILES := $(filter-out $(wildcard $(SRCDIR)/adaptors/*.cc),\
-  $(filter-out $(SRCDIR)/writers/DisplayWriter.cc,\
-  $(CCFILES)))
-endif
-
 # --- Includes and library section start ---
 
 LIB_PATH_SFX =
@@ -835,17 +828,62 @@ ifneq ($(USE_HDF5),0)
  LIBS += $(HDF5_LD)
 endif
 
-ifeq ($(USE_CATALYST),1)
- # link to Catalyst
- LIBS += $(CATALYST_LD)
-endif
-
 # pthread needed for the UDP writer
 LIBS += -lpthread
 
 # Realtime Extensions library (for clock_gettime) (not on Mac)
 ifneq ($(platform), Darwin)
  LIBS += -lrt
+endif
+
+# override: CATALYST_INCLUDE_PATH - where ParaView Catalyst heaers can be found
+# override:                         defaults to /usr/include/paraview
+CATALYST_INCLUDE_PATH ?= /usr/include/paraview
+# override: CATALYST_LIB_PATH     - where ParaView Catalyst libraries can be found
+# override:                         defaults to the empty string, indicating they
+# override:                         can be found in the default library path
+CATALYST_LIB_PATH ?=
+# override: CATALYST_LIB_SFX      - suffix for the Paraview Catalyst libraries
+# override:                         this is typically something -pv5.9 if the libraries
+# override:                         ship with ParaView 5.9
+CATALYST_LIB_SFX ?=
+
+ifneq ($(CATALYST_INCLUDE_PATH),$(empty))
+ CATALYST_INCPATH += -isystem $(CATALYST_INCLUDE_PATH)
+endif
+ifneq ($(CATALYST_LIB_PATH),$(empty))
+ CATALYST_LDFLAGS += -L $(CATALYST_LIB_PATH)
+endif
+
+ifneq ($(USE_CATALYST),0)
+ catalyst_err := $(shell printf '\043include <vtkCPProcessor.h>\n' | $(CXX) $(INCPATH) $(CATALYST_INCPATH) -x c++ -E -P - > /dev/null 2>&1 ; echo $$?)
+ ifeq ($(catalyst_err),0)
+  # found, add the path to the include path
+  # and check for linking
+ else
+  $(warning ParaView Catalyst headers not found in $(CATALYST_INCLUDE_PATH), please set CATALYST_INCLUDE_PATH in Makefile.local. Catalyst DISABLED.)
+  USE_CATALYST := 0
+ endif
+endif
+
+# If Catalyst is disabled - exclude adaptors and display writer from the list of .cc files
+ifeq ($(USE_CATALYST),0)
+ CCFILES := $(filter-out $(wildcard $(SRCDIR)/adaptors/*.cc),\
+  $(filter-out $(SRCDIR)/writers/DisplayWriter.cc,\
+  $(CCFILES)))
+else
+ # otherwise, add the appropriate include and library paths to the flags
+ INCPATH += $(CATALYST_INCPATH)
+ LDFLAGS += $(CATALYST_LDFLAGS)
+ ifneq ($(CATALYST_LIB_PATH),$(empty))
+  ifeq ($(cuxx.is.nvcc),1)
+   LDFLAGS += --linker-options -rpath,$(CATALYST_LIB_PATH)
+  else
+   LDFLAGS += -Wl,-rpath -Wl,$(CATALYST_LIB_PATH)
+  endif
+ endif
+ CATALYST_LIBS = vtkPVAdaptorsParticle vtkPVPythonCatalyst vtkPVCatalyst vtkCommonCore vtkCommonDataModel
+ LIBS += $(foreach lib, $(CATALYST_LIBS), -l$(lib)$(CATALYST_LIB_SFX))
 endif
 
 # override: CHRONO_PATH         - where Chrono is installed
@@ -1037,11 +1075,6 @@ endif
 # HDF5 might require specific flags
 ifneq ($(USE_HDF5),0)
  CXXFLAGS += $(HDF5_CXX)
-endif
-
-# Catalyst might require specific flags
-ifeq ($(USE_CATALYST),1)
- CXXFLAGS += $(CATALYST_CXX)
 endif
 
 # nvcc-specific flags
