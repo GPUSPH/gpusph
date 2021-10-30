@@ -121,7 +121,7 @@ public:
 		no_leak_warning(false),
 		visualization(false),
 		visu_freq(NAN),
-		pipeline_fpath(),
+		pipeline_fpath("scripts/catalyst_pipeline.py"),
 		repack(false),
 		repack_only(false),
 		repack_fname(),
