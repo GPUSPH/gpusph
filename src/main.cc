@@ -275,8 +275,10 @@ int parse_options(int argc, char **argv, GlobalData *gdata)
 			argv++;
 			argc--;
 		} else if (!strcmp(arg, "--display")) {
-		        _clOptions->visualization = true;
+			_clOptions->visualization = true;
 		} else if (!strcmp(arg, "--display-every")) {
+			/* automatically enable visualization if a frequency is specified */
+			_clOptions->visualization = true;
 			/* read the next arg as a double */
 			sscanf(*argv, "%lf", &(_clOptions->visu_freq));
 			argv++;
