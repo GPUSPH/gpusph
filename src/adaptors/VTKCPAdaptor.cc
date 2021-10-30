@@ -83,6 +83,12 @@ void VTKCPAdaptor::CoProcess(vtkDataObject* data, double time, unsigned int time
 	vtkNew<vtkCPDataDescription> dataDescription;
 	dataDescription->AddInput("input");
 	dataDescription->SetTimeData(time, time_step);
+	dataDescription->SetForceOutput(true);
+
+	if (!processor->RequestDataDescription(dataDescription))
+		return;
+
+	// TODO build the grid here, based on the requested data descriptions
 
 	// Set grid
 	dataDescription->GetInputDescriptionByName("input")->SetGrid(data);
