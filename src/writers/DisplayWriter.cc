@@ -41,6 +41,8 @@
 #include <vtkPointData.h>
 #include <vtkPoints.h>
 
+#include "ProblemCore.h"
+
 static float zeroes[4];
 
 DisplayWriter::DisplayWriter(const GlobalData *_gdata)
