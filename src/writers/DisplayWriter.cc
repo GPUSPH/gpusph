@@ -45,20 +45,27 @@
 
 static float zeroes[4];
 
-DisplayWriter::DisplayWriter(const GlobalData *_gdata)
-	: Writer(_gdata)
+DisplayWriter::DisplayWriter(const GlobalData *_gdata) :
+	Writer(_gdata),
+	m_adaptor(new VTKCPAdaptor)
 {
-	// Create the adaptor
-	m_adaptor = new VTKCPAdaptor();
+	std::string const& pipeline_fpath = _gdata->clOptions->pipeline_fpath;
+
+	if (pipeline_fpath.empty())
+		throw std::runtime_error("Co-processing visualization requested, but pipeline script not defined");
 
 	// Initialize the adaptor with Python pipeline path (got from execution options)
-	m_adaptor->Initialize(_gdata->clOptions->pipeline_fpath.c_str());
+	int success = m_adaptor->Initialize(pipeline_fpath.c_str());
+
+	if (!success)
+		throw std::runtime_error("error initializing co-processing visualization adapt with pipeline script " + pipeline_fpath);
 }
 
 
 DisplayWriter::~DisplayWriter()
 {
 	m_adaptor->Finalize();
+	delete m_adaptor;
 }
 
 void

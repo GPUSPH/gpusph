@@ -351,20 +351,6 @@ int parse_options(int argc, char **argv, GlobalData *gdata)
 		}
 	}
 
-	// Check if pipeline script path is defined and the file exists
-	if (_clOptions->visualization) {
-		std::string script_path = _clOptions->pipeline_fpath;
-
-		if (script_path.empty()) {
-			printf("WARNING: pipeline script is not defined, visualization will be disabled.\n");
-		} else {
-			ifstream f(script_path.c_str());
-			if (!f.good()) {
-				printf("WARNING: pipeline script could not be opened, visualization will be disabled.\n");
-			}
-		}
-	}
-
 	_clOptions->problem = string( selected_problem.name );
 
 	// Left for future dynamic loading:

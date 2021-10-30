@@ -50,8 +50,9 @@ public:
 	/*!
 	 * Initializes vtkCPProcessor instance and adds the pipeline.
 	 * \param[in] script_path path to the pipeline Python script
+	 * \return 1 if successful, 0 if failed
 	 */
-	void Initialize(const char* script_path);
+	int Initialize(const char* script_path);
 
 	/*!
 	 * Releases all resources used by Catalyst.

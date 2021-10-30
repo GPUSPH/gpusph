@@ -138,7 +138,12 @@ double Writer::process_writer_list(WriterList const& wl, GlobalData *_gdata, con
 				break;
 			case DISPLAYWRITER:
 #if USE_CATALYST == 1
-				writer = new DisplayWriter(_gdata);
+				try {
+					writer = new DisplayWriter(_gdata);
+				} catch (std::exception const& err) {
+					clog << WriterName[wt] << " NOT enabled: " << err.what() << endl;
+					continue;
+				}
 				break;
 #else
 				clog << WriterName[wt] << " requested but DISABLED (build with catalyst=1 to enable it)" << endl;

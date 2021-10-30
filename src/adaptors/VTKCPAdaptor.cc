@@ -45,10 +45,12 @@ VTKCPAdaptor::~VTKCPAdaptor()
 {
 }
 
-void VTKCPAdaptor::Initialize(const char* script_path)
+int VTKCPAdaptor::Initialize(const char* script_path)
 {
+	int success = 0;
+
 	// Create co-processor
-	if(processor == NULL) {
+	if (processor == NULL) {
 		processor = vtkCPProcessor::New();
 		processor->Initialize();
 	} else {
@@ -56,15 +58,24 @@ void VTKCPAdaptor::Initialize(const char* script_path)
 	}
 
 	// Add pipeline
-	vtkNew<vtkCPPythonScriptPipeline> pipeline;
-	pipeline->Initialize(script_path);
-	processor->AddPipeline(pipeline.GetPointer());
+	// TODO FIXME this used to be done with pipeline defined as vtkNew<vtkCPPythonScriptPipeline>,
+	// but for some reason this leads to segfaults when it went out of scope
+	// (regardless of assignment to the processor)
+	vtkCPPythonScriptPipeline *pipeline = vtkCPPythonScriptPipeline::New();
+	success = pipeline->Initialize(script_path);
+	if (success)
+		success = processor->AddPipeline(pipeline);
+	if (success)
+		pipeline->Delete();
+
+	return success;
 }
 
 void VTKCPAdaptor::Finalize()
 {
 	// Delete co-procesor
-	if(processor) {
+	if (processor) {
+		processor->RemoveAllPipelines();
 		processor->Finalize();
 		processor->Delete();
 		processor = NULL;
