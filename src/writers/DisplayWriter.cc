@@ -139,24 +139,24 @@ DisplayWriter::buildGrid(uint numParts, BufferList const& buffers, uint node_off
 		spatialAccArray->SetNumberOfComponents(3);
 		spatialAccArray->SetNumberOfTuples(numParts);
 
-	for (uint i = node_offset; i < node_offset + numParts; i++) {
-		const float *value = (float*)(forces + i);
-		spatialAccArray->SetTypedTuple(i - node_offset, value);
-	}
+		for (uint i = node_offset; i < node_offset + numParts; i++) {
+			const float *value = (float*)(forces + i);
+			spatialAccArray->SetTypedTuple(i - node_offset, value);
+		}
 
-	vtkGrid->GetPointData()->AddArray(spatialAccArray.GetPointer());
+		vtkGrid->GetPointData()->AddArray(spatialAccArray.GetPointer());
 
-	// Continuity derivative
-	vtkNew<vtkFloatArray> continuityArray;
-	continuityArray->SetName("Continuity derivative");
-	continuityArray->SetNumberOfValues(numParts);
+		// Continuity derivative
+		vtkNew<vtkFloatArray> continuityArray;
+		continuityArray->SetName("Continuity derivative");
+		continuityArray->SetNumberOfValues(numParts);
 
-	for (uint i = node_offset; i < node_offset + numParts; i++) {
-		const float value = forces[i].w;
-		continuityArray->SetValue(i - node_offset, value);
-	}
+		for (uint i = node_offset; i < node_offset + numParts; i++) {
+			const float value = forces[i].w;
+			continuityArray->SetValue(i - node_offset, value);
+		}
 
-	vtkGrid->GetPointData()->AddArray(continuityArray.GetPointer());
+		vtkGrid->GetPointData()->AddArray(continuityArray.GetPointer());
 	}
 
 	// Pressure
