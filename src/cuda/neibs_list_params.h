@@ -35,6 +35,7 @@
 #include "particledefine.h"
 
 #include "common_params.h"
+#include "dem_params.h"
 
 #include "cond_params.h"
 
@@ -90,10 +91,13 @@ struct neibs_interaction_params :
 template<BoundaryType boundarytype, flag_t simflags
 	, typename planes_params =
 		typename COND_STRUCT(HAS_DEM_OR_PLANES(simflags), neib_planes_params)
+	, typename dem_cond =
+		typename COND_STRUCT(HAS_DEM(simflags), dem_params)
 >
 struct neibs_planes_interaction_params :
 	neibs_interaction_params<boundarytype>,
-	planes_params
+	planes_params,
+	dem_cond
 {
 	neibs_planes_interaction_params(
 		BufferList const& bufread,
@@ -102,7 +106,8 @@ struct neibs_planes_interaction_params :
 		const	float	influenceradius)
 	:
 		neibs_interaction_params<boundarytype>(bufread, numParticles, slength, influenceradius),
-		planes_params(bufread)
+		planes_params(bufread),
+		dem_cond() // automatically initialized from the global DEM object
 	{}
 };
 

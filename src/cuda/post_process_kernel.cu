@@ -383,7 +383,7 @@ template<BoundaryType boundarytype, flag_t simflags,
 >
 __device__ __forceinline__
 enable_if_t<HAS_DEM_OR_PLANES(simflags)>
-surfacePlanesFixup(params_t const& params, int3 const& gridPos, float4 const& pos, const int index,
+surfacePlanesFixup(params_t const& params, int3 const& gridPos, float3 const& pos, const int index,
 	float3& normal)
 {
 	const int *neib_plane_idx = &(params.neibPlanes[index].x);
@@ -398,7 +398,11 @@ surfacePlanesFixup(params_t const& params, int3 const& gridPos, float4 const& po
 				normal += d_plane[i].normal*length(normal);
 			}
 		} else if (HAS_DEM(simflags) && p == MAX_PLANES) {
-			// TODO
+			plane_t dem_plane;
+			const float r = DemDistance(params, gridPos, pos, dem_plane);
+			if (r < params.influenceradius) {
+				normal += dem_plane.normal*length(normal);
+			}
 		} else {
 			printf("This can't happen: %d: %d / %d\n", index, p, d_numplanes);
 		}
@@ -410,7 +414,7 @@ template<BoundaryType boundarytype, flag_t simflags,
 >
 __device__ __forceinline__
 enable_if_t<!HAS_DEM_OR_PLANES(simflags)>
-surfacePlanesFixup(params_t const& params, int3 const& gridPos, float4 const& pos, const int index,
+surfacePlanesFixup(params_t const& params, int3 const& gridPos, float3 const& pos, const int index,
 	float3& normal)
 { /* no planes, no fixup */ }
 
@@ -447,12 +451,12 @@ struct calcSurfaceparticleDevice : params_t
 	// read particle data from sorted arrays
 	particleinfo info = params.fetchInfo(index);
 
-	const float4 pos = params.fetchPos(index);
+	const pos_mass pdata = params.fetchPos(index);
 
 	float3 normal = make_float3(0.0f);
 	float normal_w;
 
-	if (NOT_FLUID(info) || INACTIVE(pos)) {
+	if (NOT_FLUID(info) || is_inactive(pdata)) {
 		if (savenormals)
 			normals[index] = make_float4(NAN);
 		return;
@@ -464,10 +468,10 @@ struct calcSurfaceparticleDevice : params_t
 	CLEAR_FLAG(info, FG_SURFACE);
 
 	// self contribution to normalization: W(0)*vol
-	normal_w = W<kerneltype>(0.0f, params.slength)*pos.w/physical_density(params.fetchVel(index).w,fluid_num(info));
+	normal_w = W<kerneltype>(0.0f, params.slength)*pdata.mass/physical_density(params.fetchVel(index).w,fluid_num(info));
 
 	// First loop over all neighbors
-	for_every_neib(boundarytype, index, pos, gridPos, params.cellStart, params.neibsList) {
+	for_every_neib(boundarytype, index, pdata, gridPos, params.cellStart, params.neibsList) {
 
 		const uint neib_index = neib_iter.neib_index();
 
@@ -495,14 +499,14 @@ struct calcSurfaceparticleDevice : params_t
 	}
 
 	// Checking the planes
-	surfacePlanesFixup<boundarytype, simflags>(params, gridPos, pos, index, normal);
+	surfacePlanesFixup<boundarytype, simflags>(params, gridPos, pdata.pos, index, normal);
 
 	const float normal_length = length(normal);
 
 	int nc = 0;
 
 	// Second loop over all neighbors
-	for_every_neib(boundarytype, index, pos, gridPos, params.cellStart, params.neibsList) {
+	for_every_neib(boundarytype, index, pdata, gridPos, params.cellStart, params.neibsList) {
 
 		const uint neib_index = neib_iter.neib_index();
 

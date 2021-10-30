@@ -225,6 +225,32 @@ DemTangentPlane(dem_params const& params,
 	return DemTangentPlane(params, gridPos, pos, demPos, globalZ0);
 }
 
+//! Find the distance to the DEM and return the tangent plane
+__device__ __forceinline__ float
+DemDistance(dem_params const& params,
+	const int3&	gridPos,
+	const float3&	pos,
+	plane_t& dem_plane)
+{
+	const float2 demPos = DemPos(gridPos, pos);
+	const float globalZ = d_worldOrigin.z + (gridPos.z + 0.5f)*d_cellSize.z + pos.z;
+	const float globalZ0 = DemInterpol(params, demPos);
+	dem_plane = DemTangentPlane(params, gridPos, pos, demPos, globalZ0);
+	return globalZ - globalZ0;
+}
+
+//! Instance of DemDistance called without a DEM
+template<typename params_t>
+__device__ __forceinline__
+enable_if_t<!std::is_base_of<dem_params, params_t>::value, float>
+DemDistance(params_t const& params,
+	const int3&	gridPos,
+	const float3&	pos,
+	plane_t& dem_plane)
+{
+	return FLT_MAX;
+}
+
 /** @} */
 }
 
