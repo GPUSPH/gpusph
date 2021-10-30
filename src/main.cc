@@ -114,6 +114,7 @@ void print_usage() {
 	cout << "\t       [--resume fname] [--checkpoint-every VAL] [--checkpoints VAL]\n";
 	cout << "\t       [--dir directory] [--(no-)pin-fea-buffers] [--nosave] [--striping] [--gpudirect [--asyncmpi]]\n";
 	cout << "\t       [--num-hosts VAL [--byslot-scheduling]]\n";
+	cout << "\t       [--add-writer WRITER:FREQ[,WRITER:FREQ...]\n";
 	cout << "\t       [--display [--display-every VAL] --display-script VAL]\n";
 	cout << "\t       [--debug FLAGS]\n";
 	cout << "\t       [--note TEXT]\n";
@@ -144,6 +145,7 @@ void print_usage() {
 	cout << " --no-leak-warning : do not warn if #particles decreases without outlets (e.g. overtopping, leaking)\n";
 	//cout << " --nobalance : Disable dynamic load balancing\n";
 	//cout << " --lb-threshold : Set custom LB activation threshold (VAL is cast to float)\n";
+	cout << " --add-writer WRITER:FREQ ; add writer WRITER to write every FREQ simulated seconds (0 = every iteration, < 0: disable writer)\n";
 	cout << " --display : Enable co-processing visulaization\n";
 	cout << " --display-every : Simulation data will be passed to visualization every VAL seconds\n";
 	cout << "                   of simulated time (VAL is cast to double, 0 or not defined - visualization for each iteration)\n";
@@ -268,6 +270,10 @@ int parse_options(int argc, char **argv, GlobalData *gdata)
 			argv++;
 			argc--;
 #endif
+		} else if (!strcmp(arg, "--add-writer")) {
+			_clOptions->add_writers(*argv);
+			argv++;
+			argc--;
 		} else if (!strcmp(arg, "--display")) {
 		        _clOptions->visualization = true;
 		} else if (!strcmp(arg, "--display-every")) {

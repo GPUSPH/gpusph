@@ -38,6 +38,8 @@
 #include <vector>
 #include <map> // unordered_map would be faster, but it's C++11
 
+#include "Writer.h"
+
 /*! arbitrary problem options are allowed, stored in
  * a string -> string map, and deserialized on retrieval.
  */
@@ -91,6 +93,7 @@ public:
 	bool repack_only; ///< if true, run the repacking only and quit
 	std::string repack_fname; ///< repack file to resume simulation from
 	std::string note; ///< note for this run, to be added with --note
+	WriterList writers_extra; ///< additional writers to be enabled for this run
 	//! @}
 
 	Options(void) :
@@ -158,6 +161,9 @@ public:
 	OptionMap::const_iterator
 	end() const
 	{ return m_options.end(); }
+
+	//! Add writers in the form WRITER:FREQ[,...]
+	void add_writers(const char* spec);
 };
 
 //! Declare custom specializations which otherwise wouldn't be known to

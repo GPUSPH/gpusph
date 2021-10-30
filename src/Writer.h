@@ -74,7 +74,8 @@ enum WriterType
 	CUSTOMTEXTWRITER,
 	UDPWRITER,
 	HOTWRITER,
-	DISPLAYWRITER
+	DISPLAYWRITER,
+	WRITERTYPE_END
 };
 
 // list of writer type, write freq pairs
@@ -173,6 +174,7 @@ public:
 	{ return m_pending_hotwriter; }
 
 	static const char* Name(WriterType key);
+	static WriterType Type(std::string const& str);
 
 	// tell writers that we're starting to send write requests
 	// returns the list of writers that will be involved
@@ -228,7 +230,7 @@ protected:
 	Writer(const GlobalData *_gdata);
 	virtual ~Writer();
 
-	static double process_writer_list(WriterList const& wl, GlobalData *gdata);
+	static double process_writer_list(WriterList const& wl, GlobalData *gdata, const char *pfx="");
 
 	void set_write_freq(double f);
 

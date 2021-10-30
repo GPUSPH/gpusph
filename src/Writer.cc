@@ -75,7 +75,18 @@ const char* Writer::Name(WriterType key)
 	return WriterName[key];
 }
 
-double Writer::process_writer_list(WriterList const& wl, GlobalData *_gdata)
+WriterType Writer::Type(string const& str)
+{
+	const size_t len = str.size();
+	for (WriterType wt = COMMONWRITER; wt < WRITERTYPE_END; wt = WriterType(wt+1)) {
+		if (!strncasecmp(str.c_str(), WriterName[wt], len))
+			return wt;
+	}
+	return WRITERTYPE_END;
+}
+
+
+double Writer::process_writer_list(WriterList const& wl, GlobalData *_gdata, const char* pfx)
 {
 	WriterList::const_iterator it(wl.begin());
 	WriterList::const_iterator end(wl.end());
@@ -140,15 +151,15 @@ double Writer::process_writer_list(WriterList const& wl, GlobalData *_gdata)
 		writer->set_write_freq(freq);
 
 		if (freq > 0)
-			cout << WriterName[wt] << " will write every " << freq << " (simulated) seconds" << endl;
+			cout << pfx << WriterName[wt] << " will write every " << freq << " (simulated) seconds" << endl;
 		else if (freq == 0)
-			cout << WriterName[wt] << " will write every iteration" << endl;
+			cout << pfx << WriterName[wt] << " will write every iteration" << endl;
 		else if (freq < 0)
-			cout << WriterName[wt] << " has been disabled" << endl;
+			cout << pfx << WriterName[wt] << " has been disabled" << endl;
 		else if (std::isnan(freq))
-			cout << WriterName[wt] << " has special treatment" << endl;
+			cout << pfx << WriterName[wt] << " has special treatment" << endl;
 		else
-			cerr << WriterName[wt] << " has unknown writing frequency " << freq << endl;
+			cerr << pfx << WriterName[wt] << " has unknown writing frequency " << freq << endl;
 
 		// add current frequency for the average computation,
 		// keeping in mind it might be an override of a previously set frequency
@@ -227,6 +238,9 @@ Writer::Create(GlobalData *_gdata)
 	// of writing whenever any other writer writes
 	if (m_writers.find(COMMONWRITER) == m_writers.end())
 		m_writers[COMMONWRITER] = new CommonWriter(_gdata);
+
+	// Now process any writers specified on the command-line
+	process_writer_list(_gdata->clOptions->writers_extra, _gdata, "CLI: ");
 }
 
 ConstWriterMap

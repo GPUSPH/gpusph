@@ -154,3 +154,32 @@ Options::get(string const& key, bool const& _default) const
 	}
 	return _default;
 }
+
+void
+Options::add_writers(const char *spec)
+{
+	istringstream tokenizer(spec);
+
+	string writer_spec;
+	while (getline(tokenizer, writer_spec, ',')) {
+		auto semicolon = writer_spec.find(':');
+
+		if (semicolon == string::npos)
+			throw invalid_argument("writer specification " + writer_spec + " is not in the form WRITER:FREQ");
+
+		auto writer = writer_spec.substr(0, semicolon);
+		auto freq_str = writer_spec.substr(semicolon+1);
+
+		WriterType wt = Writer::Type(writer);
+		if (wt == WRITERTYPE_END)
+			throw invalid_argument("unknown writer " + writer);
+
+		size_t conv;
+		double freq = stod(freq_str, &conv);
+		if (conv != freq_str.size())
+			throw invalid_argument("frequency specification " + freq_str + " is not a floating-point value");
+
+		writers_extra.push_back(make_pair(wt, freq));
+	}
+
+}
