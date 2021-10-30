@@ -75,13 +75,8 @@ const char* Writer::Name(WriterType key)
 	return WriterName[key];
 }
 
-void
-Writer::Create(GlobalData *_gdata)
+double Writer::process_writer_list(WriterList const& wl, GlobalData *_gdata)
 {
-	const ProblemCore *problem = _gdata->problem;
-	const Options *options = _gdata->clOptions;
-
-	WriterList const& wl = problem->get_writers();
 	WriterList::const_iterator it(wl.begin());
 	WriterList::const_iterator end(wl.end());
 
@@ -164,7 +159,16 @@ Writer::Create(GlobalData *_gdata)
 			++avg_count;
 	}
 
-	avg_freq /= avg_count;
+	return avg_freq/avg_count;
+}
+
+void
+Writer::Create(GlobalData *_gdata)
+{
+	const ProblemCore *problem = _gdata->problem;
+	const Options *options = _gdata->clOptions;
+
+	double avg_freq = process_writer_list(problem->get_writers(), _gdata);
 
 	/* Checkpoint setup: we setup a HOTWRITER if it's missing,
 	 * change its frequency if present, and set the number of checkpoints

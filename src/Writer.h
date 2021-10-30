@@ -228,6 +228,8 @@ protected:
 	Writer(const GlobalData *_gdata);
 	virtual ~Writer();
 
+	static double process_writer_list(WriterList const& wl, GlobalData *gdata);
+
 	void set_write_freq(double f);
 
 	// does this writer need special treatment?
