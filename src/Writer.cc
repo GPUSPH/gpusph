@@ -136,10 +136,13 @@ double Writer::process_writer_list(WriterList const& wl, GlobalData *_gdata, con
 			case CALLBACKWRITER:
 				writer = new CallbackWriter(_gdata);
 				break;
-#if USE_CATALYST == 1
 			case DISPLAYWRITER:
+#if USE_CATALYST == 1
 				writer = new DisplayWriter(_gdata);
 				break;
+#else
+				clog << WriterName[wt] << " requested but DISABLED (build with catalyst=1 to enable it)" << endl;
+				continue; // next writer
 #endif
 			default:
 				stringstream ss;

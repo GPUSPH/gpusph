@@ -55,8 +55,6 @@
 #include "TopoCube.h"
 #include "GlobalData.h"
 
-#include "catalyst_select.opt"
-
 //#define USE_PLANES 0
 
 using namespace std;
@@ -154,11 +152,7 @@ bool ProblemAPI<1>::initialize()
 
 	// *** Add DisplayWriter if visualization is enabled
 	if (gdata->clOptions->visualization) {
-#if USE_CATALYST
 		add_writer(DISPLAYWRITER, gdata->clOptions->visu_freq);
-#else
-		printf("WARNING: Co-processing visualization will NOT be enabled as GPUSPH is built without Catalyst support.\n");
-#endif
 	}
 
 	// *** Initialization of minimal physical parameters
