@@ -199,6 +199,10 @@ Writer::Create(GlobalData *_gdata)
 	double freq = options->checkpoint_freq;
 	int chkpts = options->checkpoints;
 
+	// TODO FIXME compute from tend or whatever
+	if (!isfinite(avg_freq))
+		avg_freq = 0.1;
+
 	if (wm != m_writers.end()) {
 		htwr = static_cast<HotWriter*>(wm->second);
 		/* found */
@@ -216,10 +220,6 @@ Writer::Create(GlobalData *_gdata)
 		/* if frequency is not defined, used the average of the writers */
 		if (!isfinite(freq))
 			freq = avg_freq;
-
-		/* still not defined? assume 0.1s TODO FIXME compute from tend or whatever */
-		if (!isfinite(freq))
-			freq = 0.1f;
 	}
 
 	if (htwr) {
@@ -249,6 +249,17 @@ Writer::Create(GlobalData *_gdata)
 
 	// Now process any writers specified on the command-line
 	process_writer_list(_gdata->clOptions->writers_extra, _gdata, "CLI: ");
+
+	// check if the DISPLAYWRITER was requested without specifying a frequency,
+	// and use the avg_freq if so
+	wm = m_writers.find(DISPLAYWRITER);
+	if (wm != m_writers.end()) {
+		DisplayWriter *disp = static_cast<DisplayWriter*>(wm->second);
+		if (::isnan(disp->get_write_freq())) {
+			disp->set_write_freq(avg_freq);
+			cout << "DisplayWriter will write every " << freq << " (simulated) seconds" << endl;
+		}
+	}
 }
 
 ConstWriterMap
