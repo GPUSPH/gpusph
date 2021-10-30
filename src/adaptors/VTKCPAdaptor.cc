@@ -58,15 +58,10 @@ int VTKCPAdaptor::Initialize(const char* script_path)
 	}
 
 	// Add pipeline
-	// TODO FIXME this used to be done with pipeline defined as vtkNew<vtkCPPythonScriptPipeline>,
-	// but for some reason this leads to segfaults when it went out of scope
-	// (regardless of assignment to the processor)
-	vtkCPPythonScriptPipeline *pipeline = vtkCPPythonScriptPipeline::New();
+	vtkNew<vtkCPPythonScriptPipeline> pipeline;
 	success = pipeline->Initialize(script_path);
 	if (success)
 		success = processor->AddPipeline(pipeline);
-	if (success)
-		pipeline->Delete();
 
 	return success;
 }
