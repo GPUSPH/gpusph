@@ -250,6 +250,7 @@ Writer::Create(GlobalData *_gdata)
 	// Now process any writers specified on the command-line
 	process_writer_list(_gdata->clOptions->writers_extra, _gdata, "CLI: ");
 
+#if USE_CATALYST
 	// check if the DISPLAYWRITER was requested without specifying a frequency,
 	// and use the avg_freq if so
 	wm = m_writers.find(DISPLAYWRITER);
@@ -260,6 +261,7 @@ Writer::Create(GlobalData *_gdata)
 			cout << "DisplayWriter will write every " << freq << " (simulated) seconds" << endl;
 		}
 	}
+#endif
 }
 
 ConstWriterMap
