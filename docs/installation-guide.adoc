@@ -67,6 +67,9 @@ to specify the number of threads to run.
 
 * the HDF5 library (and corresponding header files), to enable the H5Sph reader;
 
+* the https://www.paraview.org[ParaView] development files to enable integration with the _in-situ_ visualization
+features of ParaView Catalyst
+
 === Auxiliary tools
 
 By default, GPUSPH test-cases write their results in https://www.vtk.org[VTK] format.
@@ -74,7 +77,7 @@ For visualization and post-processing we recommend using https://www.paraview.or
 (the go-to choice by GPUSPH developers)
 or other similar software such as https://visit-dav.github.io/visit-website/[VisIt].
 
-GPUSPH also come with some sample processing scripts,
+GPUSPH also comes with some sample processing scripts,
 mostly written in https://www.python.org/[Python].
 
 == Getting GPUSPH
@@ -113,13 +116,17 @@ whereas `git` creates a working directory named `gpusph`.
 === A note on the Thrust library
 
 The Thrust library is a <<Must-have,hard requirement>> for GPUSPH.
-We recommend installing it from distribution packages, if possible,
+If you are using the CUDA backend, the Thrust library will be installed
+together with the NVIDIA CUDA Development Toolkit.
+
+When using the CPU backend, you may need to install Thrust separately.
+We recommend doing this from distribution packages, if possible,
 e.g. with
 [source,shell]
 ----
 sudo apt-get install libthrust-dev
 ----
-on Debian or Ubuntu.
+on Debian or Ubuntu, or equivalent on other distributions.
 
 If you do not have permission to install new packages on the machine,
 or if your operating system does not have packages for the Thrust library,

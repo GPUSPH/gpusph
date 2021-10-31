@@ -743,7 +743,10 @@ UDPWRITER:: this writes out particle data as UDP packets to the network interfac
 software such as `seewaves` can be used to visualize the particle system while the simulation is ongoing;
 HOTWRITER:: this writer is automatically enabled and it dumps the state of the simulator in a way
 that allows simulations to be resumed;
-DISPLAYWRITER:: #TODO# integration with Paraview Catalyst
+DISPLAYWRITER:: this writer manages the integration with Paraview Catalyst;
+you shold open the Catalyst connection in Paraview (menu:Catalyst[Connect...]) before running the simulation;
+if you are using the default pipeline script (`scripts/catalyst_pipeline.py`) shipped with GPUSPH,
+you can keep the default connection port 22222 selected in Paraview.
 
 
 

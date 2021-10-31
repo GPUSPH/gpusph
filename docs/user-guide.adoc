@@ -198,6 +198,11 @@ the default is `tests/_ProblemName_‍_‍_date_‍T‍_time_` where `_ProblemNa
 and `_date_` and `_time_` are the date and time when the simulation was started
 (e.g. `tests/DamBreak3D_2021-10-20T08h57`)
 --nosave::: do not save intermediate result files (only write the initial and final state of the particle system);
+--add-writer _spec_::: specify additional writers to be used for this run of the test case;
+the specification _spec_ is a comma-separated list of `writer:interval` pairs
+where `writer` is the name of the writer, and `interval`
+is the time period (in simulated seconds) between saves
+(see also the <<Writers>> section;
 --note _text_::: add a `note.txt` file in the output directory with the given text in it;
 this can be used to annotate the simulation with additional information that may be used to identify it at a later time;
 --device _spec_::: use the specified device(s) (GPUs, or CPU cores) to run the simulation;
@@ -231,6 +236,16 @@ this option can be used to set a different saving frequency than the default or 
 --checkpoints _n_::: keep the last _n_ checkpoints (older ones will be deleted);
 --resume _path_::: resume a simulation from a hot-start file;
 
+Visualization::
++
+--display::: enable co-processing visualization by integrating with ParaView Catalyst;
+--display-every _f_::: output simulation data for visualization every _f_ seconds of simulated time;
+by default data will be output at the same time as the `HotWriter`;
+setting this option will automatically enable co-processing visualization;
+--display-script _path_::: path to the co-processing Python script;
+defaults to `scripts/catalyst_pipeline.py`.
+
+
 [[mgpu-options]]Multi-GPU / multi-node::
 +
 --striping::: enable overlapping computations with data transers;
@@ -262,12 +277,6 @@ needs a test case for which repacking has been enabled through the `ENABLE_REPAC
 --repack-only::: run the repacking step only; do not run the simulation afterwards;
 --repack-maxiter _n_::: maximum number of iterations for the repacking step;
 --from-repack _path_::: start the simulation from a previous repack file;
-
-Visualization*::
-+
---display::: enable co-processing visualization by integrating with ParaView Catalyst;
---display-every _f_::: output simulation data for visualization every _f_ seconds of simulated time;
---display-script _path_::: path to the co-processing Python script;
 
 Options marked with a `*` refer to experimental features, and may change or be removed in the future.
 
