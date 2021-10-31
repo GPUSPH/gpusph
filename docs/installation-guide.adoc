@@ -68,7 +68,9 @@ to specify the number of threads to run.
 * the HDF5 library (and corresponding header files), to enable the H5Sph reader;
 
 * the https://www.paraview.org[ParaView] development files to enable integration with the _in-situ_ visualization
-features of ParaView Catalyst
+features of ParaView Catalyst;
+
+* httsp:/www.asciidoctor.org[AsciiDoctor] to build the documentation.
 
 === Auxiliary tools
 
@@ -221,6 +223,19 @@ Some test cases support additional, problem-specific command-line options.
 See the xref:user-guide[GPUSPH User Guide] for additional details
 about the default test-cases, and for instructions about building your own.
 
+=== Building the documentation
+
+If you have https:://www.asciidoctor.org[AsciiDoctor] installed,
+you can build the documentation locally using
+[source,shell]
+----
+make docs
+----
+This will make the <<installation-guide.adoc#,Installation Guide>>
+available under `docs/installation-guide.html`, and the
+<<user-guide.adoc#,User Guide>>
+available under `docs/user-guide.html`.
+These are plain HTML files that you can read using your preferred web browser.
 
 == Customizing your installation
 
