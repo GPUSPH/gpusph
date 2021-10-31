@@ -737,7 +737,9 @@ it writes out the entire particle system in VTK format;
 the resulting `.vtp` files can be opened by software like Paraview.
 VTKLEGACYWRITER:: this writer outputs data in legacy VTK format; its use is discouraged for large particle systems
 due to enormous file size;
-CALLBACKWRITER:: #TODO#
+CALLBACKWRITER:: this writer runs the user-defined <<writer-callback,`writer_callback`>> function
+of the current test case, and it can be used to write out case-specific data in case-specific formats;
+particularly useful in conjunction with <<postprocessing,`CALC_PRIVATE` post-processing>>
 CUSTOMTEXTWRITER:: #TODO#
 UDPWRITER:: this writes out particle data as UDP packets to the network interfaces;
 software such as `seewaves` can be used to visualize the particle system while the simulation is ongoing;
@@ -1470,6 +1472,81 @@ bool MyCase::need_write(double t) const
     return t > 1.0;
 }
 ----
+
+=== `writer_callback` [[writer-callback]]
+
+This member function must be defined by the test case when it enables the <<Writers,CALLBACKWRITER>>.
+The signature of the function is
+[source,cpp]
+----
+void writer_callback(CallbackWriter *writer,
+	uint numParts, BufferList const& buffers, uint node_offset, double t,
+	const bool testpoints) const;
+----
+where the arguments represent:
+[horizontal]
+writer:: the `CallbackWriter` object representing the `Writer` itself;
+numParts:: the number of particles to save;
+buffers:: the <<Buffers,buffers>> holding the particle data;
+node_offset:: in multi-node simulations, the number of particles managed by MPI nodes with a lower rank;
+t:: the current simulation time;
+testpoints:: if there are testpoints to be saved.
+
+This method can be used when to either write data in a format not supported by any of the GPUSPH data,
+or to write data that wouldn't otherwise be saved (e.g. custom values derived by the
+<<postprocessing,private calculations post-processing function>>.
+
+NOTE: `writer_callback` is a _constant_ member function, so it cannot make changes to the test-case itself.
+
+Data files in the test-case directory can be opened using the `open_data_file` member function
+of the `CallbackWriter` object.
+This takes as parameters the base name of the file,
+an optional incremental suffix string (typically representing the current writing step),
+the filename extension,
+and an optional pointer to string where the actual file name can be stored.
+The method returns a reference to a standard output file stream (`ofstream`) C++ object that can be used for writing.
+
+Multiple output streams can be opened this way.
+They will be automatically closed when the `writer_callbak` function returns.
+
+.CallbackWriter usage example
+[example]
+====
+This sample `writer_callback` implementation writes out to `FloatingPosition_{num}.txt`
+(with `{num}` increasing each time it gets called)
+the index, particle ID, object number and global position of each particle that belongs to
+a floating object.
+
+Additionally, it appends to an index file `FloatingPositionIndex.txt` the name of the previous file
+with the simulated time at which the writing happened.
+[source,cpp]
+----
+void MyCase::writer_callback(CallbackWriter *writer,
+	uint numParts, BufferList const& buffers, uint node_offset, double t,
+	const bool testpoints) const
+{
+ string fname_position;
+ ofstream& pos_stream = writer->open_data_file(
+  "FloatingPositions", writer->current_filenum(), ".txt", &fname);
+
+ // Write out particle index, id, object number and position
+ // for particles belonging to floating objects
+ const double4 *posArray = buffers.getData<BUFFER_POS_GLOBAL>();
+ const particleinfo *infoArray = buffers.getData<BUFFER_INFO>();
+ for (uint i = 0 ; i < numParts; ++i) {
+  particleinfo const& info = infoArray[i];
+  // skip particles that don't belong to floating bodies
+  if (!FLOATING(info)) continue;
+  double4 const& gpos = posArray[i];
+  pos_stream << i << "," << id(info) << "," << object(info) << "," << gpos << endl;
+ }
+
+ // Write out the index file
+ ofstream& info_stream = writer->open_data_file("FloatingPositionsIndex.txt");
+ info_stream << t << "," << fname_position << endl;
+}
+----
+====
 
 == Customized runtime options
 Values to be set inside the problem file can be assigned at runtime from command line, as an argument of GPUSPH. As opposed to modifying the value from the `.cu` problem file, this avoid recompiling GPUSPH.
