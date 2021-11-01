@@ -266,9 +266,13 @@ Debugging options::
 +
 --no-leak-warning::: do not warn if the number of particles decreases during the simulation
 in absence of open boundaries (i.e. due to overtopping or other leakage);
---debug _flags_::: enable one of several debugging options (see <<Debug options>>);
+--debug _flags_::: enable one or more of several debugging options;
+the agument is a comma-separated list of boolean flags (see <<Debug options>> for details);
 --pin-fea-buffers, --no-pin-fea-buffers::: controls whether the buffers used for host-device data exchange
 with FEA should be pinned or not;
+--clip-ranges, --no-clip-ranges::: controls whether kernels are launched on the entire particle system,
+or their range will be clipped to active particles (i.e. particles with neighbors);
+the current default is to _not_ clip ranges (i.e. to launch kernels on the whole system).
 
 Repacking*::
 +
