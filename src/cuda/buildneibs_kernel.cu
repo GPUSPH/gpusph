@@ -1936,7 +1936,6 @@ __device__ void operator()(simple_work_item item) const
 	for (uint index = gidx; index < numParticles; index += gridSize) {
 
 		const particleinfo info = this->info[index];
-		const ParticleType ptype = (ParticleType)(PART_TYPE(info));
 		neibdata neib_data = neibsList[ITH_NEIGHBOR_DEVICE(index, neibListOffset<PT_FLUID>(0U))];
 		if (neib_data == NEIBS_END)
 			neib_data = neibsList[ITH_NEIGHBOR_DEVICE(index, neibListOffset<PT_BOUNDARY>(0U))];
@@ -1944,9 +1943,29 @@ __device__ void operator()(simple_work_item item) const
 			neib_data = neibsList[ITH_NEIGHBOR_DEVICE(index, neibListOffset<PT_VERTEX>(0U))];
 
 		if (neib_data != NEIBS_END) {
-			// has neighbors, the particle is active for its type
-			lo_index[ptype] = min(lo_index[ptype], index);
-			hi_index[ptype] = max(hi_index[ptype], index);
+			const int ptype = PART_TYPE(info);
+			// single out PT_VERTEX because it can only be met in the SA_BOUNDARY case
+			// for the rest, use a switch to avoid dynamic addressing of the lo_index/hi_index arrays,
+			// since that would result in the arrays being placed in the stack instead of in registers
+			if (boundarytype == SA_BOUNDARY && ptype == PT_VERTEX) {
+				lo_index[PT_VERTEX] = min(lo_index[PT_VERTEX], index);
+				hi_index[PT_VERTEX] = max(hi_index[PT_VERTEX], index);
+			} else switch (ptype) {
+			case PT_FLUID:
+				lo_index[PT_FLUID] = min(lo_index[PT_FLUID], index);
+				hi_index[PT_FLUID] = max(hi_index[PT_FLUID], index);
+				break;
+			case PT_BOUNDARY:
+				lo_index[PT_BOUNDARY] = min(lo_index[PT_BOUNDARY], index);
+				hi_index[PT_BOUNDARY] = max(hi_index[PT_BOUNDARY], index);
+				break;
+			case PT_VERTEX:
+				break;
+			case PT_TESTPOINT:
+				lo_index[PT_TESTPOINT] = min(lo_index[PT_TESTPOINT], index);
+				hi_index[PT_TESTPOINT] = max(hi_index[PT_TESTPOINT], index);
+				break;
+			}
 		}
 	}
 
