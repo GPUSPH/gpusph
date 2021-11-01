@@ -1893,8 +1893,6 @@ struct checkCellSizeDevice : cell_params
 
 /** @} */
 
-#define BLOCK_NUM_ACTIVE_RANGES 16
-
 /*! This kernel is used to determine the lowest and highest index of
  *  “active” particles of each type: this information can then be used
  *  in split kernels to reduce the number of work-items to launch.
@@ -1906,14 +1904,17 @@ struct updateActiveRangesDevice
 {
 	const particleinfo *info;
 	const neibdata *neibsList; ///< neighbors list: a particle is active if it has neighbors of any type
+	const uint gridSize; ///< number of work-items issued for this kernel
 	int numParticles;
 
 	updateActiveRangesDevice(
 		const BufferList& bufread,
+		const uint gridSize_,
 		int numParticles_)
 	:
 		info(bufread.getData<BUFFER_INFO>()),
 		neibsList(bufread.getData<BUFFER_NEIBSLIST>()),
+		gridSize(gridSize_),
 		numParticles(numParticles_)
 	{}
 
@@ -1925,7 +1926,6 @@ __device__ void operator()(simple_work_item item) const
 	__shared__ uint sm_hi_index[BLOCK_SIZE_BUILDNEIBS*PT_NONE];
 #endif
 
-	const uint gridSize = BLOCK_NUM_ACTIVE_RANGES*BLOCK_SIZE_BUILDNEIBS;
 	const uint gidx = item.get_id();
 
 	//                   FLUID   BOUNDARY   VERTEX   TESTPOINT

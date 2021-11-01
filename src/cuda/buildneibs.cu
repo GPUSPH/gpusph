@@ -380,8 +380,10 @@ updateActiveRanges(
 	const uint particleRangeEnd,
 	const uint numComputeUnits)
 {
+#define BLOCKS_PER_CU 6
 	const uint numThreads = BLOCK_SIZE_BUILDNEIBS;
-	const uint numBlocks = div_up(particleRangeEnd, numThreads);
+	const uint numBlocks = BLOCKS_PER_CU*numComputeUnits;
+	const uint gridSize = numBlocks*numThreads;
 
 	//                               FLUID   BOUNDARY   VERTEX   TESTPOINT
 	uint lowestIndex[PT_NONE]  = { UINT_MAX, UINT_MAX, UINT_MAX, UINT_MAX };
@@ -391,8 +393,8 @@ updateActiveRanges(
 	COPY_TO_SYMBOL(cuneibs::d_highestIndex, highestIndex[0], PT_NONE);
 
 	execute_kernel(
-		cuneibs::updateActiveRangesDevice<boundarytype>(bufread, particleRangeEnd),
-		6*numComputeUnits, BLOCK_SIZE_BUILDNEIBS);
+		cuneibs::updateActiveRangesDevice<boundarytype>(bufread, gridSize, particleRangeEnd),
+		numBlocks, BLOCK_SIZE_BUILDNEIBS);
 
 	// check if kernel invocation generated an error
 	KERNEL_CHECK_ERROR;
