@@ -186,6 +186,8 @@ size_t GPUWorker::computeMemoryPerCell()
 	tot += sizeof(BufferTraits<BUFFER_CELLEND>::element_type);
 	if (MULTI_DEVICE)
 		tot += sizeof(BufferTraits<BUFFER_COMPACT_DEV_MAP>::element_type);
+	if (m_deviceIndex == 0)
+		printf("Estimated memory consumption: %zuB/cell\n", tot);
 	return tot;
 }
 
