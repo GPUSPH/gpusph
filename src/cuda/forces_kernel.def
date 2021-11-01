@@ -4157,7 +4157,7 @@ compute_pp_interaction(FP const& params, P const& pdata, N const & ndata, OP & p
 
 /// Particle-particle interaction
 /** Specialization in case of boundary neighbors to fluid particles,
- * with DYN_BOUNDARY model. In this case the interaction is the same
+ * with DYN_BOUNDARY or DUMMY_BOUNDARY model. In this case the interaction is the same
  * as fluid/fluid, except that XSPH contribution is not considered
  * (but this is excluded by having compute_mean_vel do nothing for the fluid/boundary case)
  * TODO: check if we need to compute the mean vel for XSPH including the boundary particles
@@ -4165,18 +4165,7 @@ compute_pp_interaction(FP const& params, P const& pdata, N const & ndata, OP & p
 template<typename FP, typename P, typename N, typename OP, typename ON>
 __device__ __forceinline__
 enable_if_t<
-	(FP::boundarytype == DYN_BOUNDARY) &&
-	FP::cptype == PT_FLUID && FP::nptype == PT_BOUNDARY
->
-compute_pp_interaction(FP const& params, P const& pdata, N const & ndata, OP & pout, ON & nout)
-{
-	compute_all_pp_interaction(params, pdata, ndata, pout, nout);
-}
-
-template<typename FP, typename P, typename N, typename OP, typename ON>
-__device__ __forceinline__
-enable_if_t<
-	(FP::boundarytype == DUMMY_BOUNDARY) &&
+	(FP::boundarytype == DYN_BOUNDARY || FP::boundarytype == DUMMY_BOUNDARY) &&
 	FP::cptype == PT_FLUID && FP::nptype == PT_BOUNDARY
 >
 compute_pp_interaction(FP const& params, P const& pdata, N const & ndata, OP & pout, ON & nout)
