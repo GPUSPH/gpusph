@@ -97,6 +97,7 @@
 	#define MIN_BLOCKS_REORDERDATA	CPU_MIN_BLOCKS
 	#define BLOCK_SIZE_BUILDNEIBS	CPU_BLOCK_SIZE
 	#define MIN_BLOCKS_BUILDNEIBS	CPU_MIN_BLOCKS
+	#define BLOCK_SIZE_ACTIVE_RANGE	CPU_BLOCK_SIZE
 #elif (__COMPUTE__ == 75 || __COMPUTE__ == 86)
 	#define BLOCK_SIZE_CALCHASH		256
 	#define MIN_BLOCKS_CALCHASH		4
@@ -104,6 +105,7 @@
 	#define MIN_BLOCKS_REORDERDATA	4
 	#define BLOCK_SIZE_BUILDNEIBS	(BUILDNEIBS_CELLS_PER_BLOCK*WARP_SIZE)
 	#define MIN_BLOCKS_BUILDNEIBS	4
+	#define BLOCK_SIZE_ACTIVE_RANGE	128
 #elif (__COMPUTE__ >= 20)
 	#define BLOCK_SIZE_CALCHASH		256
 	#define MIN_BLOCKS_CALCHASH		6
@@ -111,6 +113,7 @@
 	#define MIN_BLOCKS_REORDERDATA	6
 	#define BLOCK_SIZE_BUILDNEIBS	(BUILDNEIBS_CELLS_PER_BLOCK*WARP_SIZE)
 	#define MIN_BLOCKS_BUILDNEIBS	5
+	#define BLOCK_SIZE_ACTIVE_RANGE	128
 #else
 	#define BLOCK_SIZE_CALCHASH		256
 	#define MIN_BLOCKS_CALCHASH		1
@@ -118,6 +121,7 @@
 	#define MIN_BLOCKS_REORDERDATA	1
 	#define BLOCK_SIZE_BUILDNEIBS	(BUILDNEIBS_CELLS_PER_BLOCK*WARP_SIZE)
 	#define MIN_BLOCKS_BUILDNEIBS	1
+	#define BLOCK_SIZE_ACTIVE_RANGE	128
 #endif
 
 /** \namespace cuneibs
@@ -1922,8 +1926,8 @@ __device__ void operator()(simple_work_item item) const
 {
 	// No reduction in shared memory for CPU backend
 #if !CPU_BACKEND_ENABLED
-	__shared__ uint sm_lo_index[BLOCK_SIZE_BUILDNEIBS*PT_NONE];
-	__shared__ uint sm_hi_index[BLOCK_SIZE_BUILDNEIBS*PT_NONE];
+	__shared__ uint sm_lo_index[BLOCK_SIZE_ACTIVE_RANGE*PT_NONE];
+	__shared__ uint sm_hi_index[BLOCK_SIZE_ACTIVE_RANGE*PT_NONE];
 #endif
 
 	const uint gidx = item.get_id();
@@ -1971,10 +1975,10 @@ __device__ void operator()(simple_work_item item) const
 
 	// Reduction in shared memory (not for CPU backend)
 #if !CPU_BACKEND_ENABLED
-	uint fluid_base = BLOCK_SIZE_BUILDNEIBS*PT_FLUID;
-	uint bound_base = BLOCK_SIZE_BUILDNEIBS*PT_BOUNDARY;
-	uint vert_base  = BLOCK_SIZE_BUILDNEIBS*PT_VERTEX;
-	uint test_base  = BLOCK_SIZE_BUILDNEIBS*PT_TESTPOINT;
+	const uint fluid_base = BLOCK_SIZE_ACTIVE_RANGE*PT_FLUID;
+	const uint bound_base = BLOCK_SIZE_ACTIVE_RANGE*PT_BOUNDARY;
+	const uint vert_base  = BLOCK_SIZE_ACTIVE_RANGE*PT_VERTEX;
+	const uint test_base  = BLOCK_SIZE_ACTIVE_RANGE*PT_TESTPOINT;
 
 	sm_lo_index[fluid_base + threadIdx.x] = lo_index[PT_FLUID];
 	sm_lo_index[bound_base + threadIdx.x] = lo_index[PT_BOUNDARY];

@@ -381,7 +381,7 @@ updateActiveRanges(
 	const uint numComputeUnits)
 {
 #define BLOCKS_PER_CU 6
-	const uint numThreads = BLOCK_SIZE_BUILDNEIBS;
+	const uint numThreads = BLOCK_SIZE_ACTIVE_RANGE;
 	const uint numBlocks = BLOCKS_PER_CU*numComputeUnits;
 	const uint gridSize = numBlocks*numThreads;
 
@@ -394,7 +394,7 @@ updateActiveRanges(
 
 	execute_kernel(
 		cuneibs::updateActiveRangesDevice<boundarytype>(bufread, gridSize, particleRangeEnd),
-		numBlocks, BLOCK_SIZE_BUILDNEIBS);
+		numBlocks, BLOCK_SIZE_ACTIVE_RANGE);
 
 	// check if kernel invocation generated an error
 	KERNEL_CHECK_ERROR;
