@@ -263,6 +263,7 @@ const char* BoundaryName[INVALID_BOUNDARY+1]
 DEFINE_OPTION_RANGE(BoundaryType, BoundaryName, LJ_BOUNDARY, DYN_BOUNDARY);
 
 /// return true if the boundary type requires multiple layers
+__host__ __device__
 constexpr bool boundary_is_multilayer(BoundaryType bt)
 {
 	return (bt == DYN_BOUNDARY || bt == DUMMY_BOUNDARY);

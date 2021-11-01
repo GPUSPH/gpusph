@@ -833,17 +833,17 @@ neibsInCellOfType(
 
 		// LJ boundary particles should not have any boundary neighbor, except when
 		// rheologytype is GRANULAR.
-		// If we are here is because a FLOATING LJ boundary needs neibs.
 		if (central_is_boundary)
 			if (nptype == PT_BOUNDARY && boundarytype == LJ_BOUNDARY && ViscSpec::rheologytype != GRANULAR)
 				continue;
 
-		// With dynamic boundaries, boundary parts don't interact with other boundary parts
+		// With dynamic and dummy boundaries, boundary parts don't interact with other boundary parts
 		// except for Grenier's formulation, where the sigma computation needs all neighbors
 		// to be enumerated
+		// TODO FIXME what to do with Grenier's formulation and DUMMY?
 		// TODO FIXME FEA why the discrepancy between LJ and DYN?
 		if (central_is_boundary && !central_is_fea && !DEFORMABLE(var.neib_info))
-			if (nptype == PT_BOUNDARY && boundarytype == DYN_BOUNDARY && sph_formulation != SPH_GRENIER)
+			if (nptype == PT_BOUNDARY && boundary_is_multilayer(boundarytype) && sph_formulation != SPH_GRENIER)
 				continue;
 
 		const pos_mass neib = var.fetch_neib_pos(params);
