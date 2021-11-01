@@ -543,7 +543,7 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, dou
 	// TODO debugging
 	const uint *nextIDs = buffers.getData<BUFFER_NEXTID>();
 
-	ushort *neibsnum = new ushort[numParts];
+	ushort *neibsnum = neibslist ? new ushort[numParts] : NULL;
 
 	if (neibslist) {
 		const uint *cellStart = buffers.getData<BUFFER_CELLSTART>();
@@ -584,10 +584,11 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, dou
 				<< " (" << particle_type_sym(info[i]) << ")";
 			// raw output first
 #if NL_INTERLEAVED
-			for (uint index = i; index < m_neiblist_end; index += m_neiblist_stride) {
+			for (uint index = i; index < m_neiblist_end; index += m_neiblist_stride)
 #else
-			for (uint index = i*m_neiblist_size; index < (i+1)*m_neiblist_size; index += 1) {
+			for (uint index = i*m_neiblist_size; index < (i+1)*m_neiblist_size; index += 1)
 #endif
+			{
 				neibdata neib = neibslist[index];
 				if (neib == NEIBS_END)
 					neibs << "\t*";
@@ -876,7 +877,8 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, dou
 
 	add_block("Particles", filename);
 
-	delete[] neibsnum;
+	if (neibsnum)
+		delete[] neibsnum;
 }
 
 void
