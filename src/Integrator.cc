@@ -258,5 +258,10 @@ Integrator::buildNeibsPhase(flag_t import_buffers)
 
 	neibs_phase->add_command(HANDLE_HOTWRITE);
 
+	if (g_debug.neibs)
+		neibs_phase->add_command(DEBUG_DUMP)
+			.set_step(-1)
+			.set_src("step n");
+
 	return neibs_phase;
 }
