@@ -545,6 +545,12 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, dou
 
 	ushort *neibsnum = neibslist ? new ushort[numParts] : NULL;
 
+	// TODO FIXME this should go in the CommonWriter
+	// but we want to assign the “number of neighbors” property
+	// in the VTK Writer, which typically runs before Common.
+	// How can we fix this? Do this in a separate code
+	// that runs before the other writers and pass the right information
+	// to both CommonWriter and VTKWriter?
 	if (neibslist) {
 		const uint *cellStart = buffers.getData<BUFFER_CELLSTART>();
 

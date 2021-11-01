@@ -1025,6 +1025,7 @@ size_t GPUSPH::allocateGlobalHostBuffers()
 	if (g_debug.neibs) {
 		gdata->s_hBuffers.addBuffer<HostBuffer, BUFFER_NEIBSLIST>();
 		gdata->s_hBuffers.addBuffer<HostBuffer, BUFFER_CELLSTART>();
+		gdata->s_hBuffers.addBuffer<HostBuffer, BUFFER_CELLEND>();
 	}
 
 	if (g_debug.forces)
@@ -1895,7 +1896,7 @@ void GPUSPH::saveParticles(
 	flag_t which_buffers = BUFFER_POS | BUFFER_VEL | BUFFER_INFO | BUFFER_HASH;
 
 	if (g_debug.neibs)
-		which_buffers |= BUFFER_NEIBSLIST | BUFFER_CELLSTART;
+		which_buffers |= BUFFER_NEIBSLIST | BUFFER_CELLSTART | BUFFER_CELLEND;
 	if (g_debug.forces)
 		which_buffers |= BUFFER_FORCES;
 	if (g_debug.cspm)

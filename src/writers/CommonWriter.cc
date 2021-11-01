@@ -176,9 +176,34 @@ CommonWriter::~CommonWriter()
 }
 
 /// Write testpoints to CSV file
+/*! If debugging neighbors, we also show the size of all cells
+ */
 void
 CommonWriter::write(uint numParts, BufferList const& buffers, uint node_offset, double t, const bool testpoints)
 {
+	if (g_debug.neibs)
+	{
+		const uint numCells = buffers.get<BUFFER_CELLSTART>()->get_allocated_elements();
+		const uint *cellStart = buffers.getData<BUFFER_CELLSTART>();
+		const uint *cellEnd = buffers.getData<BUFFER_CELLEND>();
+
+		uint *cellSize = new uint[numCells];
+		double avg = 0;
+		for (uint c = 0; c < numCells; ++c) {
+			cellSize[c] = cellStart[c] == EMPTY_CELL ? 0 : cellEnd[c] - cellStart[c];
+			avg += cellSize[c];
+		}
+		avg /= numCells;
+		sort(cellSize, cellSize + numCells);
+		double median = cellSize[numCells/2];
+		if (!(numCells & 1)) // even number of cells
+			median = (median + cellSize[numCells/2-1])/2;
+
+		printf("Cell sizes: min %u, median %g, average %g, max %u\n",
+			cellSize[0], median, avg, cellSize[numCells-1]);
+
+	}
+
 	if (!testpoints)
 		return;
 
