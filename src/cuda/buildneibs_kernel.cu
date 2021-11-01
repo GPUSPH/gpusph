@@ -1937,20 +1937,11 @@ __device__ void operator()(simple_work_item item) const
 
 		const particleinfo info = this->info[index];
 		const ParticleType ptype = (ParticleType)(PART_TYPE(info));
-		neibdata neib_data = NEIBS_END;
-		// we don't do a full traversal, just check if there's a neighbor
-		// of any type
-		// TODO we could be even more precise and store what is the lowest/highest
-		// particle index for each _pair_ of particle types
-		do {
-			neib_data = neibsList[ neib_list_start<PT_FLUID>() + index ];
-			if (neib_data != NEIBS_END) break;
-			neib_data = neibsList[ neib_list_start<PT_BOUNDARY>() + index ];
-			if (neib_data != NEIBS_END) break;
-			if (boundarytype == SA_BOUNDARY) {
-				neib_data = neibsList[ neib_list_start<PT_VERTEX>() + index ];
-			}
-		} while(0);
+		neibdata neib_data = neibsList[ITH_NEIGHBOR_DEVICE(index, neibListOffset<PT_FLUID>(0U))];
+		if (neib_data == NEIBS_END)
+			neib_data = neibsList[ITH_NEIGHBOR_DEVICE(index, neibListOffset<PT_BOUNDARY>(0U))];
+		if (boundarytype == SA_BOUNDARY && neib_data == NEIBS_END)
+			neib_data = neibsList[ITH_NEIGHBOR_DEVICE(index, neibListOffset<PT_VERTEX>(0U))];
 
 		if (neib_data != NEIBS_END) {
 			// has neighbors, the particle is active for its type
