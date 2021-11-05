@@ -47,6 +47,7 @@
 #endif
 
 int Object::world_dimensions = -1;
+Object::FillingMethod Object::default_filling_method = BORDER_CENTERED;
 
 void
 Object::set_world_dimensions(int dim)
@@ -56,6 +57,16 @@ Object::set_world_dimensions(int dim)
 	if (dim <= 0)
 		throw std::runtime_error("number of world dimensions must be positive");
 	world_dimensions = dim;
+}
+
+void
+Object::set_default_filling_method(FillingMethod filling_method)
+{
+	static bool set = false;
+	if (set)
+		throw std::runtime_error("can't set default filling method twice");
+	default_filling_method = filling_method;
+	set = true;
 }
 
 /// Compute the particle mass according to object volume and density

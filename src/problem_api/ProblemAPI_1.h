@@ -439,6 +439,13 @@ class ProblemAPI<1> : public ProblemCore
 		// set the positioning policy for geometries added after the call
 		void setPositioning(PositioningPolicy positioning);
 
+		//! Set the filling method for all objects.
+		//! NOTE: This can only be called once, and it holds for all objects, both those defined
+		//! before the call and those defined after the call. It is recommended that this function
+		//! be called right after SETUP_FRAMEWORK
+		void setFillingMethod(Object::FillingMethod filling_method)
+		{ Object::set_default_filling_method(filling_method); }
+
 		/*! Sets the domain origin and size to match the box defined by the given corners,
 		 * and adds planes for each of the sides of the box, returning their GeometryIDs.
 		 * Planes are not added in the periodic direction(s), if any were selected

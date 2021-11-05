@@ -68,6 +68,14 @@ struct feaNodeInfo {
  *  to the global frame.
 */
 class Object {
+public:
+
+	//! The enum defines the possible strategies used to fill objects
+	enum FillingMethod {
+		BORDER_CENTERED, ///< First layer of particle will be centered on the border
+		BORDER_TANGENT, ///< First layer of particles will be shifted by half a dp
+	};
+
 	protected:
 		//! The number of dimensions of the world the objects are immersed in.
 		/*! This is used to determine how methods such as FillIn
@@ -75,6 +83,11 @@ class Object {
 		 *  a 2-dimensional FillIn in 2D)
 		 */
 		static int world_dimensions;
+
+		//! The default filling method for all objects
+		//! TODO: in the future we will allow per-object overrides
+		static FillingMethod default_filling_method;
+
 
 		EulerParameters		m_ep;			///< Euler parameters associated with the object
 		Point				m_center;		///< Coordinates of center of gravity in the global reference frame + particle mass (4th component)
@@ -104,6 +117,8 @@ class Object {
 	public:
 		//! Set the number of world dimensions —must be only used once
 		static void set_world_dimensions(int dim);
+		//! Set the default filling method —mustbe only used once
+		static void set_default_filling_method(FillingMethod filling_method);
 
 		Object(void) {
 			m_body = NULL;
