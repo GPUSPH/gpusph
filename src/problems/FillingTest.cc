@@ -75,6 +75,17 @@ FillingTest::FillingTest(GlobalData *gdata) :
 	auto border_box_centered = addCube(GT_FIXED_BOUNDARY, FT_OUTER_BORDER, centered_center, box_side + double_shift);
 	setEraseOperation(border_box_centered, ET_ERASE_NOTHING);
 
+	// Let's also place a sphere, right above the centered box
+	auto sphere_radius = box_side/2;
+	auto sphere_center = centered_center + Vector(0, 0, box_side + sphere_radius);
+
+	// Note that while for the box we correct the side with double_shift, for the sphere we only correct with
+	// a SINGLE shift, since it's the radius we're talking about
+	auto fluid_sphere = addSphere(GT_FLUID, FT_SOLID, sphere_center, sphere_radius - shift);
+	setEraseOperation(fluid_sphere, ET_ERASE_NOTHING);
+	auto border_sphere = addSphere(GT_FIXED_BOUNDARY, FT_OUTER_BORDER, sphere_center, sphere_radius + shift);
+	setEraseOperation(border_sphere, ET_ERASE_NOTHING);
+
 	setPositioning(PP_CORNER);
 	auto fluid_box_corner = addCube(GT_FLUID, FT_SOLID, shifted_corner, box_side - double_shift);
 	setEraseOperation(fluid_box_corner, ET_ERASE_NOTHING);
