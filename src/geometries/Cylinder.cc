@@ -191,20 +191,12 @@ Cylinder::FillIn(PointVect& points, const double dx, const int layers)
 
 
 void
-Cylinder::FillIn(PointVect& points, const double dx, const int _layers, const bool fill_tops)
+Cylinder::FillIn(PointVect& points, const double dx, const int layers, const bool fill_tops)
 {
-	// NOTE - TODO
-	// XProblem calls FillIn with negative number of layers to fill rects in the opposite
-	// direction as the normal. Cubes and other primitives do not support it. This is a
-	// temporary workaround until we decide a common policy for the filling of DYNAMIC
-	// boundary layers consistent for any geometry.
-	uint layers = abs(_layers);
-
 	m_origin(3) = m_center(3);
 
-	double rdummy  = m_r - dx;
-	if (layers*dx > rdummy) {
-		std::cerr << "WARNING: Cylinder FillIn with " << layers << " layers and " << dx << " stepping > radius " << rdummy << " replaced by Fill" << std::endl;
+	if (layers*dx > m_r) {
+		std::cerr << "WARNING: Cylinder FillIn with " << layers << " layers and " << dx << " stepping > radius " << m_r << " replaced by Fill" << std::endl;
 		Fill(points, dx, true);
 		return;
 	}
@@ -215,10 +207,13 @@ Cylinder::FillIn(PointVect& points, const double dx, const int _layers, const bo
 		return;
 	}
 
+	const int lmin = layers < 0 ? layers + 1 : 0;
+	const int lmax = layers < 0 ? 0 : layers - 1;
 
-	for (uint l = 0; l < layers; l++) {
 
-		const double smaller_r = rdummy - l * dx; //subtract 0.5 dt for DUMMY_BOUNDARY FIXME make it automatic
+	for (int l = lmin; l <= lmax; l++) {
+
+		const double smaller_r = m_r - l * dx;
 		const double smaller_h = m_h - l * 2 * dx;
 
 		const int nz = (int) ceil(smaller_h/dx);
