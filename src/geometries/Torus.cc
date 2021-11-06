@@ -123,34 +123,29 @@ Torus::FillBorder(PointVect& points, const double dx)
 	const int ntheta = (int) ceil(M_PI*m_r/dx);
 	const double dtheta = M_PI/ntheta;
 
-	for (int i = 0; i <= ntheta; i++) {
-		const double theta = i*dtheta;
-		const double z = m_r*cos(theta);
-		FillDiskBorder(points, m_ep, m_center, m_R + sqrt(m_r*m_r - z*z), z, dx, 2.0*M_PI*rand()/RAND_MAX);
-  	 }
+	// i = 0
+	FillDiskBorder(points, m_ep, m_center, m_R + sqrt(m_r*m_r - m_r*m_r), m_r, dx, 2.0*M_PI*rand()/RAND_MAX);
 	for (int i = 1; i < ntheta; i++) {
 		const double theta = i*dtheta;
 		const double z = m_r*cos(theta);
+		FillDiskBorder(points, m_ep, m_center, m_R + sqrt(m_r*m_r - z*z), z, dx, 2.0*M_PI*rand()/RAND_MAX);
 		FillDiskBorder(points, m_ep, m_center, m_R - sqrt(m_r*m_r - z*z), z, dx, 2.0*M_PI*rand()/RAND_MAX);
-  	 }
+	}
+	// i = ntheta
+	FillDiskBorder(points, m_ep, m_center, m_R + sqrt(m_r*m_r - m_r*m_r), -m_r, dx, 2.0*M_PI*rand()/RAND_MAX);
 }
 
 void
-Torus::FillIn(PointVect& points, const double dx, const int _layers)
+Torus::FillIn(PointVect& points, const double dx, const int layers)
 {
-	// NOTE - TODO
-	// XProblem calls FillIn with negative number of layers to fill rects in the opposite
-	// direction as the normal. Cubes and other primitives do not support it. This is a
-	// temporary workaround until we decide a common policy for the filling of DYNAMIC
-	// boundary layers consistent for any geometry.
-	int layers = abs(_layers);
+	const int lmin = layers < 0 ? layers + 1 : 0;
+	const int lmax = layers < 0 ? 0 : layers - 1;
 
-	Torus inner = Torus(m_center, m_R, m_r - ((double)layers + 0.5)*dx, m_ep);
-	PointVect inpoints;
-
-	Fill(inpoints, dx, true);
-	inner.Unfill(inpoints, 0);
-	points.insert(points.end(), inpoints.begin(), inpoints.end());
+	// TODO FIXME check for extreme cases that result in filling or overlaps in the inner rings
+	for (int l = lmin; l <= lmax; ++l) {
+		Torus inner = Torus(m_center, m_R, m_r - l*dx, m_ep);
+		inner.FillBorder(points, dx);
+	}
 }
 
 
