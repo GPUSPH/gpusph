@@ -92,5 +92,19 @@ FillingTest::FillingTest(GlobalData *gdata) :
 
 	auto border_box_corner = addCube(GT_FIXED_BOUNDARY, FT_OUTER_BORDER, -shifted_corner, box_side + double_shift);
 	setEraseOperation(border_box_corner, ET_ERASE_NOTHING);
+
+	// The cylinder is placed by PP_BOTTOM_CENTER
+	setPositioning(PP_BOTTOM_CENTER);
+
+	auto cyl_radius = sphere_radius;
+	auto cyl_height = box_side;
+
+	auto cyl_bottom = sphere_center - Vector(0, 3*box_side/2, sphere_radius);
+
+	auto fluid_cyl = addCylinder(GT_FLUID, FT_SOLID, cyl_bottom + Vector(0, 0, shift), cyl_radius - shift, cyl_height - double_shift);
+	setEraseOperation(fluid_cyl, ET_ERASE_NOTHING);
+	auto border_cyl = addCylinder(GT_FIXED_BOUNDARY, FT_OUTER_BORDER, cyl_bottom - Vector(0, 0, shift), cyl_radius + shift, cyl_height + double_shift);
+	setEraseOperation(border_cyl, ET_ERASE_NOTHING);
+
 }
 
