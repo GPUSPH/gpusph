@@ -144,7 +144,7 @@ Sphere::Fill(PointVect& points, const double dx, const bool fill)
 	double distance = m_r / (nc);
 
 	for (int i = 0; i <= nc; ++i) {
-		nparts += FillBorder(points, dx, i*distance);
+		nparts += FillBorder(points, dx, i*distance, fill);
 	}
 
 	return nparts;
