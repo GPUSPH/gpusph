@@ -107,7 +107,7 @@ void ProblemAPI<1>::release_memory()
 
 uint ProblemAPI<1>::suggestedDynamicBoundaryLayers()
 {
-	return (uint)simparams()->get_influence_layers() + 1;
+	return (uint)simparams()->get_influence_layers();
 }
 
 double ProblemAPI<1>::preferredDeltaP(GeometryType type)
