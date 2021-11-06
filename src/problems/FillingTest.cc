@@ -63,21 +63,24 @@ FillingTest::FillingTest(GlobalData *gdata) :
 	// one with PP_CENTER, and one with PP_CORNER positioning policies.
 	// The PP_CORNER one will be placed with corner in (0, 0, 0),
 	// while the PP_CENTER one will be placed so that its center is 2*box_side away
-	// from the PP_CORNER case along the y direction (without accounting for the shift!)
+	// from the center of the PP_CORNER case along the y direction (without accounting for the shift!)
 
 	const Point shifted_corner  = Point(shift, shift, shift);
-	const Point centered_center = Point(box_side/2, 2*box_side, box_side/2);
+	const Point centered_center = Point(box_side/2, 5*box_side/2, box_side/2);
 
 	// PP_CENTER
 	auto fluid_box_centered = addCube(GT_FLUID, FT_SOLID, centered_center, box_side - double_shift);
 	setEraseOperation(fluid_box_centered, ET_ERASE_NOTHING);
-
 	auto border_box_centered = addCube(GT_FIXED_BOUNDARY, FT_OUTER_BORDER, centered_center, box_side + double_shift);
 	setEraseOperation(border_box_centered, ET_ERASE_NOTHING);
 
+	addTestPoint(centered_center);
+	addTestPoint(centered_center + Vector(box_side, box_side, box_side)/2);
+	addTestPoint(centered_center - Vector(box_side, box_side, box_side)/2);
+
 	// Let's also place a sphere, right above the centered box
-	auto sphere_radius = box_side/2;
-	auto sphere_center = centered_center + Vector(0, 0, box_side + sphere_radius);
+	auto sphere_radius = box_side/2; // diameter should be the same as the box
+	auto sphere_center = centered_center + Vector(0, 0, 2*box_side); // again, 2x box side center-to-center distance
 
 	// Note that while for the box we correct the side with double_shift, for the sphere we only correct with
 	// a SINGLE shift, since it's the radius we're talking about
@@ -86,12 +89,21 @@ FillingTest::FillingTest(GlobalData *gdata) :
 	auto border_sphere = addSphere(GT_FIXED_BOUNDARY, FT_OUTER_BORDER, sphere_center, sphere_radius + shift);
 	setEraseOperation(border_sphere, ET_ERASE_NOTHING);
 
+	addTestPoint(sphere_center);
+	addTestPoint(sphere_center + Vector(0, 0, sphere_radius));
+	addTestPoint(sphere_center - Vector(0, 0, sphere_radius));
+
+	// Corner box
 	setPositioning(PP_CORNER);
+
 	auto fluid_box_corner = addCube(GT_FLUID, FT_SOLID, shifted_corner, box_side - double_shift);
 	setEraseOperation(fluid_box_corner, ET_ERASE_NOTHING);
-
 	auto border_box_corner = addCube(GT_FIXED_BOUNDARY, FT_OUTER_BORDER, -shifted_corner, box_side + double_shift);
 	setEraseOperation(border_box_corner, ET_ERASE_NOTHING);
+
+	addTestPoint(Point(0, 0, 0));
+	addTestPoint(Point(box_side, box_side, box_side)/2);
+	addTestPoint(Point(box_side, box_side, box_side));
 
 	// The cylinder is placed by PP_BOTTOM_CENTER
 	setPositioning(PP_BOTTOM_CENTER);
@@ -99,12 +111,16 @@ FillingTest::FillingTest(GlobalData *gdata) :
 	auto cyl_radius = sphere_radius;
 	auto cyl_height = box_side;
 
-	auto cyl_bottom = sphere_center - Vector(0, 3*box_side/2, sphere_radius);
+	auto cyl_bottom = sphere_center - Vector(0, 2*box_side, sphere_radius);
 
 	auto fluid_cyl = addCylinder(GT_FLUID, FT_SOLID, cyl_bottom + Vector(0, 0, shift), cyl_radius - shift, cyl_height - double_shift);
 	setEraseOperation(fluid_cyl, ET_ERASE_NOTHING);
 	auto border_cyl = addCylinder(GT_FIXED_BOUNDARY, FT_OUTER_BORDER, cyl_bottom - Vector(0, 0, shift), cyl_radius + shift, cyl_height + double_shift);
 	setEraseOperation(border_cyl, ET_ERASE_NOTHING);
 
+	addTestPoint(cyl_bottom);
+	addTestPoint(cyl_bottom + Vector(0, 0, cyl_height));
+	addTestPoint(cyl_bottom + Vector(0, cyl_radius, 0));
+	addTestPoint(cyl_bottom - Vector(0, cyl_radius, 0));
 }
 
