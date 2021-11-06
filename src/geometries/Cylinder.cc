@@ -177,9 +177,8 @@ Cylinder::Fill(PointVect& points, const double dx, const bool fill)
 	int nparts = 0;
 	const int nz = (int) ceil(m_h/dx);
 	const double dz = m_h/nz;
-	printf(" ********************************************* %g  %g\n", m_r, 0.5*dx);
 	for (int i = 0; i <= nz; i++)
-		nparts += FillDisk(points, m_ep, m_origin, m_r - (0.5*dx), i*dz, dx, fill);
+		nparts += FillDisk(points, m_ep, m_origin, m_r, i*dz, dx, fill);
 
 	return nparts;
 }
