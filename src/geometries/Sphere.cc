@@ -116,16 +116,13 @@ Sphere::FillBorder(PointVect& points, const double dx, const double r, const boo
 
 
 void
-Sphere::FillIn(PointVect& points, const double dx, const int _layers)
+Sphere::FillIn(PointVect& points, const double dx, const int layers)
 {
-	// NOTE - TODO
-	// XProblem calls FillIn with negative number of layers to fill rects in the opposite
-	// direction as the normal. Cubes and other primitives do not support it. This is a
-	// temporary workaround until we decide a common policy for the filling of DYNAMIC
-	// boundary layers consistent for any geometry.
-	int layers = abs(_layers);
+	const int lmin = layers < 0 ? layers + 1 : 0;
+	const int lmax = layers < 0 ? 0 : layers - 1;
 
-	for (int l = 0; l < layers; l++) {
+
+	for (int l = lmin; l <= lmax; l++) {
 		const double r = m_r - l*dx;
 		double angle = dx/r;
 		const int nc = (int) ceil(M_PI/angle);
