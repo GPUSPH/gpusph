@@ -141,7 +141,7 @@ FillingTest::FillingTest(GlobalData *gdata) :
 	addTestPoint(Point(box_side, box_side, box_side)/2);
 	addTestPoint(Point(box_side, box_side, box_side));
 
-	// The cylinder is placed by PP_BOTTOM_CENTER
+	// The cylinder and cone are placed by PP_BOTTOM_CENTER
 	setPositioning(PP_BOTTOM_CENTER);
 
 	auto cyl_radius = sphere_radius;
@@ -158,5 +158,32 @@ FillingTest::FillingTest(GlobalData *gdata) :
 	addTestPoint(cyl_bottom + Vector(0, 0, cyl_height));
 	addTestPoint(cyl_bottom + Vector(0, cyl_radius, 0));
 	addTestPoint(cyl_bottom - Vector(0, cyl_radius, 0));
+
+	auto cone_radius = cyl_radius;
+	auto cone_height = cyl_height;
+
+	auto cone_bottom = centered_center - Vector(0, 0, 5*box_side/2);
+
+	// For the cone, there is a complexity associated with the shift:
+	// The base changes by `shift`, the height by double_shift, but the radius changes by an amount that depends on the cone height.
+	// Take the triangular cross-section of the cone. This is a right triangle with height cone_height and half-base cone_radius.
+	// Draw a line parallel to the base shifted by shift, and a line parallel to the hypothenuse by starting shift below the tip.
+	// The smaller triangle is similar to the original triangle (all angles are equal because drawn by parallel lines),
+	// so the sides are all in the same ratio. The only one we know about is the height, with ratio cone_height : cone_height - double_shift.
+	// We can thus compute the shifted radius as cone_radius * (cone_height - double_shift) / cone_height;
+	// The same holds when shifting down
+	auto cone_radius_reduced  = cone_radius * (cone_height - double_shift) / cone_height;
+	auto cone_radius_expanded = cone_radius * (cone_height + double_shift) / cone_height;
+
+	auto fluid_cone = addCone(GT_FLUID, FT_SOLID, cone_bottom + Vector(0, 0, shift), cone_radius_reduced, 0, cone_height - double_shift);
+	setEraseOperation(fluid_cone, ET_ERASE_NOTHING);
+	auto border_cone = addCone(GT_FIXED_BOUNDARY, FT_OUTER_BORDER, cone_bottom - Vector(0, 0, shift), cone_radius_expanded, 0, cone_height + double_shift);
+	setEraseOperation(border_cone, ET_ERASE_NOTHING);
+
+	addTestPoint(cone_bottom);
+	addTestPoint(cone_bottom + Vector(0, 0, cone_height));
+	addTestPoint(cone_bottom + Vector(0, cone_radius, 0));
+	addTestPoint(cone_bottom - Vector(0, cone_radius, 0));
+
 }
 
