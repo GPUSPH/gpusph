@@ -152,6 +152,10 @@ Torus::FillIn(PointVect& points, const double dx, const int layers)
 int
 Torus::Fill(PointVect& points, const double dx, const bool fill)
 {
+	// The disk-based filling leads to excessive particle density near the top
+	// and bottom part of the torus. As an alternative, use a FillIn with the number
+	// of layers needed to get to the center
+#if 0
 	int nparts = 0;
 	const int ntheta = (int) ceil(M_PI*m_r/dx);
 	const double dtheta = M_PI/ntheta;
@@ -161,9 +165,19 @@ Torus::Fill(PointVect& points, const double dx, const bool fill)
 		const double z = m_r*cos(theta);
 		nparts += FillDisk(points, m_ep, m_center, m_R - sqrt(m_r*m_r - z*z),
 					m_R + sqrt(m_r*m_r - z*z), z, dx, fill);
-  	 }
+	}
+#else
+	// FillIn doesn't count particles, so fill separate vector of points and
+	// if fill is requested append it to points
+	PointVect fill_points;
+	int layers = (int) ceil(m_r/dx);
+	FillIn(fill_points, dx, layers);
+	if (fill)
+		points.insert(points.end(), fill_points.begin(), fill_points.end());
 
-	return nparts;
+#endif
+
+	return fill_points.size();
 }
 
 
