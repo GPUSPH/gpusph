@@ -93,6 +93,42 @@ FillingTest::FillingTest(GlobalData *gdata) :
 	addTestPoint(sphere_center + Vector(0, 0, sphere_radius));
 	addTestPoint(sphere_center - Vector(0, 0, sphere_radius));
 
+	// While in centered mode, also add couple of torii. These are larger figures, spanning the two columns or rows of other geomtries
+
+	auto torus_center_1 = Point(box_side/2, 3*box_side/2, -3*box_side/2);
+	auto torus_major_1 = box_side;
+	auto torus_minor_1 = sphere_radius;
+	auto fluid_torus_1 = addTorus(GT_FLUID, FT_SOLID, torus_center_1, torus_major_1, torus_minor_1 - shift);
+	setEraseOperation(fluid_torus_1, ET_ERASE_NOTHING);
+	auto border_torus_1 = addTorus(GT_FIXED_BOUNDARY, FT_OUTER_BORDER, torus_center_1, torus_major_1, torus_minor_1 + shift);
+	setEraseOperation(border_torus_1, ET_ERASE_NOTHING);
+
+	addTestPoint(torus_center_1);
+	addTestPoint(torus_center_1 + Vector(0, torus_major_1,  0));
+	addTestPoint(torus_center_1 - Vector(0, torus_major_1,  0));
+	addTestPoint(torus_center_1 + Vector(0, torus_major_1,  torus_minor_1));
+	addTestPoint(torus_center_1 - Vector(0, torus_major_1,  torus_minor_1));
+	addTestPoint(torus_center_1 + Vector(0, torus_major_1, -torus_minor_1));
+	addTestPoint(torus_center_1 - Vector(0, torus_major_1, -torus_minor_1));
+
+	auto torus_center_2 = centered_center + Vector(0, 3*box_side, box_side);
+	auto torus_major_2 = box_side;
+	auto torus_minor_2 = sphere_radius;
+	auto fluid_torus_2 = addTorus(GT_FLUID, FT_SOLID, torus_center_2, torus_major_2, torus_minor_2 - shift);
+	setEraseOperation(fluid_torus_2, ET_ERASE_NOTHING);
+	rotate(fluid_torus_2, M_PI/2, 0, M_PI/2);
+	auto border_torus_2 = addTorus(GT_FIXED_BOUNDARY, FT_OUTER_BORDER, torus_center_2, torus_major_2, torus_minor_2 + shift);
+	setEraseOperation(border_torus_2, ET_ERASE_NOTHING);
+	rotate(border_torus_2, M_PI/2, 0, M_PI/2);
+
+	addTestPoint(torus_center_2);
+	addTestPoint(torus_center_2 + Vector(0, 0, torus_major_2));
+	addTestPoint(torus_center_2 - Vector(0, 0, torus_major_2));
+	addTestPoint(torus_center_2 + Vector(0, torus_major_2 + torus_minor_2, 0));
+	addTestPoint(torus_center_2 - Vector(0, torus_major_2 + torus_minor_2, 0));
+	addTestPoint(torus_center_2 + Vector(0, torus_major_2 - torus_minor_2, 0));
+	addTestPoint(torus_center_2 - Vector(0, torus_major_2 - torus_minor_2, 0));
+
 	// Corner box
 	setPositioning(PP_CORNER);
 
