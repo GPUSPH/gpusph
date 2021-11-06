@@ -572,45 +572,45 @@ Cube::FillIn(PointVect& points, const double dx, const int layers)
  *	\param fill_top : if true fill also the top face
  */
 void
-Cube::FillIn(PointVect& points, const double dx, const int _layers, const bool fill_top)
+Cube::FillIn(PointVect& points, const double dx, const int layers, const bool fill_top)
 {
-	// NOTE - TODO
-	// XProblem calls FillIn with negative number of layers to fill rects in the opposite
-	// direction as the normal. Cubes and other primitives do not support it. This is a
-	// temporary workaround until we decide a common policy for the filling of DYNAMIC
-	// boundary layers consistent for any geometry.
-	int layers = abs(_layers);
-
 	m_origin(3) = m_center(3);
 	const int nx = (int) (m_lx/dx);
 	const int ny = (int) (m_ly/dx);
 	const int nz = (int) (m_lz/dx);
 
-	// we will have two ranges in each direction:
-	// [0, layers[ , ]n - layers, n], except when
-	// n <= 2*layers, the two ranges intersect and reduce to
-	// [0, n]
-	const int xplus_range[] = {0,
-		nx <= 2*layers ? nx : layers - 1 };
+	// Normaly, we have two ranges in each direction:
+	// [0, layers[ , ]n - layers, n] if layers > 0,
+	// ]layers, 0] ,  [n, n - layers[ if layers < 0
+	//
+	// In the layers > 0 case, however, if n <= 2*layers then
+	// the two ranges intersect and reduce to [0, n]
+	const int xplus_range[] = {
+		layers < 0 ? layers + 1 : 0,
+		layers < 0 ? 0          : nx <= 2*layers ? nx : layers - 1 };
 	const int xminus_range[] = {
-		nx <= 2*layers ? INT_MAX : nx - layers + 1,
-		nx };
+		layers < 0 ? nx              : nx <= 2*layers ? INT_MAX : nx - layers + 1,
+		layers < 0 ? nx - layers - 1 : nx };
 
-	const int yplus_range[] = {0,
-		ny <= 2*layers ? ny : layers - 1 };
+	const int yplus_range[] = {
+		layers < 0 ? layers + 1 : 0,
+		layers < 0 ? 0          : ny <= 2*layers ? ny : layers - 1 };
 	const int yminus_range[] = {
-		ny <= 2*layers ? INT_MAX : ny - layers + 1,
-		ny };
+		layers < 0 ? ny              : ny <= 2*layers ? INT_MAX : ny - layers + 1,
+		layers < 0 ? ny - layers - 1 : ny };
 
-	const int zplus_range[] = {0,
-		nz <= 2*layers ? nz : layers - 1 };
+	const int zplus_range[] = {
+		layers < 0 ? layers + 1 : 0,
+		layers < 0 ? 0          : nz <= 2*layers ? nz : layers - 1 };
 	const int zminus_range[] = {
-		nz <= 2*layers ? INT_MAX : nz - layers + 1,
-		nz };
+		layers < 0 ? nz              : nz <= 2*layers ? INT_MAX : nz - layers + 1,
+		layers < 0 ? nz - layers - 1 : nz };
 
-	// top and bottom layers
-	for (int i = 0; i <= nx; ++i) {
-		for (int j = 0; j <= ny; ++j) {
+	// top and bottom layers: starts at 0 if layers > 0, otherwise at layers + 1 i.e. -(abs(layers) - 1)
+	// ends at n if layers > 0, otherwise at n - layers - 1 i.e. n - (layers+1)
+	const int outer = min(layers+1, 0);
+	for (int i = outer; i <= nx - outer; ++i) {
+		for (int j = outer; j <= ny - outer; ++j) {
 			for (int k = zplus_range[0]; k <= zplus_range[1]; ++k) {
 				Point p = m_origin + i/((double) nx)*m_vx + j/((double) ny)*m_vy + k/((double) nz)*m_vz;
 				points.push_back(p);
