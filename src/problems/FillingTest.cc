@@ -35,6 +35,10 @@
 FillingTest::FillingTest(GlobalData *gdata) :
 	Problem(gdata)
 {
+	const bool test_fillin = get_option("test-fillin", false);
+
+	const FillType inner_filltype = test_fillin ? FT_INNER_BORDER : FT_SOLID;
+
 	setup_framework();
 	// we only care about seeing the result
 	gdata->maxiter = 1;
@@ -69,7 +73,7 @@ FillingTest::FillingTest(GlobalData *gdata) :
 	const Point centered_center = Point(box_side/2, 5*box_side/2, box_side/2);
 
 	// PP_CENTER
-	auto fluid_box_centered = addCube(GT_FLUID, FT_SOLID, centered_center, box_side - double_shift);
+	auto fluid_box_centered = addCube(GT_FLUID, inner_filltype, centered_center, box_side - double_shift);
 	setEraseOperation(fluid_box_centered, ET_ERASE_NOTHING);
 	auto border_box_centered = addCube(GT_FIXED_BOUNDARY, FT_OUTER_BORDER, centered_center, box_side + double_shift);
 	setEraseOperation(border_box_centered, ET_ERASE_NOTHING);
@@ -84,7 +88,7 @@ FillingTest::FillingTest(GlobalData *gdata) :
 
 	// Note that while for the box we correct the side with double_shift, for the sphere we only correct with
 	// a SINGLE shift, since it's the radius we're talking about
-	auto fluid_sphere = addSphere(GT_FLUID, FT_SOLID, sphere_center, sphere_radius - shift);
+	auto fluid_sphere = addSphere(GT_FLUID, inner_filltype, sphere_center, sphere_radius - shift);
 	setEraseOperation(fluid_sphere, ET_ERASE_NOTHING);
 	auto border_sphere = addSphere(GT_FIXED_BOUNDARY, FT_OUTER_BORDER, sphere_center, sphere_radius + shift);
 	setEraseOperation(border_sphere, ET_ERASE_NOTHING);
@@ -98,7 +102,7 @@ FillingTest::FillingTest(GlobalData *gdata) :
 	auto torus_center_1 = centered_center + Vector(0, 3*box_side, box_side);
 	auto torus_major_1 = box_side;
 	auto torus_minor_1 = sphere_radius;
-	auto fluid_torus_1 = addTorus(GT_FLUID, FT_SOLID, torus_center_1, torus_major_1, torus_minor_1 - shift);
+	auto fluid_torus_1 = addTorus(GT_FLUID, inner_filltype, torus_center_1, torus_major_1, torus_minor_1 - shift);
 	setEraseOperation(fluid_torus_1, ET_ERASE_NOTHING);
 	rotate(fluid_torus_1, M_PI/2, 0, M_PI/2);
 	auto border_torus_1 = addTorus(GT_FIXED_BOUNDARY, FT_OUTER_BORDER, torus_center_1, torus_major_1, torus_minor_1 + shift);
@@ -116,7 +120,7 @@ FillingTest::FillingTest(GlobalData *gdata) :
 	auto torus_center_2 = torus_center_1 + Vector(0, 0, -3*box_side);
 	auto torus_major_2 = box_side;
 	auto torus_minor_2 = sphere_radius;
-	auto fluid_torus_2 = addTorus(GT_FLUID, FT_SOLID, torus_center_2, torus_major_2, torus_minor_2 - shift);
+	auto fluid_torus_2 = addTorus(GT_FLUID, inner_filltype, torus_center_2, torus_major_2, torus_minor_2 - shift);
 	setEraseOperation(fluid_torus_2, ET_ERASE_NOTHING);
 	auto border_torus_2 = addTorus(GT_FIXED_BOUNDARY, FT_OUTER_BORDER, torus_center_2, torus_major_2, torus_minor_2 + shift);
 	setEraseOperation(border_torus_2, ET_ERASE_NOTHING);
@@ -132,7 +136,7 @@ FillingTest::FillingTest(GlobalData *gdata) :
 	// Corner box
 	setPositioning(PP_CORNER);
 
-	auto fluid_box_corner = addCube(GT_FLUID, FT_SOLID, shifted_corner, box_side - double_shift);
+	auto fluid_box_corner = addCube(GT_FLUID, inner_filltype, shifted_corner, box_side - double_shift);
 	setEraseOperation(fluid_box_corner, ET_ERASE_NOTHING);
 	auto border_box_corner = addCube(GT_FIXED_BOUNDARY, FT_OUTER_BORDER, -shifted_corner, box_side + double_shift);
 	setEraseOperation(border_box_corner, ET_ERASE_NOTHING);
@@ -149,7 +153,7 @@ FillingTest::FillingTest(GlobalData *gdata) :
 
 	auto cyl_bottom = sphere_center - Vector(0, 2*box_side, sphere_radius);
 
-	auto fluid_cyl = addCylinder(GT_FLUID, FT_SOLID, cyl_bottom + Vector(0, 0, shift), cyl_radius - shift, cyl_height - double_shift);
+	auto fluid_cyl = addCylinder(GT_FLUID, inner_filltype, cyl_bottom + Vector(0, 0, shift), cyl_radius - shift, cyl_height - double_shift);
 	setEraseOperation(fluid_cyl, ET_ERASE_NOTHING);
 	auto border_cyl = addCylinder(GT_FIXED_BOUNDARY, FT_OUTER_BORDER, cyl_bottom - Vector(0, 0, shift), cyl_radius + shift, cyl_height + double_shift);
 	setEraseOperation(border_cyl, ET_ERASE_NOTHING);
@@ -172,7 +176,7 @@ FillingTest::FillingTest(GlobalData *gdata) :
 	auto cone_height_reduced  = (cone_radius - shift*cone_s)/cone_slope - shift;
 	auto cone_height_expanded = (cone_radius + shift*cone_s)/cone_slope + shift;
 
-	auto fluid_cone = addCone(GT_FLUID, FT_SOLID, cone_bottom + Vector(0, 0, shift), cone_radius_reduced, 0, cone_height_reduced);
+	auto fluid_cone = addCone(GT_FLUID, inner_filltype, cone_bottom + Vector(0, 0, shift), cone_radius_reduced, 0, cone_height_reduced);
 	setEraseOperation(fluid_cone, ET_ERASE_NOTHING);
 	auto border_cone = addCone(GT_FIXED_BOUNDARY, FT_OUTER_BORDER, cone_bottom - Vector(0, 0, shift), cone_radius_expanded, 0, cone_height_expanded);
 	setEraseOperation(border_cone, ET_ERASE_NOTHING);
@@ -198,7 +202,7 @@ FillingTest::FillingTest(GlobalData *gdata) :
 	auto stump_radius_base_expanded = stump_radius_base + (stump_s + stump_slope)*shift;
 	auto stump_radius_top_expanded  = stump_radius_top  + (stump_s - stump_slope)*shift;
 
-	auto fluid_stump = addCone(GT_FLUID, FT_SOLID, stump_bottom + Vector(0, 0, shift), stump_radius_base_reduced, stump_radius_top_reduced, stump_height - double_shift);
+	auto fluid_stump = addCone(GT_FLUID, inner_filltype, stump_bottom + Vector(0, 0, shift), stump_radius_base_reduced, stump_radius_top_reduced, stump_height - double_shift);
 	setEraseOperation(fluid_stump, ET_ERASE_NOTHING);
 	auto border_stump = addCone(GT_FIXED_BOUNDARY, FT_OUTER_BORDER, stump_bottom - Vector(0, 0, shift), stump_radius_base_expanded, stump_radius_top_expanded, stump_height + double_shift);
 	setEraseOperation(border_stump, ET_ERASE_NOTHING);
