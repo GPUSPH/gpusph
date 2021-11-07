@@ -2288,7 +2288,7 @@ ProblemCore::calc_localpos_and_hash(const Point& pos, const particleinfo& info, 
 		++m_out_of_bounds_count;
 		if (!warned_out_of_bounds) {
 			const uint pid = id(info);
-			const string ptype = " type " + std::to_string(PART_TYPE(info)) + "=" + std::to_string(particle_type_sym(info));
+			const string ptype = " type " + std::to_string(PART_TYPE(info)) + "=" + particle_type_sym(info);
 
 			stringstream errmsg;
 			errmsg << "Particle " << pid << ptype << " position " << make_double4(pos)
