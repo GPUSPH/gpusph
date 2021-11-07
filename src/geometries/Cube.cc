@@ -627,7 +627,7 @@ Cube::FillIn(PointVect& points, const double dx, const int layers, const bool fi
 	if (zminus_range[0] == INT_MAX) return;
 
 	for (int k = zplus_range[1] + 1; k < zminus_range[0] ; ++k) {
-		for (int i = 0; i <= nx; ++i) {
+		for (int i = outer; i <= nx - outer; ++i) {
 			for (int j = yplus_range[0]; j <= yplus_range[1]; ++j) {
 				Point p = m_origin + i/((double) nx)*m_vx + j/((double) ny)*m_vy + k/((double) nz)*m_vz;
 				points.push_back(p);
