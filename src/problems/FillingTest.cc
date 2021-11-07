@@ -167,8 +167,8 @@ FillingTest::FillingTest(GlobalData *gdata) :
 	// For the cone, there is a complexity associated with the shift. \see Cone::FillIn for details
 	auto cone_slope = cone_radius/cone_height;
 	auto cone_s = sqrt(1.0 + cone_slope);
-	auto cone_radius_reduced  = cone_radius - (cone_slope + cone_s)*shift;
-	auto cone_radius_expanded = cone_radius + (cone_slope + cone_s)*shift;
+	auto cone_radius_reduced  = cone_radius - (cone_s + cone_slope)*shift;
+	auto cone_radius_expanded = cone_radius + (cone_s + cone_slope)*shift;
 
 	auto fluid_cone = addCone(GT_FLUID, FT_SOLID, cone_bottom + Vector(0, 0, shift), cone_radius_reduced, 0, cone_height - double_shift);
 	setEraseOperation(fluid_cone, ET_ERASE_NOTHING);
@@ -179,6 +179,35 @@ FillingTest::FillingTest(GlobalData *gdata) :
 	addTestPoint(cone_bottom + Vector(0, 0, cone_height));
 	addTestPoint(cone_bottom + Vector(0, cone_radius, 0));
 	addTestPoint(cone_bottom - Vector(0, cone_radius, 0));
+
+
+	// Add a truncated one too
+
+	auto stump_radius_base = cone_radius;
+	auto stump_radius_top = cone_radius/2;
+	auto stump_height = cone_height;
+
+	auto stump_bottom = cone_bottom - Vector(0, 2*box_side, 0);
+
+	auto stump_slope = (stump_radius_base - stump_radius_top)/stump_height;
+	auto stump_s = sqrt(1.0 + stump_slope);
+	auto stump_radius_base_reduced  = stump_radius_base - (stump_s + stump_slope)*shift;
+	auto stump_radius_top_reduced   = stump_radius_top  - (stump_s - stump_slope)*shift;
+	auto stump_radius_base_expanded = stump_radius_base + (stump_s + stump_slope)*shift;
+	auto stump_radius_top_expanded  = stump_radius_top  + (stump_s - stump_slope)*shift;
+
+	auto fluid_stump = addCone(GT_FLUID, FT_SOLID, stump_bottom + Vector(0, 0, shift), stump_radius_base_reduced, stump_radius_top_reduced, stump_height - double_shift);
+	setEraseOperation(fluid_stump, ET_ERASE_NOTHING);
+	auto border_stump = addCone(GT_FIXED_BOUNDARY, FT_OUTER_BORDER, stump_bottom - Vector(0, 0, shift), stump_radius_base_expanded, stump_radius_top_expanded, stump_height + double_shift);
+	setEraseOperation(border_stump, ET_ERASE_NOTHING);
+
+	addTestPoint(stump_bottom);
+	addTestPoint(stump_bottom + Vector(0, 0, stump_height));
+	addTestPoint(stump_bottom + Vector(0, stump_radius_base, 0));
+	addTestPoint(stump_bottom + Vector(0, -stump_radius_base, 0));
+	addTestPoint(stump_bottom + Vector(0, stump_radius_top, stump_height));
+	addTestPoint(stump_bottom + Vector(0, -stump_radius_top, stump_height));
+
 
 }
 

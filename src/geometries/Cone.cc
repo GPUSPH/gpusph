@@ -276,11 +276,13 @@ Cone::FillIn(PointVect& points, const double dx, const int layers)
 		const double delta = l*dx;
 		const Point smaller_origin = m_origin + Vector(0, 0, delta);
 
-		double smaller_rb = m_rb - (slope + s)*delta;
-		double smaller_rt = m_rt - (slope - s)*delta;
+		double smaller_rb = m_rb - (s + slope)*delta;
+		double smaller_rt = m_rt - (s - slope)*delta;
 		double smaller_h = m_h - 2*delta;
 
-		if (smaller_rt < 0) {
+		// The m_rt == 0 condition is to ensure that when expanding a pointy cone,
+		// our expansion is still pointy.
+		if (m_rt == 0 || smaller_rt < 0) {
 			smaller_rt = 0;
 			smaller_h = ( m_rb - delta*s ) / slope - delta;
 		}
