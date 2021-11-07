@@ -62,8 +62,7 @@ class Cone: public Object {
 		{ FillBorder(points, dx, true, true);}
 
 		int Fill(PointVect& points, const double, const bool fill = true);
-		void FillIn(PointVect& points, const double dx, const int layers)
-		{ throw std::runtime_error("Cone::FillIn not implemented !"); }
+		void FillIn(PointVect& points, const double dx, const int layers);
 
 		bool IsInside(const Point&, const double) const;
 

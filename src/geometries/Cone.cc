@@ -80,6 +80,19 @@ Cone::Cone(const Point& center, const double radiusbottom, const double radiusto
 	m_rt = radiustop;
 	m_h = height;
 
+	if (m_h <= 0)
+		throw std::invalid_argument("Cone height must be positive");
+	if (m_rb < 0)
+		throw std::invalid_argument("Cone bottom radius cannot be negative");
+	if (m_rt < 0)
+		throw std::invalid_argument("Cone top radius cannot be negative");
+
+	// There are a few places with hidden assumptions about the relationship between the bases.
+	// Keep the assumption but make it explicit
+	if (m_rb <= m_rt)
+		throw std::invalid_argument("Cone bottom radius must be larger than top radius");
+
+	// TODO maybe atan2 instead?
 	m_halfaperture = atan((m_rb - m_rt)/m_h);
 
 	m_hg = m_h*(m_rb*m_rb + 2.0*m_rb*m_rt + 3.0*m_rt*m_rt)/
@@ -184,11 +197,101 @@ Cone::FillBorder(PointVect& points, const double dx, const bool bottom, const bo
 	const double dz = m_h/nz;
 	for (int i = 0; i <= nz; i++)
 		FillDiskBorder(points, m_ep, m_origin, m_rb - i*dz*tan(m_halfaperture), i*dz, dx, 2.0*M_PI*rand()/RAND_MAX);
-	if (bottom)
-		FillDisk(points, m_ep, m_origin, m_rb - dx, 0.0, dx);
-	if (top)
-		FillDisk(points, m_ep, m_origin, m_rt - dx, nz*dz, dx);
+	if (bottom && m_rb > 0)
+		FillDisk(points, m_ep, m_origin, fmax(m_rb - dx, 0), 0.0, dx);
+	if (top && m_rt > 0)
+		FillDisk(points, m_ep, m_origin, fmax(m_rt - dx, 0), nz*dz, dx);
 }
+
+void
+Cone::FillIn(PointVect& points, const double dx, const int layers)
+{
+	// TODO check for degenerate cases that should be replaced by Fill
+	const int lmin = layers < 0 ? layers + 1 : 0;
+	const int lmax = layers < 0 ? 0 : layers - 1;
+
+	// For the cone, there is a complexity associated with the nesting.
+	// Take the triangular cross-section of the Cone.
+	// In the general case, this is an isosceles trapezium with bases 2*m_rb, 2*m_rt and height m_h.
+	// The nested figure must have m_h reduced (increased, for negative layers) by 2*dx (one dx per base) per layer.
+	// The sides must also move inside (outside, for negative layers) by 2*dx (each) per layer.
+	// How much do m_rb, m_rt change then?
+	// Let's call B, T the centers of the bottom and top base, and C, D the points where the bases respectively meet one of the sides,
+	// so that B C D T is the right trapezium that is half of the original isosceles trapezium.
+	// This trapezium is described by the lines:
+	// y = By (bottom)
+	// y = Ty (top)
+	// (x - Cx)/(Dx - Cx) = (y - Cy)/(Dy - Cy) (oblique side)
+	// y = By (right side)
+	// with the additional conditions:
+	// Tx = Bx
+	// Ty = By + m_h
+	// Cx = Bx + m_rb
+	// Cy = By
+	// Dx = Tx + m_rt = Bx + m_rt
+	// Dy = Ty = By + m_h
+	// and for simplicity we can take Bx = By = 0
+	//
+	// The oblique side can also be written
+	// (Dy - Cy)(x - Cx) = (Dx - Cx)(y - Cy)
+	// or
+	// m_h (x - m_rb) = (m_rt - m_rb) y
+	// and finally
+	// m_h x - (m_rt - m_rb) y - m_h m_rb = 0
+	// Assuming m_h ≠ 0 and letting slope = (m_rt - m_rb)/m_h, this reduces to:
+	// x - slope y - m_rb = 0
+	//
+	// If ∆ is the nesting distance, the top and bottom are shifted by +∆, -∆ respectively.
+	// For the oblique side, we need to find a prallel line with distance ∆, i.e. with
+	// a coefficient K such that ∆ = (K + m_rb)/sqrt(1 + slope)
+	// that solves to K = ∆ sqrt(1 + slope) - m_rb
+	// The new oblique side equation is thus
+	// x = slope y + ∆ sqrt(1 + slope) + m_rb
+	// to be paired with y = B'y, y = T'y respectively,
+	// where B'y = ∆ and T'y = Ty - ∆ = m_h - ∆
+	//
+	// This gives us C'x = slope ∆ + ∆ sqrt(1+slope) + m_rb
+	// and D'x = slope (m_h - ∆) + ∆ sqrt(1+slope) + m_rb
+	//
+	// The new radii are:
+	// rb' = m_rb + (sqrt(1+slope) + slope) * ∆
+	// rt' = m_rb + slope*m_h - (sqrt(1+slope) - slope) * ∆ = m_rt + (sqrt(1+slope) - slope)*∆
+	//
+	// (note that depending on direction the actual sign for ∆ might be positive or negative)
+	//
+	// If any of the new radii is negative, it means that x = slope y + ∆ sqrt(1 + slope) +  m_rb
+	// hits the x = 0 line before the base, at the special point
+	//
+	// y = -( m_rb + ∆ sqrt(1 + slope) ) / slope
+	//
+	// In this case, the actual height should be adjusted to the distance between the remaining base
+	// and the new point. NOTE: since we always have m_rb > m_rt, this can only happen on the top side,
+	// in which
+
+	const double slope = (m_rb - m_rt)/m_h;
+	const double s = sqrt(1.0 + slope);
+
+	for (int l = lmin; l <= lmax; l++) {
+
+		const double delta = l*dx;
+		const Point smaller_origin = m_origin + Vector(0, 0, delta);
+
+		double smaller_rb = m_rb - (slope + s)*delta;
+		double smaller_rt = m_rt - (slope - s)*delta;
+		double smaller_h = m_h - 2*delta;
+
+		if (smaller_rt < 0) {
+			smaller_rt = 0;
+			smaller_h = ( m_rb - delta*s ) / slope - delta;
+		}
+
+		Cone(smaller_origin, smaller_rb, smaller_rt, smaller_h, m_ep).
+			FillBorder(points, dx, true, true);
+
+	}
+}
+
+
 
 
 int
