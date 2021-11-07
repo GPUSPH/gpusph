@@ -106,9 +106,10 @@ void Torus::setEulerParameters(const EulerParameters &ep)
 // by taking into account the EulerParameters
 void Torus::getBoundingBox(Point &output_min, Point &output_max)
 {
-	Point corner_origin = m_center + Point(-m_R, -m_R, -m_R);
+	double cube_side = 2*(m_R + m_r);
+	Point corner_origin = m_center - Point(cube_side, cube_side, cube_side)/2;
 	getBoundingBoxOfCube(output_min, output_max, corner_origin,
-		Vector(m_R, 0, 0), Vector(0, m_R, 0), Vector(0, 0, m_R));
+		Vector(cube_side, 0, 0), Vector(0, cube_side, 0), Vector(0, 0, cube_side));
 }
 
 void Torus::shift(const double3 &offset)
