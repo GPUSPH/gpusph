@@ -426,9 +426,9 @@ int
 Object::FillDisk(PointVect& points, const EulerParameters& ep, const Point& center, const double rmin,
 		const double rmax, const double z, const double dx, const bool fill) const
 {
-	if (rmax < 0) throw std::invalid_argument("FillDisk with maximum radius lower than 0");
-	if (rmin < 0) throw std::invalid_argument("FillDisk with minimum radius lower than 0");
-	if (rmax < rmin) throw std::invalid_argument("FillDisk with maximum radius lower than minimum radius");
+	if (rmax < 0) throw std::invalid_argument("FillDisk with maximum radius " + std::to_string(rmax) + " lower than 0");
+	if (rmin < 0) throw std::invalid_argument("FillDisk with minimum radius " + std::to_string(rmin) + " lower than 0");
+	if (rmax < rmin) throw std::invalid_argument("FillDisk with maximum radius " + std::to_string(rmax) + " lower than minimum radius " + std::to_string(rmin));
 	const int nr = (int) ceil((rmax - rmin)/dx);
 	const double dr = (nr==0)? 0 : (rmax - rmin)/nr;
 	int nparts = 0;
