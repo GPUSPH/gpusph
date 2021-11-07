@@ -301,8 +301,12 @@ Cone::Fill(PointVect& points, const double dx, const bool fill)
 	int nparts = 0;
 	const int nz = (int) ceil(m_h/dx);
 	const double dz = m_h/nz;
-	for (int i = 0; i <= nz; i++)
-		nparts += FillDisk(points, m_ep, m_origin, m_rb - i*dz*tan(m_halfaperture), i*dz, dx, fill);
+	const double dz_tan = dz*tan(m_halfaperture);
+	for (int i = 0; i <= nz; i++) {
+		// due to FMA, m_rb - i*dz_tan may actually become negative. clamp to zero
+		const double r = fmax(m_rb - i*dz_tan, 0.0);
+		nparts += FillDisk(points, m_ep, m_origin, r, i*dz, dx, fill);
+	}
 
 	return nparts;
 }
