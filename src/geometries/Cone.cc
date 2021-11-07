@@ -45,6 +45,7 @@ Cone::Cone(void)
 	m_h = 0.0;
 	m_hg = 0.0;
 	m_halfaperture = 0;
+	m_slope = m_s = 0;
 	m_ep = EulerParameters();
 }
 
@@ -70,6 +71,9 @@ Cone::Cone(const Point& center, const double radiusbottom, const double radiusto
 				(4.0*(m_rb *m_rb + m_rb*m_rt + m_rt*m_rt));
 
 	m_center = m_origin + m_ep.Rot(m_hg*v);
+
+	m_slope = (m_rb - m_rt)/m_h;
+	m_s = sqrt(1 + m_slope);
 }
 
 
@@ -81,11 +85,11 @@ Cone::Cone(const Point& center, const double radiusbottom, const double radiusto
 	m_h = height;
 
 	if (m_h <= 0)
-		throw std::invalid_argument("Cone height must be positive");
+		throw std::invalid_argument("Cone height " + std::to_string(m_h) + " must be positive");
 	if (m_rb < 0)
-		throw std::invalid_argument("Cone bottom radius cannot be negative");
+		throw std::invalid_argument("Cone bottom radius " + std::to_string(m_rb) + " cannot be negative");
 	if (m_rt < 0)
-		throw std::invalid_argument("Cone top radius cannot be negative");
+		throw std::invalid_argument("Cone top radius " + std::to_string(m_rt) + " cannot be negative");
 
 	// There are a few places with hidden assumptions about the relationship between the bases.
 	// Keep the assumption but make it explicit
@@ -99,6 +103,9 @@ Cone::Cone(const Point& center, const double radiusbottom, const double radiusto
 				(4.0*(m_rb *m_rb + m_rb*m_rt + m_rt*m_rt));
 
 	setEulerParameters(ep);
+
+	m_slope = (m_rb - m_rt)/m_h;
+	m_s = sqrt(1 + m_slope);
 }
 
 
@@ -132,60 +139,120 @@ Cone::Cone(const Point& center, const Vector& radiusbottom, const Vector& radius
 
 	m_center = m_origin + m_hg*m_ep.Rot(Vector(0, 0, 1));
 
+	m_slope = (m_rb - m_rt)/m_h;
+	m_s = sqrt(1 + m_slope);
 }
 
+// TODO: this assumes the cone is right (which is the only one we can create in Problem API 1.
+Cone
+Cone::Expand(double dx) const
+{
+	// Take the triangular cross-section of the Cone.
+	// In the general case, this is an isosceles trapezium with bases 2*m_rb, 2*m_rt and height m_h.
+	// The nested figure must have m_h reduced (increased, for negative layers) by 2*dx (one dx per base) per layer.
+	// The sides must also move inside (outside, for negative layers) by 2*dx (each) per layer.
+	// How much do m_rb, m_rt change then?
+	// Let's call B, T the centers of the bottom and top base, and C, D the points where the bases respectively meet one of the sides,
+	// so that B C D T is the right trapezium that is half of the original isosceles trapezium.
+	// This trapezium is described by the lines:
+	// y = By (bottom)
+	// y = Ty (top)
+	// (x - Cx)/(Dx - Cx) = (y - Cy)/(Dy - Cy) (oblique side)
+	// x = Bx (right side)
+	// with the additional conditions:
+	// Tx = Bx
+	// Ty = By + m_h
+	// Cx = Bx + m_rb
+	// Cy = By
+	// Dx = Tx + m_rt = Bx + m_rt
+	// Dy = Ty = By + m_h
+	// and for simplicity we can take Bx = By = 0
+	//
+	// The oblique side can also be written
+	// (Dy - Cy)(x - Cx) = (Dx - Cx)(y - Cy)
+	// or
+	// m_h (x - m_rb) = (m_rt - m_rb) y
+	// and finally
+	// m_h x - (m_rt - m_rb) y - m_h m_rb = 0
+	// Assuming m_h ≠ 0 and letting slope = (m_rt - m_rb)/m_h, this reduces to:
+	// x - slope y - m_rb = 0
+	//
+	// To expand by ∆, the top and bottom are shifted by -∆, +∆ respectively.
+	// For the oblique side, we need to find a parallel line at distance ∆, i.e. with
+	// a coefficient K such that ∆ = (K + m_rb)/sqrt(1 + slope)
+	// that solves to K = ∆ sqrt(1 + slope) - m_rb
+	// The new oblique side equation is thus
+	// x = slope y + ∆ sqrt(1 + slope) + m_rb
+	// to be paired with y = B'y, y = T'y respectively,
+	// where B'y = ∆ and T'y = Ty - ∆ = m_h - ∆
+	//
+	// This gives us C'x = slope ∆ + ∆ sqrt(1+slope) + m_rb
+	// and D'x = slope (m_h - ∆) + ∆ sqrt(1+slope) + m_rb
+	//
+	// The new radii are:
+	// rb' = m_rb + (sqrt(1+slope) + slope) * ∆
+	// rt' = m_rb + slope*m_h - (sqrt(1+slope) - slope) * ∆ = m_rt + (sqrt(1+slope) - slope)*∆
+	//
+	// (note that depending on direction the actual sign for ∆ might be positive or negative)
+	//
+	// If any of the new radii is negative, it means that x = slope y + ∆ sqrt(1 + slope) +  m_rb
+	// hits the x = 0 line before the base, at the special point
+	//
+	// y = -( m_rb + ∆ sqrt(1 + slope) ) / slope
+	//
+	// In this case, the actual height should be adjusted to the distance between the remaining base
+	// and the new point. NOTE: since we always have m_rb > m_rt, this can only happen on the top side,
+
+	const double delta = dx/2;
+
+	double h = m_h + dx;
+	double rb = m_rb + (m_s + m_slope)*delta;
+	double rt = m_rt + (m_s - m_slope)*delta;
+
+	// The m_rt == 0 condition is to ensure that when expanding a pointy cone,
+	// our expansion is still pointy.
+	// TODO FIXME this should be an option (see e.g. SVG miter limit)
+	// since for thin cones this may lead to very tall pointy envelopes.
+	// OTOH, this is for outer borders, so maybe we don't have to worry?
+	if (m_rt == 0 || rt < 0) {
+		rt = 0;
+		h = (m_rb + m_s*delta)/m_slope + delta;
+	}
+
+	return Cone(m_origin - Vector(0, 0, delta), rb, rt, h, m_ep);
+}
+
+double
+Cone::Volume() const
+{
+	return M_PI*m_h/3.0*(m_rb*m_rb + m_rb*m_rt + m_rt*m_rt);
+}
 
 double
 Cone::Volume(const double dx) const
 {
-	// See Cone::FillIn for the math behind the h, rb and rt computations
-
-	const double slope = (m_rb - m_rt)/m_h;
-	const double s = sqrt(1.0 + slope);
-	const double delta = dx/2;
-
-	double h = m_h + dx; // 2*delta = dx
-	double rb = m_rb + (s + slope)*delta;
-	double rt = m_rt + (s - slope)*delta;
-
-	if (rt < 0) {
-		rt = 0;
-		h = (m_rb - delta*s)/slope - delta;
-	}
-
-	const double volume = M_PI*h/3.0*(rb*rb + rb*rt + rt*rt);
-	return volume;
+	return Expand(dx).Volume();
 }
 
 
 void
-Cone::SetInertia(const double dx)
+Cone::SetInertia(double *inertia) const
 {
-	// See Cone::FillIn for the math behind the h, rb and rt computations
+	const double d = 20.0*M_PI*(m_rb*m_rt + m_rb*m_rb + m_rt*m_rt);
+	const double n1 = 2.0*m_h*m_h*(m_rb*m_rb + 3.0*m_rb*m_rt + 6.0*m_rt*m_rt);
+	const double n2 = 3.0*(m_rb*m_rb*m_rb*m_rt + m_rb*m_rb*m_rt*m_rt + m_rb*m_rt*m_rt*m_rt + m_rb*m_rb*m_rb*m_rb + m_rt*m_rt*m_rt*m_rt);
 
-	const double slope = (m_rb - m_rt)/m_h;
-	const double s = sqrt(1.0 + slope);
-	const double delta = dx/2;
+	inertia[0] = m_mass*(n1 + n2)/d;
+	inertia[1] = m_inertia[0];
+	inertia[2] = 2.0*n2*m_mass/d;
+}
 
-	double h = m_h + dx; // 2*delta = dx
-	double rb = m_rb + (s + slope)*delta;
-	double rt = m_rt + (s - slope)*delta;
+void
+Cone::SetInertia(double dx)
+{
+	Expand(dx).SetInertia(m_inertia);
 
-	if (rt < 0) {
-		rt = 0;
-		h = (m_rb - delta*s)/slope - delta;
-	}
-
-	const double d = 20.0*M_PI*(rb*rt + rb*rb + rt*rt);
-	const double n1 = 2.0*h*h*(rb*rb + 3.0*rb*rt + 6.0*rt*rt);
-	const double n2 = 3.0*(rb*rb*rb*rt + rb*rb*rt*rt + rb*rt*rt*rt + rb*rb*rb*rb + rt*rt*rt*rt);
-
-	m_inertia[0] = m_mass*(n1 + n2)/d;
-	m_inertia[1] = m_inertia[0];
-	m_inertia[2] = 2.0*n2*m_mass/d;
-
-	std::cout << "Inertia: " << m_inertia[0] << " " << m_inertia[1] << " " << m_inertia[2] << "\n";
-
+	std::cout << "Cone Inertia: " << m_inertia[0] << " " << m_inertia[1] << " " << m_inertia[2] << "\n";
 }
 
 void Cone::setEulerParameters(const EulerParameters &ep)
@@ -232,94 +299,11 @@ Cone::FillIn(PointVect& points, const double dx, const int layers)
 	const int lmin = layers < 0 ? layers + 1 : 0;
 	const int lmax = layers < 0 ? 0 : layers - 1;
 
-	// For the cone, there is a complexity associated with the nesting.
-	// Take the triangular cross-section of the Cone.
-	// In the general case, this is an isosceles trapezium with bases 2*m_rb, 2*m_rt and height m_h.
-	// The nested figure must have m_h reduced (increased, for negative layers) by 2*dx (one dx per base) per layer.
-	// The sides must also move inside (outside, for negative layers) by 2*dx (each) per layer.
-	// How much do m_rb, m_rt change then?
-	// Let's call B, T the centers of the bottom and top base, and C, D the points where the bases respectively meet one of the sides,
-	// so that B C D T is the right trapezium that is half of the original isosceles trapezium.
-	// This trapezium is described by the lines:
-	// y = By (bottom)
-	// y = Ty (top)
-	// (x - Cx)/(Dx - Cx) = (y - Cy)/(Dy - Cy) (oblique side)
-	// y = By (right side)
-	// with the additional conditions:
-	// Tx = Bx
-	// Ty = By + m_h
-	// Cx = Bx + m_rb
-	// Cy = By
-	// Dx = Tx + m_rt = Bx + m_rt
-	// Dy = Ty = By + m_h
-	// and for simplicity we can take Bx = By = 0
-	//
-	// The oblique side can also be written
-	// (Dy - Cy)(x - Cx) = (Dx - Cx)(y - Cy)
-	// or
-	// m_h (x - m_rb) = (m_rt - m_rb) y
-	// and finally
-	// m_h x - (m_rt - m_rb) y - m_h m_rb = 0
-	// Assuming m_h ≠ 0 and letting slope = (m_rt - m_rb)/m_h, this reduces to:
-	// x - slope y - m_rb = 0
-	//
-	// If ∆ is the nesting distance, the top and bottom are shifted by +∆, -∆ respectively.
-	// For the oblique side, we need to find a prallel line with distance ∆, i.e. with
-	// a coefficient K such that ∆ = (K + m_rb)/sqrt(1 + slope)
-	// that solves to K = ∆ sqrt(1 + slope) - m_rb
-	// The new oblique side equation is thus
-	// x = slope y + ∆ sqrt(1 + slope) + m_rb
-	// to be paired with y = B'y, y = T'y respectively,
-	// where B'y = ∆ and T'y = Ty - ∆ = m_h - ∆
-	//
-	// This gives us C'x = slope ∆ + ∆ sqrt(1+slope) + m_rb
-	// and D'x = slope (m_h - ∆) + ∆ sqrt(1+slope) + m_rb
-	//
-	// The new radii are:
-	// rb' = m_rb + (sqrt(1+slope) + slope) * ∆
-	// rt' = m_rb + slope*m_h - (sqrt(1+slope) - slope) * ∆ = m_rt + (sqrt(1+slope) - slope)*∆
-	//
-	// (note that depending on direction the actual sign for ∆ might be positive or negative)
-	//
-	// If any of the new radii is negative, it means that x = slope y + ∆ sqrt(1 + slope) +  m_rb
-	// hits the x = 0 line before the base, at the special point
-	//
-	// y = -( m_rb + ∆ sqrt(1 + slope) ) / slope
-	//
-	// In this case, the actual height should be adjusted to the distance between the remaining base
-	// and the new point. NOTE: since we always have m_rb > m_rt, this can only happen on the top side,
-	// in which
-
-	const double slope = (m_rb - m_rt)/m_h;
-	const double s = sqrt(1.0 + slope);
-
 	for (int l = lmin; l <= lmax; l++) {
-
-		const double delta = l*dx;
-		const Point smaller_origin = m_origin + Vector(0, 0, delta);
-
-		double smaller_rb = m_rb - (s + slope)*delta;
-		double smaller_rt = m_rt - (s - slope)*delta;
-		double smaller_h = m_h - 2*delta;
-
-		// The m_rt == 0 condition is to ensure that when expanding a pointy cone,
-		// our expansion is still pointy.
-		// TODO FIXME this should be an option (see e.g. SVG miter limit)
-		// since for thin cones this may lead to very tall pointy envelopes.
-		// OTOH, this is for outer borders, so maybe we don't have to worry?
-		if (m_rt == 0 || smaller_rt < 0) {
-			smaller_rt = 0;
-			smaller_h = ( m_rb - delta*s ) / slope - delta;
-		}
-
-		Cone(smaller_origin, smaller_rb, smaller_rt, smaller_h, m_ep).
-			FillBorder(points, dx, true, true);
-
+		// notice the - sign, since negative layers expand
+		Expand(-2*l*dx).FillBorder(points, dx, true, true);
 	}
 }
-
-
-
 
 int
 Cone::Fill(PointVect& points, const double dx, const bool fill)
@@ -340,19 +324,24 @@ Cone::Fill(PointVect& points, const double dx, const bool fill)
 
 
 bool
-Cone::IsInside(const Point& p, const double dx) const
+Cone::IsInside(const Point& p) const
 {
 	Point lp = m_ep.TransposeRot(p - m_origin);
-	const double h = m_h + dx;
 	bool inside = false;
 	const double z = lp(2);
-	if (z > -dx && z < h) {
-		const double r = m_rb - z*tan(m_halfaperture) + dx;
+	if (z > 0  && z < m_h) {
+		const double r = m_rb - z*tan(m_halfaperture);
 		if (lp(0)*lp(0) + lp(1)*lp(1) < r*r)
 			inside = true;
 	}
 
 	return inside;
+}
+
+bool
+Cone::IsInside(const Point& p, const double dx) const
+{
+	return Expand(dx).IsInside(p);
 }
 
 #if USE_CHRONO == 1

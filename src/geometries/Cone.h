@@ -42,6 +42,24 @@ class Cone: public Object {
 		double	m_h;
 		double	m_hg;
 		double	m_halfaperture;
+		double	m_slope;
+		double	m_s; // sqrt(1 + m_slope)
+
+	protected:
+		//! Create a new cone obtained expanding this one by the given amount
+		//! The expansion shifts the side and both of the bases by dx/2
+		//! perpendicularly to themselves.
+		Cone	Expand(double dx) const;
+
+		//! Volume of unexpanded cone
+		double	Volume() const;
+
+		//! Store main moments of inertia of unexpanded cone in the referenced array
+		void	SetInertia(double *intertia) const;
+		void	SetInertia() { SetInertia(m_inertia); }
+
+		//! Check if the given Point is inside the code
+		bool	IsInside(Point const& p) const;
 
 	public:
 		Cone(void);
