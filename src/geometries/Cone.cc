@@ -282,6 +282,9 @@ Cone::FillIn(PointVect& points, const double dx, const int layers)
 
 		// The m_rt == 0 condition is to ensure that when expanding a pointy cone,
 		// our expansion is still pointy.
+		// TODO FIXME this should be an option (see e.g. SVG miter limit)
+		// since for thin cones this may lead to very tall pointy envelopes.
+		// OTOH, this is for outer borders, so maybe we don't have to worry?
 		if (m_rt == 0 || smaller_rt < 0) {
 			smaller_rt = 0;
 			smaller_h = ( m_rb - delta*s ) / slope - delta;

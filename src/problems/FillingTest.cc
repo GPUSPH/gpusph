@@ -169,10 +169,12 @@ FillingTest::FillingTest(GlobalData *gdata) :
 	auto cone_s = sqrt(1.0 + cone_slope);
 	auto cone_radius_reduced  = cone_radius - (cone_s + cone_slope)*shift;
 	auto cone_radius_expanded = cone_radius + (cone_s + cone_slope)*shift;
+	auto cone_height_reduced  = (cone_radius - shift*cone_s)/cone_slope - shift;
+	auto cone_height_expanded = (cone_radius + shift*cone_s)/cone_slope + shift;
 
-	auto fluid_cone = addCone(GT_FLUID, FT_SOLID, cone_bottom + Vector(0, 0, shift), cone_radius_reduced, 0, cone_height - double_shift);
+	auto fluid_cone = addCone(GT_FLUID, FT_SOLID, cone_bottom + Vector(0, 0, shift), cone_radius_reduced, 0, cone_height_reduced);
 	setEraseOperation(fluid_cone, ET_ERASE_NOTHING);
-	auto border_cone = addCone(GT_FIXED_BOUNDARY, FT_OUTER_BORDER, cone_bottom - Vector(0, 0, shift), cone_radius_expanded, 0, cone_height + double_shift);
+	auto border_cone = addCone(GT_FIXED_BOUNDARY, FT_OUTER_BORDER, cone_bottom - Vector(0, 0, shift), cone_radius_expanded, 0, cone_height_expanded);
 	setEraseOperation(border_cone, ET_ERASE_NOTHING);
 
 	addTestPoint(cone_bottom);
