@@ -138,9 +138,20 @@ Cone::Cone(const Point& center, const Vector& radiusbottom, const Vector& radius
 double
 Cone::Volume(const double dx) const
 {
-	const double h = m_h + dx;
-	const double rb = m_rb + dx/2.0;
-	const double rt = m_rt + dx/2.0;
+	// See Cone::FillIn for the math behind the h, rb and rt computations
+
+	const double slope = (m_rb - m_rt)/m_h;
+	const double s = sqrt(1.0 + slope);
+	const double delta = dx/2;
+
+	double h = m_h + dx; // 2*delta = dx
+	double rb = m_rb + (s + slope)*delta;
+	double rt = m_rt + (s - slope)*delta;
+
+	if (rt < 0) {
+		rt = 0;
+		h = (m_rb - delta*s)/slope - delta;
+	}
 
 	const double volume = M_PI*h/3.0*(rb*rb + rb*rt + rt*rt);
 	return volume;
@@ -150,9 +161,20 @@ Cone::Volume(const double dx) const
 void
 Cone::SetInertia(const double dx)
 {
-	const double h = m_h + dx;
-	const double rb = m_rb + dx/2.0;
-	const double rt = m_rt + dx/2.0;
+	// See Cone::FillIn for the math behind the h, rb and rt computations
+
+	const double slope = (m_rb - m_rt)/m_h;
+	const double s = sqrt(1.0 + slope);
+	const double delta = dx/2;
+
+	double h = m_h + dx; // 2*delta = dx
+	double rb = m_rb + (s + slope)*delta;
+	double rt = m_rt + (s - slope)*delta;
+
+	if (rt < 0) {
+		rt = 0;
+		h = (m_rb - delta*s)/slope - delta;
+	}
 
 	const double d = 20.0*M_PI*(rb*rt + rb*rb + rt*rt);
 	const double n1 = 2.0*h*h*(rb*rb + 3.0*rb*rt + 6.0*rt*rt);
