@@ -1788,7 +1788,9 @@ int ProblemAPI<1>::fill_parts(bool fill)
 		bool del_bound = (m_geometries[g]->erase_operation == ET_ERASE_BOUNDARY);
 		if (m_geometries[g]->erase_operation == ET_ERASE_ALL) del_fluid = del_bound = true;
 
-		double unfill_dx = dx; // or, dp also if (r0!=dp)?
+		double unfill_dx = Object::get_default_filling_method() == Object::BORDER_CENTERED
+			? dx // or, dp also if (r0!=dp)?
+			: 0;
 		if (!std::isnan(m_geometries[g]->unfill_radius))
 			unfill_dx = m_geometries[g]->unfill_radius;
 		// erase operations with existent geometries

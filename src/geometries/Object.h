@@ -117,8 +117,11 @@ public:
 	public:
 		//! Set the number of world dimensions —must be only used once
 		static void set_world_dimensions(int dim);
-		//! Set the default filling method —mustbe only used once
+		//! Set the default filling method —must be only used once
 		static void set_default_filling_method(FillingMethod filling_method);
+		//! Get the default filling method
+		static FillingMethod get_default_filling_method()
+		{ return default_filling_method; }
 
 		Object(void) {
 			m_body = NULL;
