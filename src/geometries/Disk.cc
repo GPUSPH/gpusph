@@ -159,14 +159,15 @@ Disk::FillIn3D(PointVect &points, const double dx, const int layers)
 	Vector unitshift = m_ep.Rot(Vector(0, 0, 1));
 	if (layers < 0) unitshift = -unitshift;
 
-	Fill(points, dx, true);
-
-	// NOTE: pre-decrementing causes (_layers-1) layers to be filled. This
-	// is correct since the first layer was already filled
-	while (--_layers > 0) {
-		Disk layer(m_center + dx*_layers*unitshift, m_r, m_ep);
-		layer.SetPartMass(m_center(3));
-		layer.Fill(points, dx, true);
+	const double fill_radius = default_filling_method == BORDER_CENTERED
+		? m_r : m_r - dx/2;
+	const Point initial_fill_center =
+		default_filling_method == BORDER_CENTERED ? m_center :
+		layers < 0 ? m_center - m_ep.Rot(Point(0, 0, dx/2)) :
+		/* layers > 0 */ m_center + m_ep.Rot(Point(0, 0, dx/2)) ;
+	while (_layers-- > 0) {
+		const Point fill_center = initial_fill_center + dx*_layers*unitshift;
+		FillDisk(points, m_ep, fill_center, 0.0, fill_radius, 0.0, dx, true);
 	}
 }
 
@@ -203,7 +204,12 @@ Disk::FillBorder(PointVect& points, const double dx)
 int
 Disk::Fill(PointVect& points, const double dx, const bool fill)
 {
-	return FillDisk(points, m_ep, m_center, 0.0, m_r, 0.0, dx, fill);
+	const double fill_radius = default_filling_method == BORDER_CENTERED
+		? m_r : m_r - dx/2;
+	const Point fill_center =
+		(world_dimensions == 2 || default_filling_method == BORDER_CENTERED)
+		? m_center : m_center + m_ep.Rot(Point(0, 0, dx/2));
+	return FillDisk(points, m_ep, fill_center, 0.0, fill_radius, 0.0, dx, fill);
 }
 
 
