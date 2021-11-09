@@ -290,8 +290,8 @@ class ProblemAPI<1> : public ProblemCore
 		 */
 		double m_maxParticleSpeed;
 
-		// number of layers for filling dynamic boundaries
-		uint m_numDynBoundLayers;
+		// number of layers for filling boundaries
+		uint m_numBoundLayers;
 
 
 	protected:
@@ -487,10 +487,25 @@ class ProblemAPI<1> : public ProblemCore
 		//! Get the inter-particle spacing based on the geometry type
 		double preferredDeltaP(GeometryType type);
 
-		// set number of layers for dynamic boundaries. Default is 0, which means: autocompute
-		void setDynamicBoundariesLayers(const uint numLayers);
+		//! Set the number of boundary layers
+		//! This should be 1 for single-layer boundary models,
+		//! and large enough to cover the influence radius for multi-layer boundary models
+		//! such as DYN_BOUNDARY or DUMMY_BOUNDARY
+		void setNumBoundaryLayers(const uint numLayers);
+
+		//! Get the number of boundary layers
+		//! This is auto-computed from the boundary model if not set via setNumBoundaryLayers
+		uint getNumBoundaryLayers();
+
+		// set number of layers for boundaries. Default is 0, which means: autocompute
+		void setDynamicBoundariesLayers(const uint numLayers)
+		GPUSPH_DEPRECATED_MSG("setDynamicBoundariesLayers is depreacted in favor of setNumBoundaryLayers")
+		{ setNumBoundaryLayers(numLayers); }
+
 		// get number of layers for dynamic boundaries (autocomputing it if necessary)
-		uint getDynamicBoundariesLayers();
+		uint getDynamicBoundariesLayers()
+		GPUSPH_DEPRECATED_MSG("getDynamicBoundariesLayers is depreacted in favor of getNumBoundaryLayers")
+		{ return getNumBoundaryLayers(); }
 
 		//! callback for filtering out points before they become particles during
 		//! GPUSPH internal pre-processing
@@ -509,7 +524,12 @@ class ProblemAPI<1> : public ProblemCore
 		void copy_to_array(BufferList &buffers);
 		void release_memory();
 
-		uint suggestedDynamicBoundaryLayers();
+		//! Get the number of boundary layers suggested by the boundary model
+		uint suggestedNumBoundaryLayers();
+
+		uint suggestedDynamicBoundaryLayers()
+		GPUSPH_DEPRECATED_MSG("suggestedDynamicBoundariesLayers is depreacted in favor of suggestedNumBoundaryLayers")
+		{ return suggestedNumBoundaryLayers(); }
 
 		// will probably implement a smart, general purpose one
 		// void fillDeviceMap();

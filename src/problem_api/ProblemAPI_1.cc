@@ -69,7 +69,7 @@ ProblemAPI<1>::ProblemAPI(GlobalData *_gdata) : ProblemCore(_gdata)
 	m_numPlanes = 0;
 	m_numOpenBoundaries = 0;
 
-	m_numDynBoundLayers = 0;
+	m_numBoundLayers = 0;
 
 	m_extra_world_margin = 0.0;
 
@@ -105,9 +105,11 @@ void ProblemAPI<1>::release_memory()
 	}
 }
 
-uint ProblemAPI<1>::suggestedDynamicBoundaryLayers()
+uint ProblemAPI<1>::suggestedNumBoundaryLayers()
 {
-	return (uint)simparams()->get_influence_layers();
+	return simparams()->boundary_is_multilayer() ?
+		(uint)simparams()->get_influence_layers() :
+		1;
 }
 
 double ProblemAPI<1>::preferredDeltaP(GeometryType type)
@@ -270,24 +272,24 @@ bool ProblemAPI<1>::initialize()
 	const bool multilayer_boundary = simparams()->boundary_is_multilayer();
 
 	// compute the number of layers for dynamic boundaries, if not set
-	if (multilayer_boundary && m_numDynBoundLayers == 0) {
+	if (m_numBoundLayers == 0) {
 		// force autocomputation
-		m_numDynBoundLayers = getDynamicBoundariesLayers();
+		m_numBoundLayers = getNumBoundaryLayers();
 	}
 
 	// Increase the world dimensions for multi-layer boundaries in directions without periodicity
 	if (simparams()->boundary_is_multilayer()){
 		if (!(simparams()->periodicbound & PERIODIC_X)){
-			globalMin(0) -= (m_numDynBoundLayers-1)*m_deltap;
-			globalMax(0) += (m_numDynBoundLayers-1)*m_deltap;
+			globalMin(0) -= (m_numBoundLayers-1)*m_deltap;
+			globalMax(0) += (m_numBoundLayers-1)*m_deltap;
 		}
 		if (dims > 1 && !(simparams()->periodicbound & PERIODIC_Y)){
-			globalMin(1) -= (m_numDynBoundLayers-1)*m_deltap;
-			globalMax(1) += (m_numDynBoundLayers-1)*m_deltap;
+			globalMin(1) -= (m_numBoundLayers-1)*m_deltap;
+			globalMax(1) += (m_numBoundLayers-1)*m_deltap;
 		}
 		if (dims > 2 && !(simparams()->periodicbound & PERIODIC_Z)){
-			globalMin(2) -= (m_numDynBoundLayers-1)*m_deltap;
-			globalMax(2) += (m_numDynBoundLayers-1)*m_deltap;
+			globalMin(2) -= (m_numBoundLayers-1)*m_deltap;
+			globalMax(2) += (m_numBoundLayers-1)*m_deltap;
 		}
 	}
 
@@ -1655,20 +1657,17 @@ void ProblemAPI<1>::setDEMNormalDisplacement(double demdx, double demdy)
 
 
 // set number of layers for dynamic boundaries. Default is 0, which means: autocompute
-void ProblemAPI<1>::setDynamicBoundariesLayers(const uint numLayers)
+void ProblemAPI<1>::setNumBoundaryLayers(const uint numLayers)
 {
-	if (!simparams()->boundary_is_multilayer())
-		printf("WARNING: setting number of layers for dynamic boundaries but not using neither DYN_BOUNDARY nor DUMMY_BOUNDARY!\n");
-
-	if (m_numDynBoundLayers != 0 && numLayers != m_numDynBoundLayers)
+	if (m_numBoundLayers != 0 && numLayers != m_numBoundLayers)
 		printf("WARNING: resetting number of layers");
 
-	const uint suggestedNumLayers = suggestedDynamicBoundaryLayers();
+	const uint suggestedNumLayers = suggestedNumBoundaryLayers();
 	if (numLayers > 0 && numLayers < suggestedNumLayers)
-		printf("WARNING: number of layers for dynamic boundaries is low (%u), suggested number is %u\n",
+		printf("WARNING: number of layers for boundaries is low (%u), suggested number is %u\n",
 			numLayers, suggestedNumLayers);
 
-	m_numDynBoundLayers = numLayers;
+	m_numBoundLayers = numLayers;
 }
 
 
@@ -1696,13 +1695,13 @@ bool is_above(::chrono::ChVector<> p1, ::chrono::ChVector<> p2, ::chrono::ChVect
 #endif
 
 
-uint ProblemAPI<1>::getDynamicBoundariesLayers()
+uint ProblemAPI<1>::getNumBoundaryLayers()
 {
-	if (m_numDynBoundLayers == 0) {
-		m_numDynBoundLayers = suggestedDynamicBoundaryLayers();
-		printf("Number of dynamic boundary layers not set, autocomputed: %u\n", m_numDynBoundLayers);
+	if (m_numBoundLayers == 0) {
+		m_numBoundLayers = suggestedNumBoundaryLayers();
+		printf("Number of dynamic boundary layers not set, autocomputed: %u\n", m_numBoundLayers);
 	}
-	return m_numDynBoundLayers;
+	return m_numBoundLayers;
 }
 
 int ProblemAPI<1>::fill_parts(bool fill)
@@ -1819,10 +1818,7 @@ int ProblemAPI<1>::fill_parts(bool fill)
 					fill_in_sign =-1 ;
 					/* fallthrough */
 				case FT_INNER_BORDER:
-					if (simparams()->boundary_is_multilayer())
-						m_geometries[g]->ptr->FillIn(*parts_vector, dx, fill_in_sign*m_numDynBoundLayers);
-					else
-						m_geometries[g]->ptr->FillBorder(*parts_vector, dx);
+					m_geometries[g]->ptr->FillIn(*parts_vector, dx, fill_in_sign*m_numBoundLayers);
 					break;
 				case FT_SOLID:
 					m_geometries[g]->ptr->Fill(*parts_vector, dx);
