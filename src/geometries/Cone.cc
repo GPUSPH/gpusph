@@ -219,7 +219,11 @@ Cone::Expand(double dx) const
 		h = (m_rb + m_s*delta)/m_slope + delta;
 	}
 
-	return Cone(m_origin - Vector(0, 0, delta), rb, rt, h, m_ep);
+	// TODO FIXME the origin shift should probably be computed based on the rotation
+	Cone ret(m_origin - Vector(0, 0, delta), rb, rt, h, m_ep);
+	// copy mass
+	ret.m_center(3) = m_center(3);
+	return ret;
 }
 
 double
@@ -299,20 +303,23 @@ Cone::FillIn(PointVect& points, const double dx, const int layers)
 	const int lmin = layers < 0 ? layers + 1 : 0;
 	const int lmax = layers < 0 ? 0 : layers - 1;
 
+	const double offset = default_filling_method == BORDER_CENTERED ? 0 :
+		layers < 0 ? dx : -dx;
 	for (int l = lmin; l <= lmax; l++) {
 		// notice the - sign, since negative layers expand
-		Expand(-2*l*dx).FillBorder(points, dx, true, true);
+		Expand(offset - 2*l*dx).FillBorder(points, dx, true, true);
 	}
 }
 
 int
-Cone::Fill(PointVect& points, const double dx, const bool fill)
+Cone::FillBorderCentered(PointVect& points, const double dx, const bool fill)
 {
 	m_origin(3) = m_center(3);
 	int nparts = 0;
 	const int nz = (int) ceil(m_h/dx);
 	const double dz = m_h/nz;
 	const double dz_tan = dz*tan(m_halfaperture);
+
 	for (int i = 0; i <= nz; i++) {
 		// due to FMA, m_rb - i*dz_tan may actually become negative. clamp to zero
 		const double r = fmax(m_rb - i*dz_tan, 0.0);
@@ -322,6 +329,14 @@ Cone::Fill(PointVect& points, const double dx, const bool fill)
 	return nparts;
 }
 
+int
+Cone::Fill(PointVect& points, const double dx, const bool fill)
+{
+	if (default_filling_method == BORDER_CENTERED)
+		return FillBorderCentered(points, dx, fill);
+	else
+		return Expand(-dx).FillBorderCentered(points, dx, fill);
+}
 
 bool
 Cone::IsInside(const Point& p) const

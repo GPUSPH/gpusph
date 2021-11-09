@@ -61,6 +61,9 @@ class Cone: public Object {
 		//! Check if the given Point is inside the code
 		bool	IsInside(Point const& p) const;
 
+		//! Border-centered Fill
+		int		FillBorderCentered(PointVect& points, const double dx, const bool fill);
+
 	public:
 		Cone(void);
 		Cone(const Point&, const double, const double, const Vector&);
