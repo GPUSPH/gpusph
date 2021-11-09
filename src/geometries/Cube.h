@@ -109,8 +109,7 @@ class Cube: public Object {
 		 * 				count the number of particles
 		 * 	\return the number of particles used in the fill
 		 */
-		int Fill(PointVect& points, const double dx, const bool fill = true)
-		{ return Fill(points, dx, true, fill);}
+		int Fill(PointVect& points, const double dx, const bool fill = true);
 		void InnerFill(PointVect&, const double);
 		void FillOut(PointVect&, const double, const int, const bool);
 		void FillIn(PointVect&, const double, const int, const bool);

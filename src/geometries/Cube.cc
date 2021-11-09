@@ -449,6 +449,22 @@ Cube::Fill(PointVect& points, const double dx, const bool fill_faces, const bool
 	return nparts;
 }
 
+int
+Cube::Fill(PointVect& points, const double dx, const bool fill)
+{
+	if (default_filling_method == BORDER_CENTERED)
+		return Fill(points, dx, true, fill);
+	else {
+		// TODO FIXME account for rotations
+		Cube clone(m_origin + Vector(dx/2, dx/2, dx/2),
+			m_lx - dx, m_ly - dx, m_lz - dx,
+			m_nels.x, m_nels.y, m_nels.z, m_ep);
+		// copy mass
+		clone.m_center(3) = m_center(3);
+		return clone.Fill(points, dx, true, fill);
+	}
+}
+
 
 /// Fill the inner part of the cube, starting at dx/2 from the boundary
 /* Fill the  inner part of the cube (i.e the cube excluding
@@ -559,7 +575,17 @@ Cube::FillOut(PointVect& points, const double dx, const int layers, const bool f
 void
 Cube::FillIn(PointVect& points, const double dx, const int layers)
 {
-	FillIn(points, dx, layers, true);
+	if (default_filling_method == BORDER_CENTERED)
+		FillIn(points, dx, layers, true);
+	else {
+		double expand = layers > 0 ? dx : -dx;
+		Cube clone(m_origin + Vector(expand/2, expand/2, expand/2),
+			m_lx - expand, m_ly - expand, m_lz - expand,
+			m_nels.x, m_nels.y, m_nels.z, m_ep);
+		// copy mass
+		clone.m_center(3) = m_center(3);
+		return clone.FillIn(points, dx, layers, true);
+	}
 }
 
 
