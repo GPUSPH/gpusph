@@ -298,6 +298,9 @@ class ProblemAPI<1> : public ProblemCore
 		// methods for creation of new objects
 		GeometryID addRect(const GeometryType otype, const FillType ftype, const Point &origin,
 			const double side1, const double side2);
+		GeometryID addRect(const GeometryType otype, const FillType ftype, const Point &origin,
+			const double side)
+		{ return addRect(otype, ftype, origin, side, side); }
 		GeometryID addDisk(const GeometryType otype, const FillType ftype, const Point &origin,
 			const double radius);
 		GeometryID addCube(const GeometryType otype, const FillType ftype, const Point &origin,
