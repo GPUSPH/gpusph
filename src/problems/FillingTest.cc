@@ -36,8 +36,14 @@ FillingTest::FillingTest(GlobalData *gdata) :
 	Problem(gdata)
 {
 	const bool test_fillin = get_option("test-fillin", false);
+	// 0 = autocompute
+	const uint boundary_layers = get_option("boundary-layers", 0);
 
 	setup_framework();
+
+	if (boundary_layers > 0)
+		setNumBoundaryLayers(boundary_layers);
+
 	// we only care about seeing the result
 	gdata->maxiter = 1;
 
