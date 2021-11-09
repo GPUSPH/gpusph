@@ -142,9 +142,11 @@ Torus::FillIn(PointVect& points, const double dx, const int layers)
 	const int lmin = layers < 0 ? layers + 1 : 0;
 	const int lmax = layers < 0 ? 0 : layers - 1;
 
+	const double fill_radius = default_filling_method == BORDER_CENTERED ? m_r :
+		m_r + (layers < 0 ? dx/2 : -dx/2);
 	// TODO FIXME check for extreme cases that result in filling or overlaps in the inner rings
 	for (int l = lmin; l <= lmax; ++l) {
-		Torus inner = Torus(m_center, m_R, m_r - l*dx, m_ep);
+		Torus inner = Torus(m_center, m_R, fill_radius - l*dx, m_ep);
 		inner.FillBorder(points, dx);
 	}
 }
