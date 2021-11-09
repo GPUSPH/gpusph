@@ -330,6 +330,14 @@ FillingTest::FillingTest(GlobalData *gdata) :
 	addTestPoint(rect_center + Vector(rect_side/2, rect_side/2, 0));
 	addTestPoint(rect_center - Vector(rect_side/2, rect_side/2, 0));
 
+	if (test_fillin) {
+		auto inner_rect_side = box_side/2;
+		auto inner_rect = addRect(GT_FIXED_BOUNDARY, FT_INNER_BORDER, rect_center + Vector(0, 0, shift), inner_rect_side - double_shift, inner_rect_side - double_shift);
+
+		addTestPoint(rect_center + Vector(inner_rect_side/2, inner_rect_side/2, 0));
+		addTestPoint(rect_center - Vector(inner_rect_side/2, inner_rect_side/2, 0));
+	}
+
 	auto disk_center = stump_bottom - Vector(0, 0, box_side);
 	auto disk_radius = sphere_radius;
 	auto fluid_disk = addDisk(GT_FLUID, FT_SOLID, disk_center + Vector(0, 0, shift), disk_radius - shift);
@@ -342,6 +350,16 @@ FillingTest::FillingTest(GlobalData *gdata) :
 	addTestPoint(disk_center + Vector(disk_radius, 0, 0));
 	addTestPoint(disk_center - Vector(0, disk_radius, 0));
 	addTestPoint(disk_center - Vector(disk_radius, 0, 0));
+
+	if (test_fillin) {
+		auto inner_disk_radius = disk_radius/2;
+		auto inner_disk = addDisk(GT_FIXED_BOUNDARY, FT_INNER_BORDER, disk_center + Vector(0, 0, shift), inner_disk_radius - shift);
+
+		addTestPoint(disk_center + Vector(0, inner_disk_radius, 0));
+		addTestPoint(disk_center + Vector(inner_disk_radius, 0, 0));
+		addTestPoint(disk_center - Vector(0, inner_disk_radius, 0));
+		addTestPoint(disk_center - Vector(inner_disk_radius, 0, 0));
+	}
 
 	// Test rect and disk rotation: this is annoying because the shift must take the rotation in consideration, but is given BEFORE
 	// NOTE: we actually have two shifts, one of which is simply to compensate the fact that Rects don't rotate around the center
