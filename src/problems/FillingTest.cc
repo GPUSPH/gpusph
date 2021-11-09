@@ -54,7 +54,7 @@ FillingTest::FillingTest(GlobalData *gdata) :
 	set_deltap(1.0);
 
 	// The basics: a filled box.
-	const double box_side = 16.0;
+	const double box_side = 32.0;
 
 	// The default filling method is “border-centered”, in the sense that the particles of the first layer
 	// have their centers on the border.
@@ -96,6 +96,8 @@ FillingTest::FillingTest(GlobalData *gdata) :
 	addTestPoint(sphere_center);
 	addTestPoint(sphere_center + Vector(0, 0, sphere_radius));
 	addTestPoint(sphere_center - Vector(0, 0, sphere_radius));
+	addTestPoint(sphere_center + Vector(0, sphere_radius, 0));
+	addTestPoint(sphere_center - Vector(0, sphere_radius, 0));
 
 	// While in centered mode, also add couple of torii. These are larger figures, spanning the two columns or rows of other geomtries
 
