@@ -287,7 +287,16 @@ Rect::Fill(PointVect& points, const double dx, const bool fill_edges, const bool
 int
 Rect::Fill(PointVect& points, const double dx, const bool fill)
 {
-	return Fill(points, dx, true, fill);
+	if (default_filling_method == BORDER_CENTERED)
+		return Fill(points, dx, true, fill);
+	else {
+		const double dz2 = world_dimensions == 3 ? dx/2 : 0;
+		Rect clone(m_origin + m_ep.Rot( Vector(dx/2, dx/2, dz2) ),
+			m_lx - dx, m_ly - dx, m_ep);
+		// copy mass
+		clone.m_center(3) = m_center(3);
+		return clone.Fill(points, dx, true, fill);
+	}
 }
 
 
@@ -642,12 +651,12 @@ Rect::FillIn3D(PointVect &points, const double dx, const int layers)
 	Vector unitshift(layers > 0 ? m_vz : -m_vz);
 	unitshift.normalize();
 
-	Fill(points, dx, true);
-
-	// NOTE: pre-decrementing causes (_layers-1) layers to be filled. This
-	// is correct since the first layer was already filled
-	while (--_layers > 0) {
-		Rect layer(m_origin + dx*_layers*unitshift, m_vx, m_vy);
+	const double dz2 = layers < 0 ? -dx : 0;
+	const Point initial_fill_center =
+		default_filling_method == BORDER_CENTERED ? m_origin
+		: m_origin + m_ep.Rot( Vector(0, 0, dz2) );
+	while (_layers-- > 0) {
+		Rect layer(initial_fill_center + dx*_layers*unitshift, m_vx, m_vy);
 		layer.SetPartMass(m_center(3));
 		layer.Fill(points, dx, true);
 	}
