@@ -214,6 +214,31 @@ FillingTest::FillingTest(GlobalData *gdata) :
 	addTestPoint(stump_bottom + Vector(0, stump_radius_top, stump_height));
 	addTestPoint(stump_bottom + Vector(0, -stump_radius_top, stump_height));
 
+	// Test rect and disks
+
+	auto rect_center = cone_bottom - Vector(0, 0, sphere_radius);
+	auto rect_side = box_side;
+	auto fluid_rect = addRect(GT_FLUID, inner_filltype, rect_center + Vector(0, 0, shift), rect_side - double_shift, rect_side - double_shift);
+	setEraseOperation(fluid_rect, ET_ERASE_NOTHING);
+	auto border_rect = addRect(GT_FIXED_BOUNDARY, FT_OUTER_BORDER, rect_center - Vector(0, 0, shift), rect_side - double_shift, rect_side - double_shift);
+	setEraseOperation(border_rect, ET_ERASE_NOTHING);
+
+	addTestPoint(rect_center);
+	addTestPoint(rect_center + Vector(rect_side/2, rect_side/2, 0));
+	addTestPoint(rect_center - Vector(rect_side/2, rect_side/2, 0));
+
+	auto disk_center = stump_bottom - Vector(0, 0, sphere_radius);
+	auto disk_radius = sphere_radius;
+	auto fluid_disk = addDisk(GT_FLUID, inner_filltype, disk_center + Vector(0, 0, shift), disk_radius - shift);
+	setEraseOperation(fluid_disk, ET_ERASE_NOTHING);
+	auto border_disk = addDisk(GT_FIXED_BOUNDARY, FT_OUTER_BORDER, disk_center - Vector(0, 0, shift), disk_radius - shift);
+	setEraseOperation(border_disk, ET_ERASE_NOTHING);
+
+	addTestPoint(disk_center);
+	addTestPoint(disk_center + Vector(0, disk_radius, 0));
+	addTestPoint(disk_center + Vector(disk_radius, 0, 0));
+	addTestPoint(disk_center - Vector(0, disk_radius, 0));
+	addTestPoint(disk_center - Vector(disk_radius, 0, 0));
 
 }
 
