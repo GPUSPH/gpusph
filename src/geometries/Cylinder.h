@@ -42,6 +42,9 @@ class Cylinder: public Object {
 
 		uint3	m_nels;		///< number of fea elements in thickness, circumference and height 
 
+		//! Border-centered Fill
+		int		FillBorderCentered(PointVect& points, const double dx, const bool fill);
+
 	public:
 		Cylinder(void);
 		Cylinder(const Point&, const double, const Vector&);

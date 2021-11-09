@@ -171,7 +171,7 @@ Cylinder::FillBorder(PointVect& points, const double dx, const bool bottom, cons
 
 
 int
-Cylinder::Fill(PointVect& points, const double dx, const bool fill)
+Cylinder::FillBorderCentered(PointVect& points, const double dx, const bool fill)
 {
 	m_origin(3) = m_center(3);
 	int nparts = 0;
@@ -183,10 +183,39 @@ Cylinder::Fill(PointVect& points, const double dx, const bool fill)
 	return nparts;
 }
 
+int
+Cylinder::Fill(PointVect& points, const double dx, const bool fill)
+{
+	if (default_filling_method == BORDER_CENTERED)
+		return FillBorderCentered(points, dx, fill);
+	else {
+		const double offset = -dx;
+		// TODO FIXME account for rotations
+		Cylinder clone(m_origin - Vector(0, 0, offset/2),
+			m_r + offset/2, m_ri - offset/2, m_h + offset,
+			m_nels.x, m_nels.y, m_nels.z, m_ep);
+		// copy mass
+		clone.m_center(3) = m_center(3);
+		return clone.FillBorderCentered(points, dx, fill);
+	}
+
+}
+
 void
 Cylinder::FillIn(PointVect& points, const double dx, const int layers)
 {
-	FillIn(points, dx, layers, true);
+	if (default_filling_method == BORDER_CENTERED)
+		FillIn(points, dx, layers, true);
+	else {
+		const double offset = layers < 0 ? dx : -dx;
+		// TODO FIXME account for rotations
+		Cylinder clone(m_origin - Vector(0, 0, offset/2),
+			m_r + offset/2, m_ri - offset/2, m_h + offset,
+			m_nels.x, m_nels.y, m_nels.z, m_ep);
+		// copy mass
+		clone.m_center(3) = m_center(3);
+		clone.FillIn(points, dx, layers, true);
+	}
 }
 
 
