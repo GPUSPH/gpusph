@@ -39,6 +39,11 @@ FillingTest::FillingTest(GlobalData *gdata) :
 	// 0 = autocompute
 	const uint boundary_layers = get_option("boundary-layers", 0);
 
+	const bool fill_tangent = get_option("tangent-filling-method", false);
+
+	if (fill_tangent)
+		setFillingMethod(Object::BORDER_TANGENT);
+
 	setup_framework();
 
 	if (boundary_layers > 0)
@@ -64,8 +69,8 @@ FillingTest::FillingTest(GlobalData *gdata) :
 	// The default filling method is “border-centered”, in the sense that the particles of the first layer
 	// have their centers on the border.
 	// This requires us to shift the geometries so that they don't interfere with each other
-	const double shift = m_deltap/2;
-	const double double_shift = m_deltap; // 2*shift, needed to fix up the length of the box
+	const double shift = fill_tangent ? 0 : m_deltap/2;
+	const double double_shift = fill_tangent ? 0 : m_deltap; // 2*shift, needed to fix up the length of the box
 
 	// We also have to take positioning into consideration. The default is PP_CENTER, meaning that
 	// for the box we don't need to do any shifting. We set up two boxes,
