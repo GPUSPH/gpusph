@@ -154,7 +154,20 @@ Disk::FillIn2D(PointVect &points, const double dx, const int layers)
 void
 Disk::FillIn3D(PointVect &points, const double dx, const int layers)
 {
-	throw std::runtime_error("Disk::FillIn not implemented in 3D");
+	int _layers = abs(layers);
+
+	Vector unitshift = m_ep.Rot(Vector(0, 0, 1));
+	if (layers < 0) unitshift = -unitshift;
+
+	Fill(points, dx, true);
+
+	// NOTE: pre-decrementing causes (_layers-1) layers to be filled. This
+	// is correct since the first layer was already filled
+	while (--_layers > 0) {
+		Disk layer(m_center + dx*_layers*unitshift, m_r, m_ep);
+		layer.SetPartMass(m_center(3));
+		layer.Fill(points, dx, true);
+	}
 }
 
 
