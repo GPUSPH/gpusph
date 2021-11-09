@@ -214,9 +214,9 @@ FillingTest::FillingTest(GlobalData *gdata) :
 	addTestPoint(stump_bottom + Vector(0, stump_radius_top, stump_height));
 	addTestPoint(stump_bottom + Vector(0, -stump_radius_top, stump_height));
 
-	// Test rect and disks
+	// Test rect and disk
 
-	auto rect_center = cone_bottom - Vector(0, 0, sphere_radius);
+	auto rect_center = cone_bottom - Vector(0, 0, box_side);
 	auto rect_side = box_side;
 	auto fluid_rect = addRect(GT_FLUID, inner_filltype, rect_center + Vector(0, 0, shift), rect_side - double_shift, rect_side - double_shift);
 	setEraseOperation(fluid_rect, ET_ERASE_NOTHING);
@@ -227,7 +227,7 @@ FillingTest::FillingTest(GlobalData *gdata) :
 	addTestPoint(rect_center + Vector(rect_side/2, rect_side/2, 0));
 	addTestPoint(rect_center - Vector(rect_side/2, rect_side/2, 0));
 
-	auto disk_center = stump_bottom - Vector(0, 0, sphere_radius);
+	auto disk_center = stump_bottom - Vector(0, 0, box_side);
 	auto disk_radius = sphere_radius;
 	auto fluid_disk = addDisk(GT_FLUID, inner_filltype, disk_center + Vector(0, 0, shift), disk_radius - shift);
 	setEraseOperation(fluid_disk, ET_ERASE_NOTHING);
@@ -239,6 +239,70 @@ FillingTest::FillingTest(GlobalData *gdata) :
 	addTestPoint(disk_center + Vector(disk_radius, 0, 0));
 	addTestPoint(disk_center - Vector(0, disk_radius, 0));
 	addTestPoint(disk_center - Vector(disk_radius, 0, 0));
+
+	// Test rect and disk rotation: this is annoying because the shift must take the rotation in consideration, but is given BEFORE
+	// NOTE: we actually have two shifts, one of which is simply to compensate the fact that Rects don't rotate around the center
+	// In this case, it's better to apply the “inner fill” shift not at placement time but together with the rotation correction,
+	// and it must take into consideration the fact that the object size has been reduced, so the center of rotation isn't the
+	// rect_side/2 from the center, but a shift-length less.
+
+	auto rot_rect_center_1 = torus_center_2 - Vector(0, box_side + sphere_radius, 3*box_side/2);
+	auto rot_rect_center_2 = rot_rect_center_1 + Vector(0, box_side, 0);
+
+	auto fluid_rot_rect_1 = addRect(GT_FLUID, inner_filltype, rot_rect_center_1, rect_side - double_shift, rect_side - double_shift);
+	rotate(fluid_rot_rect_1, M_PI/2, 0, 0);
+	Problem::shift(fluid_rot_rect_1, 0, rect_side/2, rect_side/2 - shift);
+	setEraseOperation(fluid_rot_rect_1, ET_ERASE_NOTHING);
+	auto border_rot_rect_1 = addRect(GT_FIXED_BOUNDARY, FT_OUTER_BORDER, rot_rect_center_1, rect_side - double_shift, rect_side - double_shift);
+	rotate(border_rot_rect_1, M_PI/2, 0, 0);
+	Problem::shift(border_rot_rect_1, 0, rect_side/2 - 2*shift, rect_side/2 - shift);
+	setEraseOperation(border_rot_rect_1, ET_ERASE_NOTHING);
+
+	addTestPoint(rot_rect_center_1);
+	addTestPoint(rot_rect_center_1 + Vector(rect_side/2, 0, rect_side/2));
+	addTestPoint(rot_rect_center_1 - Vector(rect_side/2, 0, rect_side/2));
+
+	auto fluid_rot_rect_2 = addRect(GT_FLUID, inner_filltype, rot_rect_center_2, rect_side - double_shift, rect_side - double_shift);
+	rotate(fluid_rot_rect_2, -M_PI/2, 0, 0);
+	Problem::shift(fluid_rot_rect_2, 0, rect_side/2 - 2*shift, -rect_side/2 + shift);
+	setEraseOperation(fluid_rot_rect_2, ET_ERASE_NOTHING);
+	auto border_rot_rect_2 = addRect(GT_FIXED_BOUNDARY, FT_OUTER_BORDER, rot_rect_center_2, rect_side - double_shift, rect_side - double_shift);
+	rotate(border_rot_rect_2, -M_PI/2, 0, 0);
+	Problem::shift(border_rot_rect_2, 0, rect_side/2, -rect_side/2 + shift);
+	setEraseOperation(border_rot_rect_2, ET_ERASE_NOTHING);
+
+	addTestPoint(rot_rect_center_2);
+	addTestPoint(rot_rect_center_2 + Vector(rect_side/2, 0, rect_side/2));
+	addTestPoint(rot_rect_center_2 - Vector(rect_side/2, 0, rect_side/2));
+
+	auto rot_disk_center_1 = rot_rect_center_2 + Vector(0, box_side, 0);
+	auto rot_disk_center_2 = rot_disk_center_1 + Vector(0, box_side, 0);
+
+	auto fluid_rot_disk_1 = addDisk(GT_FLUID, inner_filltype, rot_disk_center_1 + Vector(0, shift, 0), disk_radius - shift);
+	rotate(fluid_rot_disk_1, M_PI/2, 0, 0);
+	setEraseOperation(fluid_rot_disk_1, ET_ERASE_NOTHING);
+	auto border_rot_disk_1 = addDisk(GT_FIXED_BOUNDARY, FT_OUTER_BORDER, rot_disk_center_1 - Vector(0, shift, 0), disk_radius - shift);
+	rotate(border_rot_disk_1, M_PI/2, 0, 0);
+	setEraseOperation(border_rot_disk_1, ET_ERASE_NOTHING);
+
+	addTestPoint(rot_disk_center_1);
+	addTestPoint(rot_disk_center_1 + Vector(disk_radius, 0, 0));
+	addTestPoint(rot_disk_center_1 + Vector(0, 0, disk_radius));
+	addTestPoint(rot_disk_center_1 - Vector(disk_radius, 0, 0));
+	addTestPoint(rot_disk_center_1 - Vector(0, 0, disk_radius));
+
+	auto fluid_rot_disk_2 = addDisk(GT_FLUID, inner_filltype, rot_disk_center_2 + Vector(0, -shift, 0), disk_radius - shift);
+	rotate(fluid_rot_disk_2, -M_PI/2, 0, 0);
+	setEraseOperation(fluid_rot_disk_2, ET_ERASE_NOTHING);
+	auto border_rot_disk_2 = addDisk(GT_FIXED_BOUNDARY, FT_OUTER_BORDER, rot_disk_center_2 - Vector(0, -shift, 0), disk_radius - shift);
+	rotate(border_rot_disk_2, -M_PI/2, 0, 0);
+	setEraseOperation(border_rot_disk_2, ET_ERASE_NOTHING);
+
+	addTestPoint(rot_disk_center_2);
+	addTestPoint(rot_disk_center_2 + Vector(disk_radius, 0, 0));
+	addTestPoint(rot_disk_center_2 + Vector(0, 0, disk_radius));
+	addTestPoint(rot_disk_center_2 - Vector(disk_radius, 0, 0));
+	addTestPoint(rot_disk_center_2 - Vector(0, 0, disk_radius));
 
 }
 
