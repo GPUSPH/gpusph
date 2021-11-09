@@ -121,9 +121,10 @@ Sphere::FillIn(PointVect& points, const double dx, const int layers)
 	const int lmin = layers < 0 ? layers + 1 : 0;
 	const int lmax = layers < 0 ? 0 : layers - 1;
 
-
+	const double fill_radius = default_filling_method == BORDER_CENTERED ? m_r :
+		m_r + (layers < 0 ? dx/2 : -dx/2);
 	for (int l = lmin; l <= lmax; l++) {
-		const double r = m_r - l*dx;
+		const double r = fill_radius - l*dx;
 		double angle = dx/r;
 		const int nc = (int) ceil(M_PI/angle);
 		const double dtheta = M_PI/nc;
@@ -139,9 +140,10 @@ Sphere::FillIn(PointVect& points, const double dx, const int layers)
 int
 Sphere::Fill(PointVect& points, const double dx, const bool fill)
 {
+	const double fill_radius = default_filling_method == BORDER_CENTERED ? m_r : m_r - dx/2;
 	int nparts = 0;
-	int nc = round(m_r / dx);
-	double distance = m_r / (nc);
+	int nc = round(fill_radius / dx);
+	double distance = fill_radius / (nc);
 
 	for (int i = 0; i <= nc; ++i) {
 		nparts += FillBorder(points, dx, i*distance, fill);
