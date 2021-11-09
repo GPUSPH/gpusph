@@ -32,36 +32,146 @@
  * and see how they get filled. It is intended to be used to validate filling patterns. 
  */
 
-FillingTest::FillingTest(GlobalData *gdata) :
-	Problem(gdata)
+template<>
+void FillingTest::test<2>()
 {
-	const bool test_fillin = get_option("test-fillin", false);
-	// 0 = autocompute
-	const uint boundary_layers = get_option("boundary-layers", 0);
+	// The basics: a filled box.
+	const double box_side = 32.0;
+	const double inner_box_side = box_side/2;
 
-	const bool fill_tangent = get_option("tangent-filling-method", false);
+	// The default filling method is “border-centered”, in the sense that the particles of the first layer
+	// have their centers on the border.
+	// This requires us to shift the geometries so that they don't interfere with each other
+	const double shift = fill_tangent ? 0 : m_deltap/2;
+	const double double_shift = fill_tangent ? 0 : m_deltap; // 2*shift, needed to fix up the length of the box
 
-	if (fill_tangent)
-		setFillingMethod(Object::BORDER_TANGENT);
+	// We also have to take positioning into consideration. The default is PP_CENTER, meaning that
+	// for the box we don't need to do any shifting. We set up two boxes,
+	// one with PP_CENTER, and one with PP_CORNER positioning policies.
+	// The PP_CORNER one will be placed with corner in (0, 0, 0),
+	// while the PP_CENTER one will be placed so that its center is 2*box_side away
+	// from the center of the PP_CORNER case along the y direction (without accounting for the shift!)
 
-	setup_framework();
+	const Point shifted_corner  = Point(shift, shift, 0);
+	const Point centered_center = Point(5*box_side/2, box_side/2, 0);
 
-	if (boundary_layers > 0)
-		setNumBoundaryLayers(boundary_layers);
+	// PP_CENTER
+	auto fluid_box_centered = addRect(GT_FLUID, FT_SOLID, centered_center, box_side - double_shift);
+	setEraseOperation(fluid_box_centered, ET_ERASE_NOTHING);
+	auto border_box_centered = addRect(GT_FIXED_BOUNDARY, FT_OUTER_BORDER, centered_center, box_side + double_shift);
+	setEraseOperation(border_box_centered, ET_ERASE_NOTHING);
 
-	// we only care about seeing the result
-	gdata->maxiter = 1;
+	addTestPoint(centered_center);
+	addTestPoint(centered_center + Vector(box_side, box_side, 0)/2);
+	addTestPoint(centered_center - Vector(box_side, box_side, 0)/2);
 
-	// No external forces
-	set_gravity(0.0);
+	if (test_fillin) {
+		auto inner_box_centered = addRect(GT_FIXED_BOUNDARY, FT_INNER_BORDER, centered_center, inner_box_side - double_shift);
+		// keep the erase operation in this case!
+		addTestPoint(centered_center + Vector(inner_box_side, inner_box_side, 0)/2);
+		addTestPoint(centered_center - Vector(inner_box_side, inner_box_side, 0)/2);
+	}
 
-	// Fluid with unitary density;
-	auto fluid = add_fluid(1.0);
-	set_equation_of_state(fluid, 1.0, 1.0);
+	// Let's also place a disk, right above the centered box
+	auto disk_radius = box_side/2; // diameter should be the same as the box
+	auto disk_center = centered_center + Vector(0, 2*box_side, 0); // again, 2x box side center-to-center distance
 
-	// avoid rounding issues and make it easy to debug also in decimal
-	set_deltap(1.0);
+	// Note that while for the box we correct the side with double_shift, for the disk we only correct with
+	// a SINGLE shift, since it's the radius we're talking about
+	auto fluid_disk = addDisk(GT_FLUID, FT_SOLID, disk_center, disk_radius - shift);
+	setEraseOperation(fluid_disk, ET_ERASE_NOTHING);
+	auto border_disk = addDisk(GT_FIXED_BOUNDARY, FT_OUTER_BORDER, disk_center, disk_radius + shift);
+	setEraseOperation(border_disk, ET_ERASE_NOTHING);
 
+	addTestPoint(disk_center);
+	addTestPoint(disk_center + Vector(0, disk_radius, 0));
+	addTestPoint(disk_center - Vector(0, disk_radius, 0));
+	addTestPoint(disk_center + Vector(disk_radius, 0, 0));
+	addTestPoint(disk_center - Vector(disk_radius, 0, 0));
+
+	if (test_fillin) {
+		auto inner_disk_radius = disk_radius/2;
+		auto inner_disk = addDisk(GT_FIXED_BOUNDARY, FT_INNER_BORDER, disk_center, inner_disk_radius - shift);
+
+		addTestPoint(disk_center + Vector(0, inner_disk_radius, 0));
+		addTestPoint(disk_center - Vector(0, inner_disk_radius, 0));
+		addTestPoint(disk_center + Vector(inner_disk_radius, 0, 0));
+		addTestPoint(disk_center - Vector(inner_disk_radius, 0, 0));
+	}
+
+	// And finally a rotated box.
+	// TODO the difficulty in this shows why we seriously need to reconsider how rotations and shifts are handled.
+	// See the API 2 notes for details. At the very least, we must be consistent in requiring rotations around
+	// the CM rather than a corner.
+	auto rot_center = disk_center - Vector(2*box_side, 0, 0);
+	auto rot_side = box_side/sqrt(2);
+
+	// NOTE: since rotation is around the corner, we must “undo”  the shift at the center first
+	auto rot_side_reduced = rot_side - double_shift;
+	auto rot_center_compensation_reduced = Vector(rot_side_reduced, rot_side_reduced, 0)/2;
+	auto fluid_box_rot = addRect(GT_FLUID, FT_SOLID, rot_center + rot_center_compensation_reduced, rot_side_reduced);
+	setEraseOperation(fluid_box_rot, ET_ERASE_NOTHING);
+	rotate(fluid_box_rot, 0, 0, M_PI/4);
+	// compensate back
+	Problem::shift(fluid_box_rot, -rot_side_reduced*sqrt(2)/2, 0, 0);
+
+	// Idem
+	auto rot_side_expanded = rot_side + double_shift;
+	auto rot_center_compensation_expanded = Vector(rot_side_expanded, rot_side_expanded, 0)/2;
+	auto border_box_rot = addRect(GT_FIXED_BOUNDARY, FT_OUTER_BORDER,
+		rot_center + rot_center_compensation_expanded, rot_side_expanded);
+	setEraseOperation(border_box_rot, ET_ERASE_NOTHING);
+	rotate(border_box_rot, 0, 0, M_PI/4);
+	// compensate back
+	Problem::shift(border_box_rot, -rot_side_expanded*sqrt(2)/2, 0, 0);
+
+	addTestPoint(rot_center);
+	addTestPoint(rot_center + Vector(0, rot_side, 0)*sqrt(2)/2);
+	addTestPoint(rot_center - Vector(rot_side, 0, 0)*sqrt(2)/2);
+
+	if (test_fillin) {
+		auto inner_rot_side = rot_side/2;
+		auto inner_rot_side_reduced = inner_rot_side - double_shift;
+		auto inner_rot_center_compensation = Vector(inner_rot_side_reduced, inner_rot_side_reduced, 0)/2;
+		auto inner_box_rot = addRect(GT_FIXED_BOUNDARY, FT_INNER_BORDER, rot_center + inner_rot_center_compensation, inner_rot_side_reduced);
+		rotate(inner_box_rot, 0, 0, M_PI/4);
+		// compensate back
+		Problem::shift(inner_box_rot, -inner_rot_side_reduced*sqrt(2)/2, 0, 0);
+		// keep the erase operation in this case!
+		addTestPoint(rot_center + Vector(0, inner_rot_side, 0)*sqrt(2)/2);
+		addTestPoint(rot_center - Vector(inner_rot_side, 0, 0)*sqrt(2)/2);
+	}
+
+
+	// Corner box
+	setPositioning(PP_CORNER);
+
+	auto fluid_box_corner = addRect(GT_FLUID, FT_SOLID, shifted_corner, box_side - double_shift);
+	setEraseOperation(fluid_box_corner, ET_ERASE_NOTHING);
+	auto border_box_corner = addRect(GT_FIXED_BOUNDARY, FT_OUTER_BORDER, -shifted_corner, box_side + double_shift);
+	setEraseOperation(border_box_corner, ET_ERASE_NOTHING);
+
+	addTestPoint(Point(0, 0, 0));
+	addTestPoint(Point(box_side, box_side, 0)/2);
+	addTestPoint(Point(box_side, box_side, 0));
+
+	if (test_fillin) {
+		// NOTE: this integrates the shift used for the fluid_box_corner too!
+		auto inner_corner = Point(box_side, box_side, 0)/4;
+		auto inner_shifted_corner = shifted_corner + inner_corner;
+		auto inner_box_centered = addRect(GT_FIXED_BOUNDARY, FT_INNER_BORDER, inner_shifted_corner, inner_box_side - double_shift);
+
+		addTestPoint(inner_corner);
+		addTestPoint(inner_corner + Vector(inner_box_side, inner_box_side, 0)/2);
+		addTestPoint(inner_corner + Vector(inner_box_side, inner_box_side, 0));
+	}
+
+}
+
+
+template<>
+void FillingTest::test<3>()
+{
 	// The basics: a filled box.
 	const double box_side = 32.0;
 	const double inner_box_side = box_side/2;
@@ -435,6 +545,42 @@ FillingTest::FillingTest(GlobalData *gdata) :
 	addTestPoint(rot_disk_center_2 + Vector(0, 0, disk_radius));
 	addTestPoint(rot_disk_center_2 - Vector(disk_radius, 0, 0));
 	addTestPoint(rot_disk_center_2 - Vector(0, 0, disk_radius));
+}
 
+
+FillingTest::FillingTest(GlobalData *gdata) :
+	Problem(gdata),
+	test_fillin( get_option("test-fillin", false) ),
+	fill_tangent( get_option("tangent-filling-method", false) ),
+	boundary_layers( get_option("boundary_layers", 0) ), // 0 = autocompute
+	dimensions( get_option("dim",3) )
+{
+	setup_framework();
+
+	if (fill_tangent)
+		setFillingMethod(Object::BORDER_TANGENT);
+
+	if (boundary_layers > 0)
+		setNumBoundaryLayers(boundary_layers);
+
+	// we only care about seeing the result
+	gdata->maxiter = 1;
+
+	// No external forces
+	set_gravity(0.0);
+
+	// Fluid with unitary density;
+	auto fluid = add_fluid(1.0);
+	set_equation_of_state(fluid, 1.0, 1.0);
+
+	// avoid rounding issues and make it easy to debug also in decimal
+	set_deltap(1.0);
+
+	switch (dimensions) {
+	case 2: test<2>(); break;
+	case 3: test<3>(); break;
+	default:
+			throw std::invalid_argument(std::to_string(dimensions) + "D test not supported");
+	}
 }
 

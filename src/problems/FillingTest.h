@@ -33,7 +33,15 @@
 
 class FillingTest: public Problem {
 	private:
+		const bool test_fillin;
+		const bool fill_tangent;
+		const uint boundary_layers;
+		const uint dimensions;
+
 		void setup_framework();
+
+		template<uint dimensions>
+		void test();
 	public:
 		FillingTest(GlobalData *);
 };

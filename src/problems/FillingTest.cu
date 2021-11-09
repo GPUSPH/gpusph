@@ -33,6 +33,7 @@
 
 void FillingTest::setup_framework()
 {
-	SETUP_FRAMEWORK( boundary<DYN_BOUNDARY> );
+	SETUP_FRAMEWORK( boundary<DYN_BOUNDARY> ).
+		select_options(dimensions == 2, space_dimensions<R2>());
 }
 
