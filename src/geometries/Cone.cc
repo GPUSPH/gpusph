@@ -219,8 +219,7 @@ Cone::Expand(double dx) const
 		h = (m_rb + m_s*delta)/m_slope + delta;
 	}
 
-	// TODO FIXME the origin shift should probably be computed based on the rotation
-	Cone ret(m_origin - Vector(0, 0, delta), rb, rt, h, m_ep);
+	Cone ret(m_origin - m_ep.Rot(Vector(0, 0, delta)), rb, rt, h, m_ep);
 	// copy mass
 	ret.m_center(3) = m_center(3);
 	return ret;
