@@ -172,6 +172,11 @@ void FillingTest::test<2>()
 template<>
 void FillingTest::test<3>()
 {
+	// if this is true, most geometries will be slightly rotated to test if filling of rotated objects works correctly
+	const bool test_rotations = get_option("test-rotations", false);
+	// ZXZ
+	const EulerParameters rotest(0, M_PI/6, 0);
+
 	// The basics: a filled box.
 	const double box_side = 32.0;
 	const double inner_box_side = box_side/2;
@@ -198,12 +203,19 @@ void FillingTest::test<3>()
 	auto border_box_centered = addCube(GT_FIXED_BOUNDARY, FT_OUTER_BORDER, centered_center, box_side + double_shift);
 	setEraseOperation(border_box_centered, ET_ERASE_NOTHING);
 
+	if (test_rotations) {
+		rotate(fluid_box_centered, rotest);
+		rotate(border_box_centered, rotest);
+	}
+
 	addTestPoint(centered_center);
 	addTestPoint(centered_center + Vector(box_side, box_side, box_side)/2);
 	addTestPoint(centered_center - Vector(box_side, box_side, box_side)/2);
 
 	if (test_fillin) {
 		auto inner_box_centered = addCube(GT_FIXED_BOUNDARY, FT_INNER_BORDER, centered_center, inner_box_side - double_shift);
+		if (test_rotations) rotate(inner_box_centered, rotest);
+
 		// keep the erase operation in this case!
 		addTestPoint(centered_center + Vector(inner_box_side, inner_box_side, inner_box_side)/2);
 		addTestPoint(centered_center - Vector(inner_box_side, inner_box_side, inner_box_side)/2);
@@ -220,6 +232,11 @@ void FillingTest::test<3>()
 	auto border_sphere = addSphere(GT_FIXED_BOUNDARY, FT_OUTER_BORDER, sphere_center, sphere_radius + shift);
 	setEraseOperation(border_sphere, ET_ERASE_NOTHING);
 
+	if (test_rotations) {
+		rotate(fluid_sphere, rotest);
+		rotate(border_sphere, rotest);
+	}
+
 	addTestPoint(sphere_center);
 	addTestPoint(sphere_center + Vector(0, 0, sphere_radius));
 	addTestPoint(sphere_center - Vector(0, 0, sphere_radius));
@@ -229,6 +246,7 @@ void FillingTest::test<3>()
 	if (test_fillin) {
 		auto inner_sphere_radius = sphere_radius/2;
 		auto inner_sphere = addSphere(GT_FIXED_BOUNDARY, FT_INNER_BORDER, sphere_center, inner_sphere_radius - shift);
+		if (test_rotations) rotate(inner_sphere, rotest);
 
 		addTestPoint(sphere_center + Vector(0, 0, inner_sphere_radius));
 		addTestPoint(sphere_center - Vector(0, 0, inner_sphere_radius));
@@ -301,6 +319,12 @@ void FillingTest::test<3>()
 	auto border_box_corner = addCube(GT_FIXED_BOUNDARY, FT_OUTER_BORDER, -shifted_corner, box_side + double_shift);
 	setEraseOperation(border_box_corner, ET_ERASE_NOTHING);
 
+	if (test_rotations) {
+		rotate(fluid_box_corner, rotest);
+		rotate(border_box_corner, rotest);
+	}
+
+
 	addTestPoint(Point(0, 0, 0));
 	addTestPoint(Point(box_side, box_side, box_side)/2);
 	addTestPoint(Point(box_side, box_side, box_side));
@@ -310,6 +334,7 @@ void FillingTest::test<3>()
 		auto inner_corner = Point(box_side, box_side, box_side)/4;
 		auto inner_shifted_corner = shifted_corner + inner_corner;
 		auto inner_box_centered = addCube(GT_FIXED_BOUNDARY, FT_INNER_BORDER, inner_shifted_corner, inner_box_side - double_shift);
+		if (test_rotations) rotate(inner_box_centered, rotest);
 
 		addTestPoint(inner_corner);
 		addTestPoint(inner_corner + Vector(inner_box_side, inner_box_side, inner_box_side)/2);
@@ -330,6 +355,12 @@ void FillingTest::test<3>()
 	auto border_cyl = addCylinder(GT_FIXED_BOUNDARY, FT_OUTER_BORDER, cyl_bottom - Vector(0, 0, shift), cyl_radius + shift, cyl_height + double_shift);
 	setEraseOperation(border_cyl, ET_ERASE_NOTHING);
 
+	if (test_rotations) {
+		rotate(fluid_cyl, rotest);
+		rotate(border_cyl, rotest);
+	}
+
+
 	addTestPoint(cyl_bottom);
 	addTestPoint(cyl_bottom + Vector(0, 0, cyl_height));
 	addTestPoint(cyl_bottom + Vector(0, cyl_radius, 0));
@@ -341,6 +372,7 @@ void FillingTest::test<3>()
 		auto inner_cyl_bottom = cyl_bottom + Vector(0, 0, cyl_height/4);
 		auto inner_cyl = addCylinder(GT_FIXED_BOUNDARY, FT_INNER_BORDER, inner_cyl_bottom + Vector(0, 0, shift),
 			inner_cyl_radius - shift, inner_cyl_height - double_shift);
+		if (test_rotations) rotate(inner_cyl, rotest);
 
 		addTestPoint(inner_cyl_bottom);
 		addTestPoint(inner_cyl_bottom + Vector(0, 0, inner_cyl_height));
@@ -366,6 +398,11 @@ void FillingTest::test<3>()
 	auto border_cone = addCone(GT_FIXED_BOUNDARY, FT_OUTER_BORDER, cone_bottom - Vector(0, 0, shift), cone_radius_expanded, 0, cone_height_expanded);
 	setEraseOperation(border_cone, ET_ERASE_NOTHING);
 
+	if (test_rotations) {
+		rotate(fluid_cone, rotest);
+		rotate(border_cone, rotest);
+	}
+
 	addTestPoint(cone_bottom);
 	addTestPoint(cone_bottom + Vector(0, 0, cone_height));
 	addTestPoint(cone_bottom + Vector(0, cone_radius, 0));
@@ -382,6 +419,10 @@ void FillingTest::test<3>()
 
 		auto inner_cone = addCone(GT_FIXED_BOUNDARY, FT_INNER_BORDER, inner_cone_bottom + Vector(0, 0, shift),
 			inner_cone_radius_reduced, 0, inner_cone_height_reduced);
+
+		if (test_rotations) {
+			rotate(inner_cone, rotest);
+		}
 
 		addTestPoint(inner_cone_bottom);
 		addTestPoint(inner_cone_bottom + Vector(0, 0, inner_cone_height));
@@ -409,6 +450,11 @@ void FillingTest::test<3>()
 	auto border_stump = addCone(GT_FIXED_BOUNDARY, FT_OUTER_BORDER, stump_bottom - Vector(0, 0, shift), stump_radius_base_expanded, stump_radius_top_expanded, stump_height + double_shift);
 	setEraseOperation(border_stump, ET_ERASE_NOTHING);
 
+	if (test_rotations) {
+		rotate(fluid_stump, rotest);
+		rotate(border_stump, rotest);
+	}
+
 	addTestPoint(stump_bottom);
 	addTestPoint(stump_bottom + Vector(0, 0, stump_height));
 	addTestPoint(stump_bottom + Vector(0, stump_radius_base, 0));
@@ -428,6 +474,10 @@ void FillingTest::test<3>()
 
 		auto inner_stump = addCone(GT_FIXED_BOUNDARY, FT_INNER_BORDER, inner_stump_bottom + Vector(0, 0, shift),
 			inner_stump_radius_base_reduced, inner_stump_radius_top_reduced, inner_stump_height - double_shift);
+
+		if (test_rotations) {
+			rotate(inner_stump, rotest);
+		}
 
 		addTestPoint(inner_stump_bottom);
 		addTestPoint(inner_stump_bottom + Vector(0, 0, inner_stump_height));
