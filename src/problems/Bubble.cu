@@ -32,16 +32,6 @@
 #include "GlobalData.h"
 #include "cudasimframework.cu"
 
-#define USE_PLANES 0
-
-#if USE_PLANES
-#define USE_GHOST 1 // set to 0 for standard planes
-#else
-#define USE_GHOST 0 // never use ghosts unless using planes
-#endif
-
-
-
 Bubble::Bubble(GlobalData *_gdata) : Problem(_gdata),
 	dyn_layers(0)
 {
@@ -51,30 +41,18 @@ Bubble::Bubble(GlobalData *_gdata) : Problem(_gdata),
 	lx = ly = 6*R;
 	lz = H;
 
-	// TODO GAUSSIAN kernel of radius 3
 	SETUP_FRAMEWORK(
 		formulation<SPH_GRENIER>,
 		//formulation<SPH_F2>,
 		viscosity<DYNAMICVISC>,
 		boundary<DYN_BOUNDARY>,
-		add_flags<ENABLE_MULTIFLUID | (USE_PLANES ? ENABLE_PLANES : ENABLE_NONE) |
-              ENABLE_REPACKING>
+		add_flags<ENABLE_MULTIFLUID | ENABLE_REPACKING>
 	);
 
 	// SPH parameters
 	// Grenier sets h/R = 0.128
 	//set_deltap(6.72e-4/1.3);
 	set_deltap(0.128*R/1.3);
-
-	if (simparams()->boundarytype == DYN_BOUNDARY) {
-		dyn_layers = simparams()->get_influence_layers() + 1;
-		extra_offset = make_double3(dyn_layers*m_deltap);
-	} else {
-		dyn_layers = 0;
-		extra_offset = make_double3(0.0);
-	}
-	m_size = make_double3(lx, ly, lz) + 2*extra_offset;
-	m_origin = -m_size/2;
 
 	simparams()->buildneibsfreq = 10;
 
@@ -114,15 +92,12 @@ Bubble::Bubble(GlobalData *_gdata) : Problem(_gdata),
 	// Name of problem used for directory creation
 	m_name = "Bubble";
 
-	setPositioning(PP_CORNER);
-	GeometryID experiment_box = addBox(GT_FIXED_BOUNDARY, FT_BORDER,
-		Point(m_origin),
-		m_size.x, m_size.y, m_size.z);
-	disableCollisions(experiment_box);
+	Point center(0, 0, 0);
 
-	GeometryID fluid = addBox(GT_FLUID, FT_SOLID,
-		Point(m_origin + extra_offset),
-		lx, ly, H);
+	setPositioning(PP_CENTER);
+	setFillingMethod(Object::BORDER_TANGENT);
+	GeometryID experiment_box = addBox(GT_FIXED_BOUNDARY, FT_OUTER_BORDER, center, lx, ly, H);
+	GeometryID fluid = addBox(GT_FLUID, FT_SOLID, center, lx, ly, H);
 
 	// the actual particle mass will be set during the
 	// initializeParticles routine, both for the tank and for the
@@ -132,25 +107,6 @@ Bubble::Bubble(GlobalData *_gdata) : Problem(_gdata),
 	setParticleMassByDensity(fluid, 1);
 
 }
-
-void Bubble::copy_planes(PlaneList &planes)
-{
-#if USE_PLANES
-	// z = m_origin.z
-	planes.push_back( implicit_plane(0, 0, 1.0, -m_origin.z) );
-	// z = m_origin.z+lz
-	planes.push_back( implicit_plane(0, 0, -1.0, m_origin.z+lz) );
-	// y = m_origin.y
-	planes.push_back( implicit_plane(0, 1.0, 0, -m_origin.y) );
-	// y = m_origin.y+ly
-	planes.push_back( implicit_plane(0, -1.0, 0, m_origin.y+ly) );
-	// x = m_origin.x
-	planes.push_back( implicit_plane(1.0, 0, 0, -m_origin.x) );
-	// x = m_origin.x+lx
-	planes.push_back( implicit_plane(-1.0, 0, 0, m_origin.x+lx) );
-#endif
-}
-
 
 // the bubble is initially located centered at 2R from the bottom.
 bool is_inside(double3 const& origin, float R, double4 const& pt)
