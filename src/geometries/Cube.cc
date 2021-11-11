@@ -418,9 +418,9 @@ Cube::Fill(PointVect& points, const double dx, const bool fill_faces, const bool
 	m_origin(3) = m_center(3);
 	int nparts = 0;
 
-	const int nx = (int) (m_lx/dx);
-	const int ny = (int) (m_ly/dx);
-	const int nz = (int) (m_lz/dx);
+	const int nx = (int) round(m_lx/dx);
+	const int ny = (int) round(m_ly/dx);
+	const int nz = (int) round(m_lz/dx);
 
 	int startx = 0;
 	int starty = 0;
@@ -478,9 +478,9 @@ void
 Cube::InnerFill(PointVect& points, const double dx)
 {
 	m_origin(3) = m_center(3);
-	const int nx = (int) (m_lx/dx);
-	const int ny = (int) (m_ly/dx);
-	const int nz = (int) (m_lz/dx);
+	const int nx = (int) round(m_lx/dx);
+	const int ny = (int) round(m_ly/dx);
+	const int nz = (int) round(m_lz/dx);
 
 	int startx = 0;
 	int starty = 0;
@@ -512,9 +512,9 @@ void
 Cube::FillOut(PointVect& points, const double dx, const int layers, const bool fill_top)
 {
 	m_origin(3) = m_center(3);
-	const int nx = (int) (m_lx/dx);
-	const int ny = (int) (m_ly/dx);
-	const int nz = (int) (m_lz/dx);
+	const int nx = (int) round(m_lx/dx);
+	const int ny = (int) round(m_ly/dx);
+	const int nz = (int) round(m_lz/dx);
 
 	// Bottom face
 	for (int i = -layers; i < nx + layers; i++)
@@ -600,9 +600,9 @@ void
 Cube::FillIn(PointVect& points, const double dx, const int layers, const bool fill_top)
 {
 	m_origin(3) = m_center(3);
-	const int nx = (int) (m_lx/dx);
-	const int ny = (int) (m_ly/dx);
-	const int nz = (int) (m_lz/dx);
+	const int nx = (int) round(m_lx/dx);
+	const int ny = (int) round(m_ly/dx);
+	const int nz = (int) round(m_lz/dx);
 
 	// Normaly, we have two ranges in each direction:
 	// [0, layers[ , ]n - layers, n] if layers > 0,

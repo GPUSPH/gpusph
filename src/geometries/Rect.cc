@@ -222,7 +222,7 @@ Rect::FillBorder(PointVect& points, const double dx,
 			break;
 	}
 
-	int nx = (int) (dir.norm()/dx);
+	int nx = (int) round(dir.norm()/dx);
 	int startx = 0;
 	int endx = nx;
 
@@ -258,8 +258,8 @@ Rect::Fill(PointVect& points, const double dx, const bool fill_edges, const bool
 	m_origin(3) = m_center(3);
 	int nparts = 0;
 
-	int nx = max((int) (m_lx/dx), 1);
-	int ny = max((int) (m_ly/dx), 1);
+	int nx = max((int) round(m_lx/dx), 1);
+	int ny = max((int) round(m_ly/dx), 1);
 	int startx = 0;
 	int starty = 0;
 	int endx = nx;
@@ -321,8 +321,8 @@ Rect::Fill(PointVect& bpoints, PointVect& belems, PointVect& vpoints, std::vecto
 {
 	m_origin(3) = m_center(3)/2;
 
-	int nx = (int) (m_lx/dx);
-	int ny = (int) (m_ly/dx);
+	int nx = (int) round(m_lx/dx);
+	int ny = (int) round(m_ly/dx);
 	int startx = 0;
 	int starty = 0;
 	int endx = nx;

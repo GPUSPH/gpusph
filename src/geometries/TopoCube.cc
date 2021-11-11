@@ -515,7 +515,7 @@ TopoCube::FillBorder(PointVect& points, const double dx, const int face_num, con
 			v -= 2*layer_dx*v_shift;
 		}
 
-		const int n = (int) (v.norm()/dx);
+		const int n = (int) round(v.norm()/dx);
 		// const double delta = v.norm()/((double) n);
 		int nstart = 0;
 		int nend = n;
@@ -544,8 +544,8 @@ TopoCube::FillDem(PointVect& points, const int layers, const double dx)
 	const int abs_layers = layers < 0 ? -layers : layers;
 	const double layer_dx = layers < 0 ? -dx : dx;
 
-	int nx = (int) (m_vx.norm()/dx);
-	int ny = (int) (m_vy.norm()/dx);
+	int nx = (int) round(m_vx.norm()/dx);
+	int ny = (int) round(m_vy.norm()/dx);
 	/*
 	double deltax = m_vx.norm()/((double) nx);
 	double deltay = m_vy.norm()/((double) ny);
@@ -680,8 +680,8 @@ TopoCube::Fill(PointVect& points, const double H, const double dx, const bool fa
 {
 	int nparts = 0;
 
-	const int nx = (int) (m_vx.norm()/dx);
-	const int ny = (int) (m_vy.norm()/dx);
+	const int nx = (int) round(m_vx.norm()/dx);
+	const int ny = (int) round(m_vy.norm()/dx);
 	/*
 	const double deltax = m_vx.norm()/((double) nx);
 	const double deltay = m_vy.norm()/((double) ny);
