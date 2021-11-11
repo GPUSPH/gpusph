@@ -190,8 +190,7 @@ Cylinder::Fill(PointVect& points, const double dx, const bool fill)
 		return FillBorderCentered(points, dx, fill);
 	else {
 		const double offset = -dx;
-		// TODO FIXME account for rotations
-		Cylinder clone(m_origin - Vector(0, 0, offset/2),
+		Cylinder clone(m_origin - m_ep.Rot(Vector(0, 0, offset/2)),
 			m_r + offset/2, m_ri - offset/2, m_h + offset,
 			m_nels.x, m_nels.y, m_nels.z, m_ep);
 		// copy mass
@@ -208,8 +207,7 @@ Cylinder::FillIn(PointVect& points, const double dx, const int layers)
 		FillIn(points, dx, layers, true);
 	else {
 		const double offset = layers < 0 ? dx : -dx;
-		// TODO FIXME account for rotations
-		Cylinder clone(m_origin - Vector(0, 0, offset/2),
+		Cylinder clone(m_origin - m_ep.Rot(Vector(0, 0, offset/2)),
 			m_r + offset/2, m_ri - offset/2, m_h + offset,
 			m_nels.x, m_nels.y, m_nels.z, m_ep);
 		// copy mass
