@@ -47,8 +47,6 @@ AccuracyTest::AccuracyTest(GlobalData *_gdata) : Problem(_gdata)
 	lx = 4.0;
 	ly = 0.7;
 	lz = 1.0;
-	m_size = make_double3(lx, ly, lz);
-	m_origin = make_double3(0.0, 0.0, 0.0);
 
 	// SPH parameters
 	set_deltap(0.02);
@@ -81,26 +79,21 @@ AccuracyTest::AccuracyTest(GlobalData *_gdata) : Problem(_gdata)
 	const double wall_size = num_layers*m_deltap;
 	const double box_thickness = wall_size - m_deltap;
 
-	// Building the geometry:
-	// five boxes of type GT_FIXED_BOUNDARY, with filling FT_BORDER, and defined by
-	// their lower-left corner coordinates and their dimensions in the x, y, z direction.
-	// We use boxes because with dummy boundaries the walls have full thickness.
+	// The domain box is built from a Cube of type GT_FIXED_BOUNDARY,
+	// with filling FT_OUTER_BORDER (i.e. from the specified geometry, outwards).
+	// We set the filling method to "border tangent”, so that particles start
+	// half a dp inside (or outside) the geometry, allowing us to avoid
+	// doing the computations needed to keep the gap.
 
-	// Floor:
-	addBox(GT_FIXED_BOUNDARY, FT_BORDER, Point(0, 0, 0),
-		lx, ly, box_thickness);
+	setFillingMethod(Object::BORDER_TANGENT);
 
-	// Four sides
-	addBox(GT_FIXED_BOUNDARY, FT_BORDER, Point(0, 0, wall_size),
-		box_thickness, ly, lz - wall_size);
-	addBox(GT_FIXED_BOUNDARY, FT_BORDER, Point(lx - box_thickness, 0, wall_size),
-		box_thickness, ly, lz - wall_size);
-	addBox(GT_FIXED_BOUNDARY, FT_BORDER, Point(wall_size, 0, wall_size),
-		lx - 2*wall_size, box_thickness, lz - wall_size);
-	addBox(GT_FIXED_BOUNDARY, FT_BORDER, Point(wall_size, ly - box_thickness, wall_size),
-		lx - 2*wall_size, box_thickness, lz - wall_size);
+	const Point corner(0, 0, 0);
+
+	// add a m_deltap to the the z direction, which is where we will be cutting out
+	addBox(GT_FIXED_BOUNDARY, FT_BORDER, corner, lx, ly, lz + m_deltap);
+	// use a cutting plane to remove the top
+	addPlane(0, 0, -1, lz + m_deltap/2, FT_UNFILL);
 
 	// Fluid: the geometry type is now GT_FLUID, and the filling is FT_SOLID
-	addBox(GT_FLUID, FT_SOLID, Point(wall_size, wall_size, wall_size),
-		0.4, ly - 2*wall_size, H);
+	addBox(GT_FLUID, FT_SOLID, corner, 0.4, ly, H);
 }
