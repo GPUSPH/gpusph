@@ -425,6 +425,7 @@ IGNORE_WARNINGS(deprecated-declarations)
 		gravity(make_float3(0, 0, -9.81)),
 		feaGround(make_float4(0, 0, 0, 0))
 	{};
+RESTORE_WARNINGS
 
 	// ProblemCore and all ProblemAPI specialization
 	// (but not their derivatives —luckily, friendship is not inherited)
