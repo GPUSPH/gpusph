@@ -489,6 +489,18 @@ GeometryID ProblemAPI<1>::addGeometry(const GeometryType otype, const FillType f
 	GeometryInfo* geomInfo = new GeometryInfo();
 	geomInfo->type = otype;
 	geomInfo->fill_type = ftype;
+IGNORE_WARNINGS(deprecated-declarations)
+	if (ftype == FT_BORDER) {
+		// convert FT_BORDER to INNER for 3D geometries, OUTER for Rect and Disk
+		FillType alt_ftype =
+			(dynamic_pointer_cast<Rect>(obj_ptr) || dynamic_pointer_cast<Disk>(obj_ptr)) ?
+			FT_OUTER_BORDER :
+			FT_INNER_BORDER ;
+		geomInfo->fill_type = alt_ftype;
+		cerr << "Deprecated FT_BORDER converted to FT_OUTER_BORDER" << (alt_ftype == FT_OUTER_BORDER ?
+			"FT_OUTER_BORDER" : "FT_INNER_BORDER") << endl;
+	}
+RESTORE_WARNINGS
 	geomInfo->ptr = obj_ptr;
 	if (hdf5_fname) {
 		geomInfo->hdf5_filename = string(hdf5_fname);
@@ -1824,9 +1836,6 @@ int ProblemAPI<1>::fill_parts(bool fill)
 					break;
 				case FT_SOLID:
 					m_geometries[g]->ptr->Fill(*parts_vector, dx);
-					break;
-				case FT_SOLID_BORDERLESS:
-					printf("WARNING: borderless not yet implemented; not filling\n");
 					break;
 				// case FT_NOFILL: ;
 				// yes, it is legal to have no "default:": ISO/IEC 9899:1999, section 6.8.4.2
