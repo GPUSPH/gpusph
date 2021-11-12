@@ -40,7 +40,11 @@
 
 class DamBreakGate: public Problem {
 	private:
-		float		H;  // still watr level
+		double	H;  // still water level
+		double	gate_vel; // initial velocity of the gate
+		double	gate_accel; // initial acceleration of the gate
+		double	gate_start; // time when the gate starts moving
+		double	gate_end; // time when the gate stops moving
 
 	public:
 		DamBreakGate(GlobalData *);

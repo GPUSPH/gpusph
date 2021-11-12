@@ -28,10 +28,6 @@
 #include <iostream>
 
 #include "DamBreakGate.h"
-#include "Cube.h"
-#include "Point.h"
-#include "Vector.h"
-#include "GlobalData.h"
 #include "cudasimframework.cu"
 
 #define SIZE_X		(1.60)
@@ -46,9 +42,34 @@
 
 DamBreakGate::DamBreakGate(GlobalData *_gdata) : Problem(_gdata)
 {
-	// Size and origin of the simulation domain
-	m_size = make_double3(SIZE_X, SIZE_Y, SIZE_Z + 0.7);
-	m_origin = make_double3(ORIGIN_X, ORIGIN_Y, ORIGIN_Z);
+	// command-line options and gate setup
+	const int ppH = get_option("ppH", 32);
+
+	H = 0.4;
+
+	// initial (from tstart) gate velocity (v0)
+	// TODO we might want to “smooth in” from 0 to gate_velocity between 0 and tstart
+	gate_vel = get_option("gate-velocity", 0.0);
+	// gate acceleration at tstart (a)
+	gate_accel = get_option("gate-accel", 4.0);
+	gate_start = get_option("gate-start", 0.1); // gives time to settle
+	// after tstart, the gate's motion is defined by
+	// vz = v0 + a (t - tstart)
+	// rz = r0 + v0 (t - start) + a/2 (t - tstart)^2
+	// we want to stop when rz - r0 = H. Simple calculations give us
+	// a (t - tstart)^2 + 2v0 (t - tstart) - 2H = 0
+	// i.e.
+	// t = tstart + sqrt(2 H/a + (v0/a)^2) - (v0/a)
+	{
+		const double gate_v_a_ratio = gate_vel/gate_accel;
+		gate_end = get_option("gate-end", gate_start + (
+				gate_accel == 0 ?
+				(gate_vel == 0 ? 0 : H/gate_vel) :
+				(sqrt(2*H/gate_accel + gate_v_a_ratio*gate_v_a_ratio) - gate_v_a_ratio)
+			)
+		);
+	}
+
 
 	SETUP_FRAMEWORK(
 		viscosity<ARTVISC>,//SPSVISC, or DYNAMICVISC
@@ -57,78 +78,71 @@ DamBreakGate::DamBreakGate(GlobalData *_gdata) : Problem(_gdata)
 		add_flags<ENABLE_MOVING_BODIES>
 	);
 
-	//addFilter(MLS_FILTER, 10);
+	// geometry
+	const double water_length = 0.4;
+	const double obstacle_width = 0.12;
+	const double obstacle_center = 0.9 + obstacle_width/2;
 
 	// SPH parameters
-	set_deltap(0.02f);
-	set_timestep(0.0001f);
+	set_deltap(H/ppH);
 	simparams()->dtadaptfactor = 0.3;
 	simparams()->buildneibsfreq = 10;
-	simparams()->tend = 1.5f;
+	simparams()->tend = 4;
 
-	//setDynamicBoundariesLayers(3);
-
-	//resize_neiblist(128);
+	//addFilter(MLS_FILTER, 10);
 
 	// Physical parameters
-	H = 0.4f;
 	set_gravity(-9.81f);
 	add_fluid(1000.0);
-	setMaxFall(H);
 	set_equation_of_state(0,  7.0f, NAN); // auto compute speed of sound
 
 	set_kinematic_visc(0, 1.0e-2f);
 
+	{
+		const double max_gate_vel = gate_vel + gate_accel*(gate_end - gate_start);
+		// let the API know that we're going to get at least this fast
+		setMaxParticleSpeed(max_gate_vel);
+	}
+
+
 	// Drawing and saving times
-	//add_writer(VTKWRITER, 0.1);
-	//add_writer(COMMONWRITER, 0.0);
 	add_writer(VTKWRITER, 0.005f);
-	// Name of problem used for directory creation
-	m_name = "DamBreakGate";
 
 	// Building the geometry
-	float r0 = m_deltap;
+	const Point corner(ORIGIN_X, ORIGIN_Y, ORIGIN_Z);
+	const Point gate_corner(corner + Vector(water_length, 0, 0));
+	const Point obstacle_pos(ORIGIN_X + obstacle_center, SIZE_Y/2, 0);
+
+	setFillingMethod(Object::BORDER_TANGENT);
 	setPositioning(PP_CORNER);
 
 	// The experiment box is composed of a box, minus the top, which is unfilled with
 	// a second geometry
 	// TODO Problem API 2 should expose filling options such as the specification of which walls to fill
-	addBox(GT_FIXED_BOUNDARY, FT_BORDER,
-		Point(ORIGIN_X, ORIGIN_Y, ORIGIN_Z), 1.6, 0.67, 0.4);
-	GeometryID unfill_top = addBox(GT_FIXED_BOUNDARY, FT_NOFILL,
-		Point(ORIGIN_X, ORIGIN_Y, ORIGIN_Z+0.4), 1.6, 0.67, 0.1);
-	setEraseOperation(unfill_top, ET_ERASE_BOUNDARY);
+	addBox(GT_FIXED_BOUNDARY, FT_OUTER_BORDER, corner, SIZE_X, SIZE_Y, SIZE_Z + m_deltap);
+	// cutting plane
+	addPlane(0, 0, -1, ORIGIN_Z + SIZE_Z + m_deltap/2, FT_UNFILL);
 
-	// Gate
-	float3 gate_origin = make_float3(0.4 + 2*r0, r0, r0);
-	addBox(GT_MOVING_BODY, FT_BORDER,
-		Point(gate_origin) + Point(ORIGIN_X, ORIGIN_Y, ORIGIN_Z), 0, 0.67-2*r0, H);
+	// Gate: note that this is OUTER border because it should fill out outwards wrt to the fluid
+	auto gate = addRect(GT_MOVING_BODY, FT_OUTER_BORDER, gate_corner, H, SIZE_Y);
+	rotate(gate, 0, M_PI/2, 0);
+	// Since the gate moves up, we need to expand the domain in the z direction.
+	// addExtraWorldMargin() adds room everywhere, so instead we add a small cube at the height
+	// where the gate will finish its motion
+	auto padder = addCube(GT_FIXED_BOUNDARY, FT_SOLID, gate_corner + Vector(0, 0, 2*H), 0);
 
 	// Obstacle
-	addBox(GT_FIXED_BOUNDARY, FT_BORDER,
-		Point(0.9 + ORIGIN_X, 0.24 + ORIGIN_Y, r0 + ORIGIN_Z), 0.12, 0.12, H - r0);
+	setPositioning(PP_BOTTOM_CENTER);
+	addBox(GT_FIXED_BOUNDARY, FT_INNER_BORDER, obstacle_pos, obstacle_width, obstacle_width, H);
 
 	// Fluid
-	addBox(GT_FLUID, FT_SOLID,
-		Point(r0 + ORIGIN_X, r0 + ORIGIN_Y, r0 + ORIGIN_Z), 0.4, 0.67 - 2*r0, H - r0);
+	setPositioning(PP_CORNER);
+	addBox(GT_FLUID, FT_SOLID, corner, water_length, SIZE_Y, H);
 
 	bool wet = false;	// set wet to true have a wet bed experiment
 	if (wet) {
-		// Additional fluid boxes covering the floor
-		// TODO this should be made into a single box, using the obstacle
-		// to dig the hole in it
-		addBox(GT_FLUID, FT_SOLID,
-			Point(0.4 + 3*r0 + ORIGIN_X, r0 + ORIGIN_Y, r0 + ORIGIN_Z),
-			0.5 - 4*r0, 0.67 - 2*r0, 0.03);
-		addBox(GT_FLUID, FT_SOLID,
-			Point(1.02 + r0  + ORIGIN_X, r0 + ORIGIN_Y, r0 + ORIGIN_Z),
-			0.58 - 2*r0, 0.67 - 2*r0, 0.03);
-		addBox(GT_FLUID, FT_SOLID,
-			Point(0.9 + ORIGIN_X , m_deltap  + ORIGIN_Y, r0 + ORIGIN_Z),
-			0.12, 0.24 - 2*r0, 0.03);
-		addBox(GT_FLUID, FT_SOLID,
-			Point(0.9 + ORIGIN_X , 0.36 + m_deltap  + ORIGIN_Y, r0 + ORIGIN_Z),
-			0.12, 0.31 - 2*r0, 0.03);
+		const double wet_height = 0.3;
+		addBox(GT_FLUID, FT_SOLID, gate_corner, SIZE_X - water_length, SIZE_Y, wet_height);
 	}
 
 }
@@ -138,23 +152,26 @@ DamBreakGate::moving_bodies_callback(const uint index, Object* object, const dou
 			const float3& force, const float3& torque, const KinematicData& initial_kdata,
 			KinematicData& kdata, double3& dx, EulerParameters& dr)
 {
-	const double tstart = 0.1;
-	const double tend = 0.4;
-	const double gate_velocity = 4.0;
-
 	// Computing, at t = t1, new position of center of rotation (here only translation)
-	// along with linear velocity
-	if (t1 >= tstart && t1 <= tend) {
-		kdata.lvel = make_double3(0.0, 0.0, gate_velocity*(t1 - tstart));
-		kdata.crot.z = initial_kdata.crot.z + gate_velocity*0.5*(t1 - tstart)*(t1 - tstart);
-		}
-	else
-		kdata.lvel = make_double3(0.0f);
+	// along with linear velocity and displacement of center of rotation
+	// These are non-zero only during motion, i.e. when the “next” time is after the beginning,
+	// and the “prev” time is before the end
+	if (t1 >= gate_start && t0 <= gate_end) {
+		// we need to clamp t1 and t0 between tstart and tend
+		const double clamped_t1 = min(t1, gate_end);
+		const double clamped_t0 = max(t0, gate_start);
+		const double dt1 = clamped_t1 - gate_start;
+		const double dt0 = clamped_t0 - gate_start;
 
-	// Computing the displacement of center of rotation between t = t0 and t = t1
-	double ti = min(tend, max(tstart, t0));
-	double tf = min(tend, max(tstart, t1));
-	dx.z = gate_velocity*0.5*(tf - tstart)*(tf - tstart) - gate_velocity*0.5*(ti - tstart)*(ti - tstart);
+		kdata.lvel = make_double3(0.0, 0.0, gate_vel + gate_accel*dt1);
+		kdata.crot.z = initial_kdata.crot.z + gate_vel*dt1 + gate_accel*0.5*dt1*dt1;
+
+		// displacement of center of rotation between t1 and t0
+		dx.z = gate_vel*(clamped_t1 - clamped_t0) + gate_accel*0.5*(dt1*dt1 - dt0*dt0);
+	} else {
+		kdata.lvel = make_double3(0.0f);
+		dx.z = 0;
+	}
 
 	// Setting angular velocity at t = t1 and the rotation between t = t0 and t = 1.
 	// Here we have a simple translation movement so the angular velocity is null and
@@ -162,5 +179,3 @@ DamBreakGate::moving_bodies_callback(const uint index, Object* object, const dou
 	kdata.avel = make_double3(0.0f);
 	dr.Identity();
 }
-
-
