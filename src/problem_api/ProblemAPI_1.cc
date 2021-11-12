@@ -682,7 +682,8 @@ GeometryID ProblemAPI<1>::addRect(const GeometryType otype, const FillType ftype
 	double offsetX = 0, offsetY = 0;
 	if (m_positioning == PP_CENTER || m_positioning == PP_BOTTOM_CENTER) {
 		offsetX = - side1 / 2.0;
-		offsetY = - side2 / 2.0;
+		if (m_positioning == PP_CENTER || space_dimensions_for(simparams()->dimensions) > 2)
+			offsetY = - side2 / 2.0;
 	}
 
 	return addGeometry(otype, ftype,
@@ -697,6 +698,8 @@ GeometryID ProblemAPI<1>::addDisk(const GeometryType otype, const FillType ftype
 	double offsetX = 0, offsetY = 0;
 	if (m_positioning == PP_CORNER)
 		offsetX = offsetY = -radius;
+	if ((m_positioning == PP_BOTTOM_CENTER) && (space_dimensions_for(simparams()->dimensions) == 2))
+		offsetY = radius;
 
 	return addGeometry(otype, ftype,
 		make_shared<Disk>( Point( origin(0) + offsetX, origin(1) + offsetY, origin(2) ),
