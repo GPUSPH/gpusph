@@ -28,10 +28,6 @@
 #include <iostream>
 
 #include "DamBreak2D.h"
-#include "Cube.h"
-#include "Point.h"
-#include "Vector.h"
-#include "GlobalData.h"
 #include "cudasimframework.cu"
 
 // Geometry taken from the SPHERIC test case 2
@@ -40,7 +36,7 @@ DamBreak2D::DamBreak2D(GlobalData *_gdata) : Problem(_gdata)
 	// *** user parameters from command line
 	// density diffusion terms: 0 none, 1 Ferrari, 2 Molteni & Colagrossi, 3 Brezzi
 	const DensityDiffusionType RHODIFF = get_option("density-diffusion", COLAGROSSI);
-	// artificial viscosity: if set to a positive value, the problem witll use artificial viscosity
+	// artificial viscosity: if set to a positive value, the problem will use artificial viscosity
 	// instead of kinematic viscosity (with the specified viscosity value)
 	const float artvisc = get_option("artvisc", 0.0f);
 	// particles in the initial water height
@@ -87,9 +83,12 @@ DamBreak2D::DamBreak2D(GlobalData *_gdata) : Problem(_gdata)
 	const double g = 9.81;
 	set_gravity(-g);
 
-	add_fluid(1000.0);
-	set_equation_of_state(0,  7.0f, NAN); // sound speed NAN = autocompute
-	set_kinematic_visc(0, 1.0e-6f);
+	auto water = add_fluid(1000.0);
+	set_equation_of_state(water,  7.0f, NAN); // sound speed NAN = autocompute
+	set_kinematic_visc(water, 1.0e-6f);
+
+	// artificial viscosity coefficient is independent of the fluid
+	// it can safely be set even if ARTVISC is not used
 	set_artificial_visc(artvisc);
 
 	// 6s of runtime by default
@@ -107,28 +106,26 @@ DamBreak2D::DamBreak2D(GlobalData *_gdata) : Problem(_gdata)
 
 	// *** Setup geometries
 
+	// fill geometries by placing the first layer half a ∆p tangent to the geometric border,
+	// rather than centered on it. this greatly simplifies the definition of all involved geometries
+	setFillingMethod(Object::BORDER_TANGENT);
+
 	// set positioning policy to PP_CORNER: given point will be the corner of the geometry
 	setPositioning(PP_CORNER);
 
-	// When using DUMMY_BOUNDARY, the walls should be m_deltap/2 “outside” the wall. We achieve this
-	// by defining the domain box with an extra m_deltap in size, and shifting it by half m_deltap
-	const double half_dp = m_deltap/2;
-	GeometryID domain_box = addRect(GT_FIXED_BOUNDARY, FT_OUTER_BORDER,
-		Point(-half_dp, -half_dp, 0), domain_length+m_deltap, domain_height+m_deltap);
+	const Point corner = Point(0, 0, 0);
 
-	// Conversely, the water box must be shifted half_dp _inside_
-	GeometryID water_box = addRect(GT_FLUID, FT_SOLID, Point(half_dp, half_dp, 0), water_length, water_height);
+	GeometryID domain_box = addRect(GT_FIXED_BOUNDARY, FT_OUTER_BORDER,
+		corner, domain_length, domain_height);
+
+	GeometryID water_box = addRect(GT_FLUID, FT_SOLID,
+		corner, water_length, water_height);
 
 	if (has_obstacle) {
-		setPositioning(PP_CENTER);
+		setPositioning(PP_BOTTOM_CENTER);
 		GeometryID obstacle = addRect(GT_FIXED_BOUNDARY, FT_INNER_BORDER,
-			Point(water_length + front_to_obstacle_center, obstacle_height/2, 0),
-			// we remove one deltap from length and height because we're using dummy boundaries
-			// and the particles should start half a dp _inside_ the obstacle
-			obstacle_length - m_deltap, obstacle_height - m_deltap);
-		// in some resolutions (e.g. 32 PPH), the obstacle deletes one row of floor boundary particles,
-		// avoid that
-		setEraseOperation(obstacle, ET_ERASE_NOTHING);
+			corner + Vector(water_length + front_to_obstacle_center, 0, 0),
+			obstacle_length, obstacle_height);
 	}
 
 	// 4 water gages every 0.496 from the back
