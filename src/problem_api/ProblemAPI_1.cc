@@ -259,38 +259,35 @@ bool ProblemAPI<1>::initialize()
 	// store number of objects (floating + moving + I/O)
 	simparams()->numOpenBoundaries = open_boundaries_counter;
 
-	// Increase the world dimensions of a m_deltap quantity. This is necessary
-	// to guarantee a distance of m_deltap between particles of either sides of
-	// periodic boundaries; moreover, for boundaries without any periodicity
-	// it ensures that all particles are within the domain even in case of
-	// numerical rounding errors.
-	for (int d = 0; d < dims; ++d) {
-		globalMin(d) -= (m_deltap/2);
-		globalMax(d) += (m_deltap/2);
-	}
-
-	const bool multilayer_boundary = simparams()->boundary_is_multilayer();
-
-	// compute the number of layers for dynamic boundaries, if not set
+	// compute the number of layers needed by the boundary model, if not set
 	if (m_numBoundLayers == 0) {
 		// force autocomputation
 		m_numBoundLayers = getNumBoundaryLayers();
 	}
 
-	// Increase the world dimensions for multi-layer boundaries in directions without periodicity
-	if (simparams()->boundary_is_multilayer()){
-		if (!(simparams()->periodicbound & PERIODIC_X)){
-			globalMin(0) -= (m_numBoundLayers-1)*m_deltap;
-			globalMax(0) += (m_numBoundLayers-1)*m_deltap;
-		}
-		if (dims > 1 && !(simparams()->periodicbound & PERIODIC_Y)){
-			globalMin(1) -= (m_numBoundLayers-1)*m_deltap;
-			globalMax(1) += (m_numBoundLayers-1)*m_deltap;
-		}
-		if (dims > 2 && !(simparams()->periodicbound & PERIODIC_Z)){
-			globalMin(2) -= (m_numBoundLayers-1)*m_deltap;
-			globalMax(2) += (m_numBoundLayers-1)*m_deltap;
-		}
+	// Adjust the world dimensions to account for periodicity and outer boundary filling.
+	// The logic is that in periodic directions we add half a dp on either side,
+	// so that particles on either side of the periodic wall are at a distance of half a dp,
+	// and in non-periodic directions we increase the size by number-of-layers dp
+	// (this is half a dp too much when using BORDER_CENTERED filling method, but that's OK.
+
+	const bool is_periodic_x = !!(simparams()->periodicbound & PERIODIC_X);
+	const bool is_periodic_y = !!(simparams()->periodicbound & PERIODIC_Y);
+	const bool is_periodic_z = !!(simparams()->periodicbound & PERIODIC_Z);
+
+	const double periodic_margin = Object::get_default_filling_method() == Object::BORDER_CENTERED ? m_deltap/2 : 0;
+	const double non_periodic_margin = m_numBoundLayers*m_deltap;
+
+	globalMin(0) -= is_periodic_x ? periodic_margin : non_periodic_margin;
+	globalMax(0) += is_periodic_x ? periodic_margin : non_periodic_margin;
+
+	if (dims > 1) {
+		globalMin(1) -= is_periodic_y ? periodic_margin : non_periodic_margin;
+		globalMax(1) += is_periodic_y ? periodic_margin : non_periodic_margin;
+	}
+	if (dims > 2) {
+		globalMin(2) -= is_periodic_z ? periodic_margin : non_periodic_margin;
+		globalMax(2) += is_periodic_z ? periodic_margin : non_periodic_margin;
 	}
 
 	// set computed world origin and size without overriding possible user choices
@@ -314,6 +311,9 @@ bool ProblemAPI<1>::initialize()
 			m_size.z += 2 * m_extra_world_margin;
 		}
 	}
+
+	// TODO warn user if m_origin/m_size result in a smaller domain that we computed,
+	// as this is usually a setup issue
 
 	/* Compute the DEM position fixup, if needed */
 	if (validGeometry(m_dem_geometry)) {
