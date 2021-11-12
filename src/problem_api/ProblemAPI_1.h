@@ -453,7 +453,8 @@ class ProblemAPI<1> : public ProblemCore
 		 * Planes are not added in the periodic direction(s), if any were selected
 		 * in the simulation framework.
 		 */
-		std::vector<GeometryID> makeUniverseBox(const double3 corner1, const double3 corner2);
+		std::vector<GeometryID> makeUniverseBox(double3 const& corner1, double3 const& corner2);
+		std::vector<GeometryID> makeUniverseBox(Point const& corner1, Point const& corner2);
 
 		/*! Create a plane for each of the four sides of the specified DEM.
 		 * The dem_gid refers to the GeometryID of the DEM to use as reference.

@@ -1550,7 +1550,7 @@ void ProblemAPI<1>::setPositioning(PositioningPolicy positioning)
 
 // Create 6 planes delimiting the box defined by the two points and update (overwrite) the world origin and size.
 // Write their GeometryIDs in planesIds, if given, so that it is possible to delete one or more of them afterwards.
-vector<GeometryID> ProblemAPI<1>::makeUniverseBox(const double3 corner1, const double3 corner2)
+vector<GeometryID> ProblemAPI<1>::makeUniverseBox(double3 const& corner1, double3 const& corner2)
 {
 	vector<GeometryID> planes;
 
@@ -1586,6 +1586,12 @@ vector<GeometryID> ProblemAPI<1>::makeUniverseBox(const double3 corner1, const d
 	m_size = max - min;
 
 	return planes;
+}
+
+std::vector<GeometryID>
+ProblemAPI<1>::makeUniverseBox(Point const& corner1, Point const& corner2)
+{
+	return makeUniverseBox( make_double3(corner1), make_double3(corner2) );
 }
 
 vector<GeometryID> ProblemAPI<1>::addDEMPlanes(GeometryID gid)
