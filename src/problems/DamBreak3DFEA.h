@@ -29,9 +29,10 @@
 #ifndef _DAMBREAK3DFEA_H
 #define	_DAMBREAK3DFEA_H
 
-#include "XProblem.h"
+#define PROBLEM_API 1
+#include "Problem.h"
 
-class DamBreak3DFEA: public XProblem {
+class DamBreak3DFEA: public Problem {
 	private:
 	public:
 		DamBreak3DFEA(GlobalData *);

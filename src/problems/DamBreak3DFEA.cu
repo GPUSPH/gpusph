@@ -29,22 +29,32 @@
 #include <iostream>
 
 #include "DamBreak3DFEA.h"
-#include "Cube.h"
-#include "Point.h"
-#include "Vector.h"
-#include "GlobalData.h"
 #include "cudasimframework.cu"
 
-DamBreak3DFEA::DamBreak3DFEA(GlobalData *_gdata) : XProblem(_gdata)
+DamBreak3DFEA::DamBreak3DFEA(GlobalData *_gdata) : Problem(_gdata)
 {
 	// *** user parameters from command line
 	const bool WET = get_option("wet", false);
 	const bool USE_PLANES = get_option("use_planes", false);
+	const bool USE_CCSPH = get_option("use_ccsph", false);
 	const uint NUM_OBSTACLES = get_option("num_obstacles", 0);
 	const bool ROTATE_OBSTACLE = get_option("rotate_obstacle", true);
+	const uint ppH = get_option("ppH", 64);
 	const uint NUM_TESTPOINTS = get_option("num_testpoints", 3);
 	// density diffusion terms: 0 none, 1 Ferrari, 2 Molteni & Colagrossi, 3 Brezzi
 	const DensityDiffusionType RHODIFF = get_option("density-diffusion", COLAGROSSI);
+
+	// *** Geometrical parameters, starting from the size of the domain
+	const double H = 0.4;
+	const double dimX = 1.6;
+	const double dimY = 0.3;
+	const double dimZ = 0.7;
+	const double obstacle_side = 0.12;
+	const double obstacle_xpos = 0.9;
+	const double water_length = 0.4;
+	const double water_height = H;
+	const double water_bed_height = 0.1;
+	const double beam_h = 0.6;
 
 	// ** framework setup
 	// viscosities: KINEMATICVISC*, DYNAMICVISC*
@@ -52,12 +62,14 @@ DamBreak3DFEA::DamBreak3DFEA(GlobalData *_gdata) : XProblem(_gdata)
 	// boundary types: LJ_BOUNDARY*, MK_BOUNDARY, SA_BOUNDARY, DYN_BOUNDARY*
 	// * = tested in this problem
 	SETUP_FRAMEWORK(
-		viscosity<ARTVISC>,
+		rheology<NEWTONIAN>,
+		turbulence_model<ARTIFICIAL>,
 		boundary<DUMMY_BOUNDARY>,
 		add_flags<ENABLE_FEA>
 	).select_options(
 		RHODIFF,
-		USE_PLANES, add_flags<ENABLE_PLANES>()
+		USE_PLANES, add_flags<ENABLE_PLANES>(),
+		USE_CCSPH, add_flags<ENABLE_CCSPH>()
 	);
 
 	// will dump testpoints separately
@@ -71,129 +83,110 @@ DamBreak3DFEA::DamBreak3DFEA(GlobalData *_gdata) : XProblem(_gdata)
 	if (mlsIters > 0)
 		addFilter(MLS_FILTER, mlsIters);
 
-	// Explicitly set number of layers. Also, prevent having undefined number of layers before the constructor ends.
-	setDynamicBoundariesLayers(3);
-
 	// *** Initialization of minimal physical parameters
-	set_deltap(1.0/128.0);
-	physparams()->r0 = m_deltap;
-	physparams()->gravity = make_float3(0.0, 0.0, -9.81);
-	const float g = length(physparams()->gravity);
-	const double H = 0.4;
-	physparams()->dcoeff = 5.0f * g * H;
-	add_fluid(1000.0);
+	set_deltap(H/ppH);
+	simparams()->tend = 6;
+	set_gravity(-9.81);
+	auto water = add_fluid(1000.0);
 
-	//add_fluid(2350.0);
-	set_equation_of_state(0, 7.0f, 60.0f);
-	set_kinematic_visc(0, 1.0e-2f);
+	set_equation_of_state(water,  7.0f, 20.0f);
+	set_kinematic_visc(water, 1.0e-6f);
 
-	// default tend 1.5s
 	simparams()->tend=1.0f;
-	//simparams()->ferrariLengthScale = H;
 	simparams()->densityDiffCoeff = 0.1f;
-	physparams()->artvisccoeff =  0.05;
+	set_artificial_visc(0.05f);
+	/*
+	set_sps_parameters(0.12, 0.0066); // default values
+	physparams()->epsartvisc = 0.01*simparams()->slength*simparams()->slength;*/
+	simparams()->repack_a = 0.1f;
+	simparams()->repack_alpha = 0.01f;
+	simparams()->repack_maxiter = 10;
 
 	// Drawing and saving times
 	add_writer(VTKWRITER, 0.01f);
 	//addPostProcess(VORTICITY);
-	// *** Other parameters and settings
-	m_name = "DamBreak3DFEA";
 
-	// *** Geometrical parameters, starting from the size of the domain
-	const double dimX = 1.6;
-	const double dimY = 0.3;
-	const double dimZ = 0.7;
-	const double obstacle_side = 0.12;
-	const double obstacle_xpos = 0.9;
-	const double water_length = 0.4;
-	const double water_height = H;
-	const double water_bed_height = 0.1;
-
-	const double pil_h = 0.6;
-
-	// If we used only makeUniverseBox(), origin and size would be computed automatically
-	m_origin = make_double3(0, 0, 0);
-	m_size = make_double3(dimX, dimY, dimZ);
-
+	// set filling method to BORDER_TANGENT, so that geometries automatically get filled
+	// half a m_deltap inside/outside
+	setFillingMethod(Object::BORDER_TANGENT);
 	// set positioning policy to PP_CORNER: given point will be the corner of the geometry
 	setPositioning(PP_CORNER);
+	const Point corner = Point(0, 0, 0);
 
 	// main container
 	if (USE_PLANES) {
-		// limit domain with 6 planes
-		makeUniverseBox(m_origin, m_origin + m_size);
+		// limit domain with 6 planes. Due to our filling method, using:
+		//   makeUniverseBox(corner, corner + Vector(dimX, dimY, dimZ));
+		// would place the planes half a dp from the fluid,
+		// which would be correct if we used ghost particles,
+		// but with the LJ planes we have currently, we should have a full dp.
+		// As an alternative, we could set the LJ r0 to half dp,
+		// but this would cause issues with the obstacles,
+		// which are filled with particles instead.
+		// Instead, we shift the corners of the universe box out by half a dp.
+		// TODO remeber to fix this when we implement ghost particles!
+		const double half_dp = m_deltap/2;
+		const Vector half_dp_vec = Vector(half_dp, half_dp, half_dp);
+		const Vector dim_vec = Vector(dimX, dimY, dimZ);
+		makeUniverseBox(corner - half_dp_vec, corner + dim_vec + half_dp_vec);
 	} else {
-		GeometryID box =
-			addBox(GT_FIXED_BOUNDARY, FT_BORDER, m_origin, dimX, dimY, dimZ);
-		// we simulate inside the box, so do not erase anything
-		setEraseOperation(box, ET_ERASE_NOTHING);
+		addBox(GT_FIXED_BOUNDARY, FT_OUTER_BORDER, corner, dimX, dimY, dimZ);
 	}
-
-	// Planes unfill automatically but the box won't, to void deleting all the water. Thus,
-	// we define the water at already the right distance from the walls.
-	double BOUNDARY_DISTANCE = m_deltap;
-	if ((simparams()->boundarytype == DYN_BOUNDARY || simparams()->boundarytype == DUMMY_BOUNDARY) && !USE_PLANES)
-			BOUNDARY_DISTANCE *= getDynamicBoundariesLayers();
 
 	// Add the main water part
-	addBox(GT_FLUID, FT_SOLID, Point(BOUNDARY_DISTANCE, BOUNDARY_DISTANCE, BOUNDARY_DISTANCE),
-		water_length - BOUNDARY_DISTANCE, dimY - 2 * BOUNDARY_DISTANCE, water_height - BOUNDARY_DISTANCE);
-	// Add the water bed if wet. After we'll implement the unfill with custom dx, it will be possible to declare
-	// the water bed overlapping with the main part.
+	addBox(GT_FLUID, FT_SOLID, corner, water_length, dimY, water_height);
+
+	// Add the water bed if wet.
 	if (WET) {
-		addBox(GT_FLUID, FT_SOLID,
-			Point(water_length + m_deltap, BOUNDARY_DISTANCE, BOUNDARY_DISTANCE),
-			dimX - water_length - BOUNDARY_DISTANCE - m_deltap,
-			dimY - 2 * BOUNDARY_DISTANCE,
-			water_bed_height - BOUNDARY_DISTANCE);
+		addBox(GT_FLUID, FT_SOLID, corner + Vector(water_length, 0, 0),
+			dimX - water_length, dimY, water_bed_height);
 	}
 
-	//addTetFile(GT_DEFORMABLE_BODY, FT_BORDER, Point(0,0,0), "dambreak.1.node", "dambreak.1.ele", 0.021);
+	// addTetFile(GT_DEFORMABLE_BODY, FT_BORDER, Point(0,0,0), "dambreak.1.node", "dambreak.1.ele", 0.021);
 	// set positioning policy to PP_BOTTOM_CENTER: given point will be the center of the base
 
-//	set_fea_ground(0, 0, 1, 0.05); // a, b, c and d parameters of a plane equation. Grounding nodes in the negative side of the plane
+	//	set_fea_ground(0, 0, 1, 0.05); // a, b, c and d parameters of a plane equation. Grounding nodes in the negative side of the plane
 
-	// Define pillers
+	// Define beams
 	setPositioning(PP_BOTTOM_CENTER);
 
-	GeometryID piller0 = addCylinder(GT_DEFORMABLE_BODY, FT_BORDER, Point(0.5, dimY/2.0, BOUNDARY_DISTANCE), 0.04, 0.04 - 0.005, pil_h, 2);
+	GeometryID beam0 = addCylinder(GT_DEFORMABLE_BODY, FT_INNER_BORDER, Point(0.5, dimY/2.0, 0), 0.04, 0.04 - 0.005, beam_h, 2);
 
-	setYoungModulus(piller0, 30e5);
-	setPoissonRatio(piller0, 0.001);
-	setDensity(piller0, 1000);
-	setAlphaDamping(piller0, 0.5);
+	setYoungModulus(beam0, 30e5);
+	setPoissonRatio(beam0, 0.001);
+	setDensity(beam0, 1000);
+	setAlphaDamping(beam0, 0.5);
 
-	setEraseOperation(piller0, ET_ERASE_FLUID);
+	setEraseOperation(beam0, ET_ERASE_FLUID);
 
 	setPositioning(PP_CENTER);
 	// node writer
 	const double box_side = 0.1;
-	GeometryID writer_box = addBox(GT_FEA_WRITE, FT_NOFILL, Point(0.5, dimY/2.0, pil_h + BOUNDARY_DISTANCE), box_side, box_side, box_side);
+	GeometryID writer_box = addBox(GT_FEA_WRITE, FT_NOFILL, Point(0.5, dimY/2.0, beam_h), box_side, box_side, box_side);
 
 
 	const double dynamometer_side = 0.1;
-	GeometryID dynamometer = addBox(GT_FEA_RIGID_JOINT, FT_NOFILL, Point(0.5, dimY/2.0, BOUNDARY_DISTANCE), dynamometer_side, dynamometer_side, dynamometer_side);
+	GeometryID dynamometer = addBox(GT_FEA_RIGID_JOINT, FT_NOFILL, Point(0.5, dimY/2.0, 0), dynamometer_side, dynamometer_side, dynamometer_side);
 	setEraseOperation(dynamometer, ET_ERASE_NOTHING);
 	setUnfillRadius(dynamometer, 0.5*m_deltap);
 	setDynamometer(dynamometer, true);
 
 	simparams()->fea_write_every = 0.01f;
 
+	setPositioning(PP_BOTTOM_CENTER);
 	// add one or more obstacles
 	const double Y_DISTANCE = dimY / (NUM_OBSTACLES + 1);
 	// rotation angle
 	const double Z_ANGLE = M_PI / 4;
 
-
-
-// activate the solid obstacle
-
+	// activate the solid obstacle
 	for (uint i = 0; i < NUM_OBSTACLES; i++) {
 		// Obstacle is of type GT_MOVING_BODY, although the callback is not even implemented, to
 		// make the forces feedback available
-		GeometryID obstacle = addBox(GT_MOVING_BODY, FT_BORDER,
+		GeometryID obstacle = addBox(GT_MOVING_BODY, FT_INNER_BORDER,
 			Point(obstacle_xpos, Y_DISTANCE * (i+1) + (ROTATE_OBSTACLE ? obstacle_side/2 : 0), 0),
-				obstacle_side, obstacle_side, dimZ );
+				obstacle_side, obstacle_side, dimZ);
+		setEraseOperation(obstacle, ET_ERASE_NOTHING);
 		if (ROTATE_OBSTACLE) {
 			rotate(obstacle, 0, 0, Z_ANGLE);
 			// until we'll fix it, the rotation centers are always the corners
