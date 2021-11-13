@@ -33,6 +33,7 @@
 
 #if USE_CHRONO
 #include "chrono/physics/ChBody.h"
+#include "chrono/physics/ChMaterialSurfaceSMC.h"
 #endif
 #include "EulerParametersQuaternion.h"
 
@@ -387,11 +388,13 @@ Cone::GeomCreate(const double dx) {
 	const double rb = m_rb + dx/2.;
 	const double rt = m_rt + dx/2.;
 	const double h = m_h + dx;
-	/*
-	m_body->GetCollisionModel()->AddCone(rb, rt, h);
+	m_body->GetCollisionModel()->AddCone(
+#if CH_VERSION > 0x00050000
+		chrono_types::make_shared< ::chrono::ChMaterialSurfaceSMC >(),
+#endif
+		rb, rt, h);
 	m_body->GetCollisionModel()->BuildModel();
 	m_body->SetCollide(true);
-	*/
 #else
 	throw std::runtime_error("Chrono not active, cannot create geometry for Cone");
 #endif

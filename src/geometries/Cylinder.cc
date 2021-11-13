@@ -36,6 +36,7 @@
 #if USE_CHRONO == 1
 #include "chrono/physics/ChBodyEasy.h"
 #include "chrono/physics/ChSystem.h"
+#include "chrono/physics/ChMaterialSurfaceSMC.h"
 #include "chrono/fea/ChElementHexa_8.h"
 #include "chrono/fea/ChElementShellANCF.h"
 #include "chrono/fea/ChElementCableANCF.h"
@@ -288,7 +289,15 @@ Cylinder::BodyCreate(::chrono::ChSystem * bodies_physical_system, const double d
 		throw std::runtime_error("Cube::BodyCreate Trying to create a body in an invalid physical system!\n");
 
 	// Creating a new Chrono object
-	m_body = chrono_types::make_shared< ::chrono::ChBodyEasyCylinder >( m_r + dx/2.0, m_h + dx, m_mass/Volume(dx), collide );
+	m_body = chrono_types::make_shared< ::chrono::ChBodyEasyCylinder >( m_r + dx/2.0, m_h + dx, m_mass/Volume(dx),
+#if CH_VERSION < 0x00060000
+		collide
+#else
+		 false, collide,
+		 // TODO FEA use/set the material properties through the already-set material
+		 collide ? chrono_types::make_shared< ::chrono::ChMaterialSurfaceSMC >() : nullptr
+#endif
+		 );
 	m_body->SetPos(::chrono::ChVector<>(m_center(0), m_center(1), m_center(2)));
 	m_body->SetRot(EulerParametersQuaternion(orientation_diff*m_ep));
 

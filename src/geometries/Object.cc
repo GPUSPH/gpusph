@@ -795,7 +795,7 @@ Object::CreateFemMesh(::chrono::ChSystem *fea_system)
 #endif
 }
 
-/// Print ODE-related information such as position, CG, geometry bounding box (if any), etc.
+/// Print Chrono-related information such as position, CG, geometry bounding box (if any), etc.
 // TODO: could be useful to print also the rotation matrix
 void Object::BodyPrintInformation(const bool print_geom)
 {
@@ -816,9 +816,13 @@ void Object::BodyPrintInformation(const bool print_geom)
 
 		// not only check if an ODE geometry is associated, but also it must not be a plane
 		if (print_geom && m_body->GetCollide()) {
+			auto collision_model = m_body->GetCollisionModel();
+			auto shapes = collision_model->GetShapes();
 			::chrono::ChVector<> bbmin, bbmax;
-			m_body->GetCollisionModel()->GetAABB(bbmin, bbmax);
-			printf("Chrono collision shape\n");
+			collision_model->SyncPosition();
+
+			collision_model->GetAABB(bbmin, bbmax);
+			printf("Chrono collision model (%zu shapes):\n", shapes.size());
 			printf("   B. box:   X [%g,%g], Y [%g,%g], Z [%g,%g]\n",
 				bbmin.x(), bbmax.x(), bbmin.y(), bbmax.y(), bbmin.z(), bbmax.z());
 			printf("   size:     X [%g] Y [%g] Z [%g]\n", bbmax.x() - bbmin.x(),

@@ -40,8 +40,9 @@
 
 #include "chrono_select.opt"
 #if USE_CHRONO == 1
-#include "chrono/physics/ChBodyEasy.h"
 #include "chrono/physics/ChSystem.h"
+#include "chrono/physics/ChBodyEasy.h"
+#include "chrono/physics/ChMaterialSurfaceSMC.h"
 #include "chrono/fea/ChMesh.h"
 #include "chrono/fea/ChMeshFileLoader.h"
 #include "chrono/fea/ChNodeFEAxyz.h"
@@ -528,7 +529,17 @@ void STLMesh::BodyCreate(::chrono::ChSystem *bodies_physical_system, const doubl
 	 */
 
 	// Creating a new Chrono object. Parames: filename, density, compute_mass, collide...)
-	m_body = chrono_types::make_shared< ::chrono::ChBodyEasyMesh > (m_objfile, 1000, false, collide);
+	// but v6 needs a material if collisions are enabled
+	m_body = chrono_types::make_shared< ::chrono::ChBodyEasyMesh > (m_objfile, 1000,
+		false, // compute_mass
+#if CH_VERSION < 0x00060000
+		collide
+#else
+		false, collide,
+		 // TODO FEA use/set the material properties through the already-set material
+		 collide ? chrono_types::make_shared< ::chrono::ChMaterialSurfaceSMC >() : nullptr
+#endif
+		);
 
 	// retrieve the bounding box
 	::chrono::ChVector<> bbmin, bbmax;

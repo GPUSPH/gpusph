@@ -38,6 +38,7 @@
 #if USE_CHRONO == 1
 #include "chrono/physics/ChSystem.h"
 #include "chrono/physics/ChBodyEasy.h"
+#include "chrono/physics/ChMaterialSurfaceSMC.h"
 #include "chrono/fea/ChNodeFEAxyzD.h"
 #include "chrono/fea/ChNodeFEAxyz.h"
 #include "chrono/fea/ChElementShellANCF.h"
@@ -880,8 +881,8 @@ float4 Cube::getNaturalCoords(const double4 abs_coords)
 
 ostream& operator<<(ostream& out, const Cube& cube) // output
 {
-    out << "Cube size(" << cube.m_lx << ", " << cube.m_ly << ", " <<cube. m_lz
-    		<< ") particles: " << cube.m_parts.size() << "\n";
+    out << "Cube size(" << cube.m_lx << ", " << cube.m_ly << ", " << cube.m_lz
+		<< ") particles: " << cube.m_parts.size() << "\n";
     return out;
 }
 
@@ -899,7 +900,15 @@ Cube::BodyCreate(::chrono::ChSystem * bodies_physical_system, const double dx, c
 		throw std::runtime_error("Cube::BodyCreate Trying to create a body in an invalid physical system!\n");
 
 	// Creating a new Chrono object
-	m_body = chrono_types::make_shared< ::chrono::ChBodyEasyBox > ( m_lx + dx, m_ly + dx, m_lz + dx, m_mass/Volume(dx), collide );
+	m_body = chrono_types::make_shared< ::chrono::ChBodyEasyBox >(m_lx + dx, m_ly + dx, m_lz + dx, m_mass/Volume(dx),
+#if CH_VERSION < 0x00060000
+		collide
+#else
+		 false, collide,
+		 // TODO FEA use/set the material properties through the already-set material
+		 collide ? chrono_types::make_shared< ::chrono::ChMaterialSurfaceSMC >() : nullptr
+#endif
+		 );
 	m_body->SetPos(::chrono::ChVector<>(m_center(0), m_center(1), m_center(2)));
 	m_body->SetRot(EulerParametersQuaternion(orientation_diff*m_ep));
 

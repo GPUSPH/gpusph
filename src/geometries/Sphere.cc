@@ -33,8 +33,9 @@
 #include "Sphere.h"
 
 #if USE_CHRONO == 1
-#include "chrono/physics/ChBodyEasy.h"
 #include "chrono/physics/ChSystem.h"
+#include "chrono/physics/ChBodyEasy.h"
+#include "chrono/physics/ChMaterialSurfaceSMC.h"
 #endif
 #include "EulerParametersQuaternion.h"
 
@@ -177,7 +178,16 @@ Sphere::BodyCreate(::chrono::ChSystem * bodies_physical_system, const double dx,
 		throw std::runtime_error("Sphere::BodyCreate Trying to create a body in an invalid physical system!\n");
 
 	// Creating a new Chrono object
-	m_body = chrono_types::make_shared< ::chrono::ChBodyEasySphere > ( m_r + dx/2.0, m_mass/Volume(dx), collide );
+	m_body = chrono_types::make_shared< ::chrono::ChBodyEasySphere >(m_r + dx/2.0, m_mass/Volume(dx),
+#if CH_VERSION < 0x00060000
+		collide
+#else
+		 false, collide,
+		 // TODO FEA use/set the material properties through the already-set material
+		 collide ? chrono_types::make_shared< ::chrono::ChMaterialSurfaceSMC >() : nullptr
+#endif
+		 );
+
 	m_body->SetPos(::chrono::ChVector<>(m_center(0), m_center(1), m_center(2)));
 	m_body->SetRot(EulerParametersQuaternion(orientation_diff*m_ep));
 
