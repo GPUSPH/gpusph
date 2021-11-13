@@ -628,12 +628,18 @@ Rect::FillIn2D(PointVect &points, const double dx, const int layers)
 	x_shift *= -2;
 	y_shift *= -2;
 
-	// First layer: on the boundary
-	FillBorder(points, dx);
-	// NOTE: pre-decrementing causes (_layers-1) layers to be filled. This
-	// is correct since the first layer was already filled
-	while (--_layers > 0) {
-		Rect layer(m_origin + _layers*o_shift, m_vx + _layers*x_shift, m_vy + _layers*y_shift);
+	const Point fill_origin =
+		default_filling_method == BORDER_CENTERED ? m_origin
+		: m_origin + o_shift/2;
+	const Vector fill_vx =
+		default_filling_method == BORDER_CENTERED ? m_vx
+		: m_vx + x_shift/2;
+	const Vector fill_vy =
+		default_filling_method == BORDER_CENTERED ? m_vy
+		: m_vy + y_shift/2;
+
+	while (_layers-- > 0) {
+		Rect layer(fill_origin + _layers*o_shift, fill_vx + _layers*x_shift, fill_vy + _layers*y_shift);
 		layer.SetPartMass(m_center(3));
 		layer.FillBorder(points, dx);
 	}
