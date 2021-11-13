@@ -1477,7 +1477,9 @@ double ProblemAPI<1>::setMassByDensity(const GeometryID gid, const double densit
 	if (geom->type != GT_FLOATING_BODY)
 		printf("WARNING: setting mass of a non-floating body\n");
 
-	const double mass = geom->ptr->SetMass(preferredDeltaP(geom->type), density);
+	const double volume_add_dx = Object::get_default_filling_method() == Object::BORDER_CENTERED ?
+		preferredDeltaP(geom->type) : 0;
+	const double mass = geom->ptr->SetMass(volume_add_dx, density);
 	geom->mass_was_set = true;
 
 	return mass;
