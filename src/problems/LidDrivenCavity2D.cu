@@ -54,8 +54,8 @@ LidDrivenCavity2D::LidDrivenCavity2D(GlobalData *_gdata) : Problem(_gdata),
 
 	// *** Geometrical parameters, starting from the size of the domain
 
-	constexpr double domain_length = 1; // unused in 2D test case
-	constexpr double domain_height = 1;
+	constexpr double domain_length = 1;
+	constexpr double domain_height = domain_length;
 
 	// *** Framework setup
 	SETUP_FRAMEWORK(
@@ -101,20 +101,17 @@ LidDrivenCavity2D::LidDrivenCavity2D(GlobalData *_gdata) : Problem(_gdata),
 
 	// set positioning policy to PP_CORNER: given point will be the corner of the geometry
 	setPositioning(PP_CORNER);
+	// set filling method to BORDER_TANGENT: particle layers will start half a m_deltap inside
+	// (or outside) the geometry.
+	setFillingMethod(Object::BORDER_TANGENT);
 
-	// When using DUMMY_BOUNDARY, the walls should be m_deltap/2 “outside” the wall. We achieve this
-	// by defining the domain box with an extra m_deltap in size, and shifting it by half m_deltap
-	const double half_dp = m_deltap/2;
-	GeometryID domain_box = addRect(GT_FIXED_BOUNDARY, FT_OUTER_BORDER,
-		Point(-half_dp, -half_dp, 0), domain_length+m_deltap, domain_height+m_deltap);
+	const Point corner = Point(0, 0, 0);
+	GeometryID domain_box = addRect(GT_FIXED_BOUNDARY, FT_OUTER_BORDER, corner, domain_length, domain_height);
 
-	// Conversely, the water box must be shifted half_dp _inside_
-	GeometryID water_box = addRect(GT_FLUID, FT_SOLID,
-		Point(half_dp, half_dp, 0), domain_length-m_deltap, domain_height-m_deltap);
+	GeometryID water_box = addRect(GT_FLUID, FT_SOLID, corner, domain_length, domain_height);
 
 	// We need to cut off the top of the box to replace it with the moving lid.
-	// We use a plane to cut the existing particles off, and then create a Rect that is
-	// as thick as required by the boundary conditions to cover it again.
+	// We use a plane to cut the existing particles off, and then use a Segment to recreate it.
 
 	// cutting plane at y = domain_height (i.e. y - domain_height = 0), with downwards normal
 	// FT_UNFILL means: use this plane for unfilling (cutting out particles), but do not
@@ -123,10 +120,16 @@ LidDrivenCavity2D::LidDrivenCavity2D(GlobalData *_gdata) : Problem(_gdata),
 	// the plane should only cut _behind_. Normaly it cuts up to dp forward too
 	setUnfillRadius(cutting_plane, 0);
 
-	const double wall_thickness = getDynamicBoundariesLayers()*m_deltap;
-	GeometryID lid = addRect(GT_MOVING_BODY, FT_SOLID,
-		Point( -wall_thickness+half_dp, domain_height + half_dp, 0),
-		domain_length + 2*wall_thickness - m_deltap, wall_thickness);
+	// place the lid, taking into account that its length should be enough to cover
+	// the extra boundary layers
+	const double outer_padding = getNumBoundaryLayers()*m_deltap;
+	GeometryID lid = addSegment(GT_MOVING_BODY, FT_OUTER_BORDER,
+		corner + Vector(-outer_padding, domain_height, 0),
+		domain_length + 2*outer_padding);
+	// note that by default the outer normal is downwards,
+	// so we need to rotate the segment. We do the rotation around the x axis
+	// so that it actually remains in-place, just flipping the normal
+	rotate(lid, M_PI, 0, 0);
 }
 
 void
