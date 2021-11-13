@@ -37,6 +37,7 @@
 LockExchange::LockExchange(GlobalData *_gdata) : Problem(_gdata)
 {
 	const bool USE_PLANES = get_option("use_planes", false);
+	const int ppH = get_option("ppH", 32);
 	// density diffusion terms: 0 none, 1 Ferrari, 2 Molteni & Colagrossi, 3 Brezzi
 	const DensityDiffusionType RHODIFF = get_option("density-diffusion", COLAGROSSI);
 
@@ -59,29 +60,16 @@ LockExchange::LockExchange(GlobalData *_gdata) : Problem(_gdata)
 	if (mlsIters > 0)
 		addFilter(MLS_FILTER, mlsIters);
 
-	//const double dimX = 1.82;
-	dimX = 0.6;
+	dimX = 1.82;
 	dimY = 0.23;
 	dimZ = 0.2;
 
 	H = dimZ;
 
-	setMaxFall(H);
-
-	// Explicitly set number of layers. Also, prevent having undefined number of layers before the constructor ends.
-	setDynamicBoundariesLayers(3);
-
-	resize_neiblist(128);
-
 	// *** Initialization of minimal physical parameters
-	set_deltap(H/32);
-	//set_timestep(0.00005);
+	set_deltap(H/ppH);
 	set_gravity(-9.81);
 	set_interface_epsilon(0.08);
-
-	// If we used only makeUniverseBox(), origin and size would be computed automatically
-	m_origin = make_double3(0, 0, 0);
-	m_size = make_double3(dimX, dimY, dimZ);
 
 	float rho0 = 1000;
 	float rho1 = 2350;
@@ -89,15 +77,14 @@ LockExchange::LockExchange(GlobalData *_gdata) : Problem(_gdata)
 	light = add_fluid(rho0);
 	heavy = add_fluid(rho1);
 
-	set_equation_of_state(light,  7.0f, 20.0f);
-	set_equation_of_state(heavy,  7.0f, 20.0f);
+	// autocompute speed of sound
+	set_equation_of_state(light,  7.0f, NAN);
+	set_equation_of_state(heavy,  7.0f, NAN);
 
 	set_kinematic_visc(light, 1.0e-2f);
 	set_kinematic_visc(heavy, 1.0e-2f);
 
-	// default tend 1.5s
 	simparams()->tend=20.0f;
-	//simparams()->ferrariLengthScale = H;
 	simparams()->densityDiffCoeff = 0.1f;
 
 	// Drawing and saving times
@@ -108,41 +95,38 @@ LockExchange::LockExchange(GlobalData *_gdata) : Problem(_gdata)
 	// set positioning policy to PP_CORNER: given point will be the corner of the geometry
 	setPositioning(PP_CORNER);
 
+	// use BORDER_TANGNET filling so that geometries are filled starting half a dp inside
+	// rather than on the border
+	setFillingMethod(Object::BORDER_TANGENT);
+
+	const Point corner(0, 0, 0);
+
 	// main container
 	if (USE_PLANES) {
-		// limit domain with 6 planes
-		makeUniverseBox(m_origin, m_origin + m_size);
+		// limit domain with 6 planes. Due to our filling method, using:
+		//   makeUniverseBox(corner, corner + Vector(dimX, dimY, dimZ));
+		// would place the planes half a dp from the fluid,
+		// which would be correct if we used ghost particles,
+		// but with the LJ planes we have currently, we should have a full dp.
+		const double half_dp = m_deltap/2;
+		const Vector half_dp_vec = Vector(half_dp, half_dp, half_dp);
+		const Vector dim_vec = Vector(dimX, dimY, dimZ);
+		makeUniverseBox(corner - half_dp_vec, corner + dim_vec + half_dp_vec);
 	} else {
-		GeometryID box =
-			addBox(GT_FIXED_BOUNDARY, FT_BORDER, m_origin, dimX, dimY, dimZ);
-		// we simulate inside the box, so do not erase anything
-		setEraseOperation(box, ET_ERASE_NOTHING);
-		setParticleMassByDensity(box, 1);
+		GeometryID domain_box = addBox(GT_FIXED_BOUNDARY, FT_OUTER_BORDER, corner, dimX, dimY, dimZ);
+		// actual masses and densities will be initialized in initializeParticles()
+		setParticleMassByDensity(domain_box, 1);
 	}
 
-	// Planes unfill automatically but the box won't, to void deleting all the water. Thus,
-	// we define the water at already the right distance from the walls.
-	double BOUNDARY_DISTANCE = m_deltap;
-
-	if (simparams()->boundarytype == DYN_BOUNDARY && !USE_PLANES)
-			BOUNDARY_DISTANCE *= getDynamicBoundariesLayers();
-
 	// Add the main water part
-	GeometryID light_box = addBox(GT_FLUID, FT_SOLID, Point(BOUNDARY_DISTANCE, BOUNDARY_DISTANCE, BOUNDARY_DISTANCE),
-		dimX/2 - BOUNDARY_DISTANCE + m_deltap, dimY - 2 * BOUNDARY_DISTANCE , dimZ - 2 *BOUNDARY_DISTANCE);
+	GeometryID light_box = addBox(GT_FLUID, FT_SOLID, corner, dimX/2, dimY, dimZ);
+	GeometryID heavy_box = addBox(GT_FLUID, FT_SOLID, corner + Vector(dimX/2, 0, 0), dimX/2, dimY, dimZ);
+	// there is no interference in the filling, so avoid any spurious unfill due to rounding issues
+	setEraseOperation(heavy_box, ET_ERASE_NOTHING);
 
-	GeometryID heavy_box = addBox(GT_FLUID, FT_SOLID, Point(m_deltap + dimX/2, BOUNDARY_DISTANCE, BOUNDARY_DISTANCE),
-		dimX/2 - BOUNDARY_DISTANCE - m_deltap, dimY - 2 * BOUNDARY_DISTANCE , dimZ - 2 *BOUNDARY_DISTANCE);
-
-	disableCollisions(light_box);
+	// actual masses and densities will be initialized in initializeParticles()
 	setParticleMassByDensity(light_box, 1);
-
-	disableCollisions(heavy_box);
 	setParticleMassByDensity(heavy_box, 1);
-
-	// set positioning policy to PP_BOTTOM_CENTER: given point will be the center of the base
-	//setPositioning(PP_BOTTOM_CENTER);
-
 }
 
 // since the fluid topology is roughly symmetric along Y through the whole simulation, prefer Y split
