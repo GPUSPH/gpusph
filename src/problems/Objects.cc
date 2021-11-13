@@ -27,6 +27,9 @@
 
 #include <iostream>
 
+// TODO FIXME domain box walls don't contain the floating objects,
+// despite having collisions enabled (neither w/ planes nor with box)
+
 #include "chrono_select.opt"
 #if USE_CHRONO == 1
 #include "chrono/physics/ChSystem.h"
@@ -35,9 +38,6 @@
 #endif
 
 #include "Objects.h"
-#include "Cube.h"
-#include "Point.h"
-#include "Vector.h"
 #include "GlobalData.h"
 
 Objects::Objects(GlobalData *_gdata) : Problem(_gdata)
@@ -59,14 +59,12 @@ Objects::Objects(GlobalData *_gdata) : Problem(_gdata)
 	if (mlsIters > 0)
 		addFilter(MLS_FILTER, mlsIters);
 
-	// Explicitly set number of layers. Also, prevent having undefined number of layers before the constructor ends.
-	setDynamicBoundariesLayers(3);
-
 	// *** Initialization of minimal physical parameters
 	set_deltap(0.02f);
 	set_gravity(-9.81);
+
 	add_fluid(1000.0);
-	set_equation_of_state(0,  7.0f, 20.0f);
+	set_equation_of_state(0,  7.0f, NAN);
 	//set_kinematic_visc(0, 1.0e-2f);
 	set_dynamic_visc(0, 1.0e-4f);
 
@@ -92,37 +90,37 @@ Objects::Objects(GlobalData *_gdata) : Problem(_gdata)
 
 	setMaxFall(water_height);
 
-	// If we used only makeUniverseBox(), origin and size would be computed automatically
-	m_origin = make_double3(0, 0, 0);
-	m_size = make_double3(dimX, dimY, dimZ);
-
 	// set positioning policy to PP_CORNER: given point will be the corner of the geometry
 	setPositioning(PP_CORNER);
+	// set filling method to BORDER_TANGENT to simplify geometry definition
+	setFillingMethod(Object::BORDER_TANGENT);
+
+	const Point corner(0, 0, 0);
 
 	// main container
-	GeometryID box =
-		addBox(GT_FIXED_BOUNDARY, FT_BORDER, m_origin, dimX, dimY, dimZ ); //m_deltap);
-	// we simulate inside the box, so do not erase anything
-	setEraseOperation(box, ET_ERASE_NOTHING);
-	disableCollisions(box);
-
-	// floor for collisions only. Note FT_NOFILL
-	GeometryID floor =
-		addBox(GT_FIXED_BOUNDARY, FT_NOFILL, make_double3(m_origin.x, m_origin.y, m_origin.z - m_deltap), dimX, dimY, m_deltap);
-	// do not erase anything
-	setEraseOperation(floor, ET_ERASE_NOTHING);
-	// need to set a density to have an inertia and collide
-	setMassByDensity(floor, physparams()->rho0[0]);
-	//disableCollisions(floor);
+	if (USE_PLANES) {
+		// limit domain with 6 planes. Due to our filling method, using:
+		//   makeUniverseBox(corner, corner + Vector(dimX, dimY, dimZ));
+		// would place the planes half a dp from the fluid,
+		// which would be correct if we used ghost particles,
+		// but with the LJ planes we have currently, we should have a full dp.
+		// As an alternative, we could set the LJ r0 to half dp,
+		// but this would cause issues with the obstacles,
+		// which are filled with particles instead.
+		// Instead, we shift the corners of the universe box out by half a dp.
+		// TODO remeber to fix this when we implement ghost particles!
+		const double half_dp = m_deltap/2;
+		const Vector half_dp_vec = Vector(half_dp, half_dp, half_dp);
+		const Vector dim_vec = Vector(dimX, dimY, dimZ);
+		auto planes = makeUniverseBox(corner - half_dp_vec, corner + dim_vec + half_dp_vec);
+	} else {
+		GeometryID domain_box =
+			addBox(GT_FIXED_BOUNDARY, FT_OUTER_BORDER, corner, dimX, dimY, dimZ);
+	}
 
 	// We define the water at already the right distance from the walls.
-	double BOUNDARY_DISTANCE = m_deltap;
-	if (simparams()->boundarytype == DYN_BOUNDARY)
-			BOUNDARY_DISTANCE *= getDynamicBoundariesLayers();
-
 	// Add the main water part
-	addBox(GT_FLUID, FT_SOLID, Point(BOUNDARY_DISTANCE, BOUNDARY_DISTANCE, BOUNDARY_DISTANCE),
-		water_length - BOUNDARY_DISTANCE, dimY - 2 * BOUNDARY_DISTANCE, water_height - BOUNDARY_DISTANCE);
+	addBox(GT_FLUID, FT_SOLID, corner, water_length, dimY, water_height);
 
 	// set positioning policy to PP_BOTTOM_CENTER: given point will be the center of the base
 	setPositioning(PP_BOTTOM_CENTER);
@@ -135,37 +133,30 @@ Objects::Objects(GlobalData *_gdata) : Problem(_gdata)
 	for (uint i = 0; i < NUM_OBSTACLES; i++) {
 		// Obstacle is of type GT_MOVING_BODY, although the callback is not even implemented, to
 		// make the forces feedback available
-		GeometryID obstacle = addBox(GT_FIXED_BOUNDARY, FT_BORDER,
-			Point(obstacle_xpos, Y_DISTANCE * (i+1) + (ROTATE_OBSTACLE ? obstacle_side/2 : 0), BOUNDARY_DISTANCE),
-				obstacle_side, obstacle_side, dimZ/2.0 );
+		GeometryID obstacle = addBox(GT_FIXED_BOUNDARY, FT_INNER_BORDER,
+			corner + Vector(obstacle_xpos, dimY/2, 0), obstacle_side, obstacle_side, dimZ/2.0);
 		if (ROTATE_OBSTACLE) {
 			rotate(obstacle, 0, 0, Z_ANGLE);
 			// until we'll fix it, the rotation centers are always the corners
-			// shift(obstacle, 0, obstacle_side/2, 0);
+			shift(obstacle, 0, obstacle_side/2, 0);
 		}
 		// enable force feedback to measure forces
 		//enableFeedback(obstacle);
-		// debug
-		//disableCollisions(obstacle);
 	}
 
-	// Add a floating objects
+	// Add a couple of floating objects
 	// set positioning policy to PP_CENTER: given point will be the geometrical center of the object
 	setPositioning(PP_CENTER);
-	/*
-	GeometryID floating_obj =
-		addSphere(GT_FLOATING_BODY, FT_BORDER, Point(water_length, dimY/2, water_height), obstacle_side);
-	*/
 	floating_obj_1 =
-		addCube(GT_FLOATING_BODY, FT_BORDER, Point(water_length, dimY/5.0*1.5, water_height), objects_side);
+		addCube(GT_FLOATING_BODY, FT_INNER_BORDER, Point(water_length, dimY/5.0*1.5, water_height), objects_side);
 	floating_obj_2 =
-		addSphere(GT_FLOATING_BODY, FT_BORDER, Point(water_length, dimY/5.0*2.5, water_height), objects_side / 2.0);
-	// half water density to make it float
+		addSphere(GT_FLOATING_BODY, FT_INNER_BORDER, Point(water_length, dimY/5.0*2.5, water_height), objects_side / 2.0);
+	// quarter water density to make it float
 	const double density = physparams()->rho0[0] / 4;
 	setMassByDensity(floating_obj_1, density);
-	setParticleMassByDensity(floating_obj_1, physparams()->rho0[0]);
+	//setParticleMassByDensity(floating_obj_1, physparams()->rho0[0]);
 	setMassByDensity(floating_obj_2, density);
-	setParticleMassByDensity(floating_obj_2, physparams()->rho0[0]);
+	//setParticleMassByDensity(floating_obj_2, physparams()->rho0[0]);
 	// play with rotations
 	const double angle = M_PI / 4;
 	rotate(floating_obj_1, 0, angle, angle);
