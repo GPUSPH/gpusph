@@ -1940,14 +1940,17 @@ int ProblemAPI<1>::fill_parts(bool fill)
 			const double i11 = m_geometries[g]->custom_inertia[0];
 			const double i22 = m_geometries[g]->custom_inertia[1];
 			const double i33 = m_geometries[g]->custom_inertia[2];
-			if (isfinite(i11) && isfinite(i22) && isfinite(i33))
+			if (isfinite(i11) && isfinite(i22) && isfinite(i33)) {
 				m_geometries[g]->ptr->SetInertia(i11, i22, i33);
-			else
+			} else {
 				// if no custom inertia has been set, call default Object::SetInertia()
 				// NOTE: this overwrites default inertia set by Chrono for "easy" bodies
 				// (Box, Sphere, Cylinder), but it would be only necessary for non-primitive
 				// geometries (e.g. STL meshes)
-				m_geometries[g]->ptr->SetInertia(physparams()->r0);
+				const double inertia_add_dx = Object::get_default_filling_method() == Object::BORDER_CENTERED ?
+					physparams()->r0 : 0;
+				m_geometries[g]->ptr->SetInertia(inertia_add_dx);
+			}
 
 			// Use custom center of gravity only if entirely finite (no partial overwrite)
 			double cg[3];
