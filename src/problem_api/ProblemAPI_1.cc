@@ -1966,6 +1966,8 @@ int ProblemAPI<1>::fill_parts(bool fill)
 			if (m_geometries[g]->type == GT_FIXED_BOUNDARY)
 				m_geometries[g]->ptr->SetFixed();
 			// NOTE: could use SetNoSpeedNoAcceleration() for MOVING chrono bodies?
+			const double body_add_dx = Object::get_default_filling_method() == Object::BORDER_CENTERED ?
+				m_deltap : 0;
 			m_geometries[g]->ptr->BodyCreate(m_chrono_system, m_deltap, m_geometries[g]->handle_collisions);
 
 			// recap object info such as bounding box, mass, inertia matrix, etc.
@@ -2052,7 +2054,9 @@ int ProblemAPI<1>::fill_parts(bool fill)
 		As a rigid body, this kind of joint can have pjysical properties associated,
 		for example mass and inertia tensor*/
 		if ( m_geometries[g]->type == GT_FEA_RIGID_JOINT) {
-			m_geometries[g]->ptr->BodyCreate(m_chrono_system, m_deltap, false);
+			const double body_add_dx = Object::get_default_filling_method() == Object::BORDER_CENTERED ?
+				m_deltap : 0;
+			m_geometries[g]->ptr->BodyCreate(m_chrono_system, body_add_dx, false);
 
 			uint nodes_in_truss = 0;
 
