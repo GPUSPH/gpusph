@@ -295,6 +295,8 @@ class ProblemAPI<1> : public ProblemCore
 
 	protected:
 		// methods for creation of new objects
+		GeometryID addSegment(const GeometryType otype, const FillType ftype, const Point &origin,
+			const double length);
 		GeometryID addRect(const GeometryType otype, const FillType ftype, const Point &origin,
 			const double side1, const double side2);
 		GeometryID addRect(const GeometryType otype, const FillType ftype, const Point &origin,

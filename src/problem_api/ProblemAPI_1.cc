@@ -43,6 +43,7 @@
 #include "chrono/fea/ChLinkPointTriface.h"
 #endif
 
+#include "Segment.h"
 #include "Rect.h"
 #include "Disk.h"
 #include "Cube.h"
@@ -674,6 +675,22 @@ bool ProblemAPI<1>::validGeometry(GeometryID gid)
 	}
 
 	return true;
+}
+
+GeometryID ProblemAPI<1>::addSegment(const GeometryType otype, const FillType ftype, const Point &origin,
+	const double length)
+{
+	double offsetX = 0;
+	if (m_positioning == PP_CENTER ||
+		(m_positioning == PP_BOTTOM_CENTER && space_dimensions_for(simparams()->dimensions) > 2))
+	{
+		offsetX = - length / 2.0;
+	}
+
+	return addGeometry(otype, ftype,
+		make_shared<Segment>( Point( origin(0) + offsetX, origin(1), origin(2) ),
+			length, EulerParameters() )
+	);
 }
 
 GeometryID ProblemAPI<1>::addRect(const GeometryType otype, const FillType ftype, const Point &origin,
