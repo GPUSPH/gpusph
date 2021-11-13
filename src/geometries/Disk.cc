@@ -136,12 +136,11 @@ Disk::FillIn2D(PointVect &points, const double dx, const int layers)
 	// shift towards the inside
 	const double signed_dx = (layers > 0 ? -dx : dx);
 
-	// First layer: on the boundary
-	FillBorder(points, dx);
-	// NOTE: pre-decrementing causes (_layers-1) layers to be filled. This
-	// is correct since the first layer was already filled
-	while (--_layers > 0) {
-		Disk layer(m_center, m_r + _layers*signed_dx);
+	const double fill_radius = default_filling_method == BORDER_CENTERED
+		? m_r : m_r + signed_dx/2;
+
+	while (_layers-- > 0) {
+		Disk layer(m_center, fill_radius + _layers*signed_dx);
 		layer.SetPartMass(m_center(3));
 		layer.FillBorder(points, dx);
 	}
