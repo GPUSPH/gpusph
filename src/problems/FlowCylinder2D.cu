@@ -87,32 +87,36 @@ FlowCylinder2D::FlowCylinder2D(GlobalData *_gdata) : Problem(_gdata)
 
 	// *** Setup geometries
 
+	// choose “border tangent” filling method
+	setFillingMethod(Object::BORDER_TANGENT);
+
 	// set positioning policy to PP_CENTER: given point will be the center of the geometry.
 	setPositioning(PP_CENTER);
 
-	// The water box is centered at the origin. Its sizes are dictated by the domain_size
-	// in both direction, minus one deltap to account for half deltap gap between particles
-	// and their periodic neighbors
-	addRect(GT_FLUID, FT_SOLID, Point(0, 0, 0), domain_size-m_deltap, domain_size-m_deltap);
+	const Point center(0, 0, 0);
 
-	// The cylinder is also centered at the origin. The radius is half dp less than the
-	// analytical to account for the DUMMY gap
-	GeometryID disk = addDisk(GT_FIXED_BOUNDARY, FT_INNER_BORDER, Point(0, 0, 0), cylinder_radius - m_deltap/2);
-	// the disk is a bit too generous when unfilling, try to keep more fluid particles around it
-	setUnfillRadius(disk, 0.9*m_deltap);
+	// The water box is centered at the origin. Its sizes are dictated by the domain_size
+	// in both direction
+	addRect(GT_FLUID, FT_SOLID, center, domain_size, domain_size);
+
+	// The cylinder is also centered at the origin
+	GeometryID disk = addDisk(GT_FIXED_BOUNDARY, FT_INNER_BORDER, center, cylinder_radius);
 
 	// Finally, if not periodic along the y axis, we need to add the top and bottom floor.
 	if (!periodic_y) {
-		const double wall_thickness = getDynamicBoundariesLayers()*m_deltap;
-		const double offset = (domain_size + m_deltap + wall_thickness)/2;
-		GeometryID bottom = addRect(GT_FIXED_BOUNDARY, FT_SOLID,
-			Point(0, -offset, 0),
-			domain_size - m_deltap, wall_thickness);
-		GeometryID top = addRect(GT_FIXED_BOUNDARY, FT_SOLID,
-			Point(0, offset, 0),
-			domain_size - m_deltap, wall_thickness);
-		// reduce the clearing radius, since it's a bit too generous in removing things
-		setUnfillRadius(bottom, 0.9*m_deltap);
-		setUnfillRadius(top, 0.9*m_deltap);
+		// bottom
+		auto bottom = addSegment(GT_FIXED_BOUNDARY, FT_OUTER_BORDER,
+			center - Vector(0, domain_size/2, 0), domain_size);
+		setEraseOperation(bottom, ET_ERASE_NOTHING);
+
+		// top
+		auto top = addSegment(GT_FIXED_BOUNDARY, FT_OUTER_BORDER,
+			center + Vector(0, domain_size/2, 0), domain_size);
+		// rotate the segment so that the outer border points up.
+		// we use a trick here: the rotation is around the first vertex, so if we rotate
+		// around M_PI around z, we would need to also shift the segment.
+		// Instead, we rotate around the X axis, that results only in a flip of the normal
+		rotate(top, M_PI, 0, 0);
+		setEraseOperation(top, ET_ERASE_NOTHING);
 	}
 }
