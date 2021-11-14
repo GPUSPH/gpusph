@@ -1,0 +1,66 @@
+== ++SlidingWedge++
+
+This test case models a submarine or subaerial rigid landslide, following cite:[heinrich-1992].
+See also cite:[shobeiri-ardakani-2019] for other SPH-based approaches.
+
+The landslide is represented by a rigid body with a right isosceles cross section,
+covering the entire width of the channel (the titular “wedge”).
+The body starts either right below the free surface of the water
+(submarine case, with a water depth \(H = 1\)m),
+or right above it
+(subaerial case, with a water depth \(H = 0.4\)m.
+In both cases, it slides down a 45° incline until it reaches the bottom
+of the channel.
+
+////
+TODO screenshot
+////
+
+This test case illustrates several features of GPUSPH.
+
+.Multi-dimensional problem definitions
+This test case can be run in both 2D and 3D mode.
+Most of the setup is the same in both cases,
+with the role of \(n\)-dimensional and \(n-1\)-dimensional geometries (“volumes” and “surfaces”)
+abstracted through the use of C++ lambda functions that map to the appropriate concrete geometry
+(`Segment`, `Rect` or `Box`).
+Special handling is only reserved to the domain bounding box, that is defined differently for
+the 2D case (two ``Segment``s representing the bottom and back wall),
+and the 3D case (a `Box` with unnecessary particles carved out).
+
+.Advanced shaping techniques
+Some geometries in the test case are obtained by “carving out” simpler geometrical shapes
+by subtraction or intersection with other shapes.
+For example, the wedge is obtained from a square (or box in 3D) by cutting out
+half of it below the diagonal.
+The domain box in 3D is shaped in a way that follows the beach and slope on one of the domain,
+in order to avoid the generation of unnecessary particles.
+All this is obtained by using the `trim()` command
+(introduced in the `Problem` API 1 starting from GPUSPH v6),
+that allows finer control over the intersection of different geometries.
+
+.Simple fluid/solid interaction (FSI) without external libraries
+The motion of the wedge in water cannot be expressed  analytically,
+since it depends on the force exherted from the water on the wedge itself.
+In general, in these circumstances the body would be defined as a `FT_FLOATING_BODY`,
+and its motion would be delegated to Project Chrono.
+In this case however, the motion itself is simple, since the wedge is constrained
+to only slide down the slope with no rotation and no collision detection:
+we thus only need to enable the accumulation of the forces exherted by the fluid
+on the wedge (`enableFeedback(wedge)`), and take them into account
+when prescribing the motion of the body in `moving_body_dynamics_callback`.
+This allows us to implement the test case without external dependencies.
+
+
+This test case supports a number of custom command-line options:
+[horizontal]
+use-ccsph:: adopt the Conservative Corrective SPH formulation (default: `true`);
+dim:: dimensionality of the problem (default: `3`, `2` also supported);
+ppm:: particles per meter (default: `64` in 2D, `32` in 3D);
+density-diffusion:: allow overriding the density diffusion model (default: Antuono);
+water-depth:: depth of the water in meters (default: `1` to model the submarine landslide;
+`0.4` can be used to model the subaerial test case from cite:[heinrich-1992]);
+other values are supported too);
+wedge-mass:: mass of the wedge in kilograms (default: 140 for a 1m water depth, 105 for a 0.4m water depth);
+wedge-location:: starting position of the wedge, relative to the slope start
+tstart:: time in simulated seconds where the wedge starts moving.

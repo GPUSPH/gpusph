@@ -533,6 +533,8 @@ include::user-guide/test-case-OpenChannel.adoc[]
 
 include::user-guide/test-case-WaveTank.adoc[]
 
+include::user-guide/test-case-SlidingWedge.adoc[]
+
 include::user-guide/test-case-SolitaryWave.adoc[]
 
 include::user-guide/test-case-Seiche.adoc[]

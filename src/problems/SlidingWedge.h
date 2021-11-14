@@ -28,36 +28,41 @@
 #ifndef _SLIDINGWEDGE_H
 #define	_SLIDINGWEDGE_H
 
-// TODO port to Problem API 1
-#define PROBLEM_API 0
+#define PROBLEM_API 1
 #include "Problem.h"
-#include "Point.h"
-#include "Vector.h"
-#include "Cube.h"
 
 class SlidingWedge: public Problem {
-	private:
-		PointVect	parts;
-		PointVect	boundary_parts;
+private:
+	const bool use_ccsph;
+	const uint dim;
+	const uint ppm; // particles per meter
+	const DensityDiffusionType rho_diff;
 
-		Cube        wedge;
-		double		slope_length, beta, tan_beta;
-		double		H;		// still water level
-		double		lx, ly, lz;		// dimension of water tank
-		double		x0, t0;
+	const double H; // water depth
+	const double wedge_mass; // mass of the wedge
+	Vector slope_dir; // slope direction
+	const double tstart; // time at which the wedge is released
 
-		int			layers;		// Number of particles layers for dynamic boundaries
-	public:
-		SlidingWedge(GlobalData *);
-		~SlidingWedge(void);
-		int fill_parts(bool fill=true) override;
+	void setup_framework();
+public:
+	SlidingWedge(GlobalData *);
 
-		void copy_to_array(BufferList &) override;
-
-		void moving_bodies_callback(const uint, Object*, const double, const double, const float3&,
-									const float3&, const KinematicData &, KinematicData &,
-									double3&, EulerParameters&) override;
-
-		void release_memory(void) override;
+	// Prescribed motion callback
+	void moving_body_dynamics_callback
+		( const uint index ///< sequential index of the moving body
+		, ObjectPtr object ////< pointer to the moving body object
+		, const double t0 ///< time at the beginning of the timestep
+		, const double t1 ///< time at the end of the timestep
+		, const double dt ///< timestep
+		, const int step  ///< integration step (0 = predictor, 1 = corrector)
+		, float3 const& force ///< force exherted on the body by the fluid
+		, float3 const& torque ///< torque exherted on the body by the fluid
+		, KinematicData const& initial_kdata // kinematic data at time t = 0
+		, KinematicData const& kdata0 // kinematic data at time t = t0
+		, KinematicData& kdata ///< kinematic body data at time t = t1 (computed by the callback)
+		, AccelerateData& adata ///< acceleration at time t = t1 (computed by the callback)
+		, double3& dx ///< translation to be applied at time t = t1
+		, EulerParameters& dr ////< rotation to be applied at time t = t1
+		) override;
 };
-#endif	/* _OffshorePile_H */
+#endif

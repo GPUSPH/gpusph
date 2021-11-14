@@ -1623,7 +1623,7 @@ $(DOCSDIR)/%.html: $(DOCSDIR)/%.adoc $(DOCSDIR)/defines.adoc $(DOCSDIR)/common-i
 
 INSTALLATION_GUIDE := $(DOCSDIR)/installation-guide.html
 USER_GUIDE := $(DOCSDIR)/user-guide.html
-PROBLEM_LIST_DOCS := DamBreak3D DamBreakGate OpenChannel WaveTank SolitaryWave Seiche DEMExample
+PROBLEM_LIST_DOCS := DamBreak3D DamBreakGate OpenChannel WaveTank SlidingWedge SolitaryWave Seiche DEMExample
 
 $(USER_GUIDE): $(patsubst %,$(DOCSDIR)/user-guide/test-case-%.adoc,$(PROBLEM_LIST_DOCS))
 $(USER_GUIDE): $(DOCSDIR)/user-guide/reference-manual.adoc
