@@ -144,7 +144,35 @@ Vector::Vector(const float *xx)
 double
 Vector::norm(void) const
 {
+#if 0
 	return sqrt(x[0]*x[0] + x[1]*x[1] + x[2]*x[2]);
+#else
+	// use hypot for higher accuracy. The idea is to replace
+	// sqrt(a*a + b*b + c*c) with
+	// abs(a) * sqrt(1 + qb*qb + qc*qc)
+	// where qb = b/a and qc = c/a, where a is the largest (in magnitude) number.
+
+	// Sort components
+	double s[] = { fabs(x[0]), fabs(x[1]), fabs(x[2]) };
+
+	if (s[0] < s[1]) std::swap(s[0], s[1]);
+	if (s[1] < s[2]) {
+		std::swap(s[1], s[2]);
+		if (s[0] < s[1]) std::swap(s[0], s[1]);
+	}
+
+	// If the largest is 0, exit
+	if (!s[0]) return 0;
+
+	// divide
+	s[1] /= s[0];
+	s[2] /= s[0];
+
+	// 1.0 + s1^2 + s2^2, computed using FMA
+	const double sq = fma(s[2], s[2], fma(s[1], s[1], 1.0));
+
+	return s[0]*sqrt(sq);
+#endif
 }
 
 
