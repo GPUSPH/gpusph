@@ -848,6 +848,17 @@ GeometryID ProblemAPI<1>::addPlane(
 	);
 }
 
+GeometryID ProblemAPI<1>::addPlane(Point const& pt, Vector const& normal, const FillType ftype)
+{
+	double3 v = make_double3(normal);
+	double3 p = make_double3(pt);
+
+	double d = -dot(v, p);
+	double n = normal.norm();
+
+	return addGeometry(GT_PLANE, ftype, make_shared<Plane>(v.x/n, v.y/n, v.z/n, d/n) );
+}
+
 // NOTE: "origin" has a slightly different meaning than for the other primitives: here it is actually
 // an offset to shift the STL coordinates. Use 0 to import STL coords as they are.
 // If positioning is PP_NONE and origin is (0,0,0), mesh coordinates are imported unaltered.

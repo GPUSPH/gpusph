@@ -323,9 +323,17 @@ class ProblemAPI<1> : public ProblemCore
 			const double radius);
 		GeometryID addTorus(const GeometryType otype, const FillType ftype, const Point &origin,
 			const double major_radius, const double minor_radius);
+
+		//! Add a plane with implicit coordinates ax + by + cz + d = 0
 		GeometryID addPlane(
 			const double a_coeff, const double b_coeff, const double c_coeff, const double d_coeff,
 			const FillType ftype = FT_NOFILL);
+		//! Add a plane by specifying a normal vector and a point of the plane
+		//! \note the normal vector needs not be normalized
+		GeometryID addPlane(Point const& pt, Vector const& normal, const FillType ftype = FT_NOFILL);
+		GeometryID addPlane(Vector const& normal, Point const& pt, const FillType ftype = FT_NOFILL)
+		{ return addPlane(pt, normal, ftype); }
+
 		GeometryID addSTLMesh(const GeometryType otype, const FillType ftype, const Point &origin,
 			const char *fname);
 		GeometryID addOBJMesh(const GeometryType otype, const FillType ftype, const Point &origin,
