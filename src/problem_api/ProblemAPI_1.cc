@@ -1457,6 +1457,11 @@ void ProblemAPI<1>::rotate(const GeometryID gid, const double Xrot, const double
 	rotate( gid, rotXYZ );
 }
 
+void ProblemAPI<1>::rotate(const GeometryID gid, Vector const& dir, double rot)
+{
+	rotate(gid, EulerParameters(dir, rot));
+}
+
 void ProblemAPI<1>::shift(const GeometryID gid, const double Xoffset, const double Yoffset, const double Zoffset)
 {
 	if (!validGeometry(gid)) return;

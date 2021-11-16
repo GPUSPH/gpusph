@@ -402,6 +402,8 @@ class ProblemAPI<1> : public ProblemCore
 		void setOrientation(const GeometryID gid, const EulerParameters &ep);
 		void rotate(const GeometryID gid, const EulerParameters ep); // DEPRECATED until we'll have a GPUSPH Quaternion class
 		void rotate(const GeometryID gid, const double Xrot, const double Yrot, const double Zrot);
+		//! Rotate geometry gid around dir by rot radians
+		void rotate(const GeometryID gid, Vector const& dir, double rot);
 
 		// method for shifting an existing object
 		void shift(const GeometryID gid, const double Xoffset, const double Yoffset, const double Zoffset);
