@@ -85,6 +85,7 @@ public:
 		 *  a 2-dimensional FillIn in 2D)
 		 */
 		static int world_dimensions;
+		friend class Vector; // needs to know world dimensions to know what to return as 'Up'
 
 		//! The default filling method for all objects
 		//! TODO: in the future we will allow per-object overrides

@@ -52,6 +52,12 @@ class Vector {
 		double	x[4];	///< coordinates of vector
 
 	public:
+
+		// unitary vectors in the three component directions
+		static const Vector Xdir;
+		static const Vector Ydir;
+		static const Vector Zdir;
+
 		Vector(const Point &, const Point &);
 		Vector(const Vector &);
 		Vector(double xx = 0, double yy = 0, double zz = 0);

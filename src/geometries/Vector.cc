@@ -29,6 +29,10 @@
 #include "Vector.h"
 #include "Point.h"
 
+const Vector Vector::Xdir(1, 0, 0);
+const Vector Vector::Ydir(0, 1, 0);
+const Vector Vector::Zdir(0, 0, 1);
+
 /// Constructor
 /*! Constructor from 2 points pnt1 and pnt2
 	V = pnt1pnt2
