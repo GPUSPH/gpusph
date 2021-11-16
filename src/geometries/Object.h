@@ -53,6 +53,8 @@ struct feaNodeInfo {
 	std::shared_ptr<::chrono::fea::ChNodeFEAxyz> node; //pointer to node
 };
 
+class Object;
+using ObjectPtr = std::shared_ptr<Object>;
 
 //! Object container class
 /*!
@@ -139,6 +141,8 @@ public:
 		virtual ~Object(void)
 		{
 		};
+
+		ObjectPtr clone() const;
 
 		/// \name Mass related functions
 		//@{
@@ -358,5 +362,6 @@ public:
 		 */
 		virtual void shift(const double3 &offset) = 0;
 };
+
 #endif	/* OBJECT_H */
 

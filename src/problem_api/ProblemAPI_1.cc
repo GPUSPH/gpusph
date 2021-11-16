@@ -56,6 +56,9 @@
 #include "TopoCube.h"
 #include "GlobalData.h"
 
+#include "UnionObject.h"
+#include "IntersectionObject.h"
+
 //#define USE_PLANES 0
 
 using namespace std;
@@ -487,7 +490,7 @@ GeometryID ProblemAPI<1>::addGeometry(const GeometryType otype, const FillType f
 {
 	// TODO: before even creating the new GeometryInfo we should check the compatibility of
 	// the combination of paramenters (e.g. no moving planes; no HDF5 testpoints)
-	GeometryInfo* geomInfo = new GeometryInfo();
+	GeometryPtr geomInfo = make_shared<GeometryInfo>();
 	geomInfo->type = otype;
 	geomInfo->fill_type = ftype;
 IGNORE_WARNINGS(deprecated-declarations)
@@ -1142,7 +1145,7 @@ ProblemAPI<1>::addDEMFluidBox(double height, GeometryID dem_gid)
 	if (!validGeometry(dem_gid))
 		throw invalid_argument("invalid DEM geometry ID");
 
-	GeometryInfo *gdem = m_geometries.at(dem_gid);
+	GeometryPtr gdem = m_geometries.at(dem_gid);
 
 	if (!gdem || (gdem->type != GT_DEM))
 		throw invalid_argument("invalid DEM geometry ID");
@@ -1216,6 +1219,60 @@ void ProblemAPI<1>::deleteGeometry(const GeometryID gid)
 		m_dem_geometry = INVALID_GEOMETRY;
 
 	// TODO: print a warning if deletion is requested after fill_parts
+}
+
+GeometryID ProblemAPI<1>::clone(const GeometryID gid)
+{
+	auto old_geo = getGeometryInfo(gid);
+	if (!old_geo)
+		throw std::invalid_argument("clonging an invalid geometry");
+
+	if (old_geo->hdf5_reader)
+		throw std::invalid_argument("cannot clone an HDF5-backed geometry");
+
+	if (old_geo->xyz_reader)
+		throw std::invalid_argument("cannot clone an XYZ-backed geometry");
+
+	// make a copy
+	GeometryPtr new_geo = make_shared<GeometryInfo>(*old_geo);
+	// but use a different object (clone of the original)
+	new_geo->ptr = old_geo->ptr->clone();
+
+	if (gid == m_dem_geometry) {
+		printf("DEM clone set to FT_UNFILL");
+		new_geo->fill_type = FT_UNFILL;
+	}
+
+	m_geometries.push_back(new_geo);
+	return (m_geometries.size() - 1);
+}
+
+void ProblemAPI<1>::trim(GeometryID gid, const GeometryID trimmer)
+{
+	GeometryPtr trimmed_geo = const_pointer_cast<GeometryInfo>(getGeometryInfo(gid));
+	auto trimmer_geo = getGeometryInfo(trimmer);
+	if (!trimmed_geo || !trimmer_geo)
+		throw std::invalid_argument("need a valid geometry for trimming");
+
+	// if the trimmed_geo isn't an IntersectionObject yet, turn it into one
+	shared_ptr<IntersectionObject> ptr = dynamic_pointer_cast<IntersectionObject>(trimmed_geo->ptr);
+	if (!ptr) {
+		ptr = make_shared<IntersectionObject>();
+		// Since this is the main component, set its intersectio type to IT_NONE.
+		// The global intersection type is still managed by the GeometryInfo anyway
+		// TODO FIXME verify
+		ptr->addComponent(trimmed_geo->ptr, IT_NONE, trimmed_geo->unfill_radius);
+		trimmed_geo->ptr = ptr;
+	}
+
+	const double unfill_radius = isfinite(trimmer_geo->unfill_radius)
+		? trimmer_geo->unfill_radius
+		: Object::get_default_filling_method() == Object::BORDER_CENTERED
+		? preferredDeltaP(trimmer_geo->type)
+		: 0;
+	ptr->addComponent(trimmer_geo->ptr, trimmer_geo->intersection_type, unfill_radius);
+
+	deleteGeometry(trimmer);
 }
 
 void ProblemAPI<1>::enableDynamics(const GeometryID gid)
@@ -1544,7 +1601,7 @@ void ProblemAPI<1>::setUnfillRadius(const GeometryID gid, double unfillRadius)
 	m_geometries[gid]->unfill_radius = unfillRadius;
 }
 
-const GeometryInfo* ProblemAPI<1>::getGeometryInfo(GeometryID gid) const
+const GeometryPtr ProblemAPI<1>::getGeometryInfo(GeometryID gid) const
 {
 	// NOTE: not checking validGeometry() to allow for deleted geometries
 
@@ -1560,7 +1617,7 @@ const GeometryInfo* ProblemAPI<1>::getGeometryInfo(GeometryID gid) const
 
 const ObjectPtr ProblemAPI<1>::getGeometryObject(GeometryID gid) const
 {
-	const GeometryInfo *gi = getGeometryInfo(gid);
+	auto gi = getGeometryInfo(gid);
 	if (gi) return gi->ptr;
 	throw runtime_error("Requested objected for null geometry");
 }
@@ -1636,7 +1693,7 @@ vector<GeometryID> ProblemAPI<1>::addDEMPlanes(GeometryID gid, FillType ftype)
 	vector<GeometryID> planes;
 	planes.reserve(4);
 	if (!validGeometry(gid)) gid = m_dem_geometry;
-	const GeometryInfo *gi = getGeometryInfo(gid);
+	auto gi = getGeometryInfo(gid);
 	if (!gi)
 		throw std::invalid_argument("no DEM to add planes from");
 	if (gi->type != GT_DEM)

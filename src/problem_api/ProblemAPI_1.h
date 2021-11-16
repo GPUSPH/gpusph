@@ -46,6 +46,8 @@
 #include "HDF5SphReader.h"
 #include "XYZReader.h"
 
+#include "IntersectionType.h"
+
 enum GeometryType {
 	//! Fluid body
 	GT_FLUID,
@@ -93,11 +95,6 @@ enum FillType {	FT_NOFILL,
 				FT_BORDER GPUSPH_DEPRECATED_MSG("use FT_OUTER_BORDER or FT_INNER_BORDER as appropriate instead of the ambiguous FT_BORDER")
 };
 
-enum IntersectionType {	IT_NONE,
-						IT_INTERSECT,
-						IT_SUBTRACT
-};
-
 // TODO currently we need to keep this in sync with the
 // definitions in TopoCube.h, ideally this shouldn't be needed.
 // We don't want to just do using TopographyFormat = TopoCube::Format
@@ -133,7 +130,8 @@ enum PositioningPolicy {	PP_NONE,
 							PP_CORNER
 };
 
-using ObjectPtr = std::shared_ptr<Object>;
+struct GeometryInfo;
+using GeometryPtr = std::shared_ptr<GeometryInfo>;
 
 struct GeometryInfo {
 
@@ -227,8 +225,6 @@ struct GeometryInfo {
 	}
 };
 
-typedef std::vector<GeometryInfo*> GeometryVector;
-
 // GeometryID, aka index of the GeometryInfo in the GeometryVector
 typedef size_t GeometryID;
 #define INVALID_GEOMETRY	SIZE_MAX
@@ -237,7 +233,7 @@ template<>
 class ProblemAPI<1> : public ProblemCore
 {
 	private:
-		GeometryVector m_geometries;
+		std::vector<GeometryPtr> m_geometries;
 		PointVect m_fluidParts;
 		PointVect m_boundaryParts;
 		PointVect m_testpointParts;
@@ -376,6 +372,15 @@ class ProblemAPI<1> : public ProblemCore
 		// method for deleting a geometry (actually disabling)
 		void deleteGeometry(const GeometryID gid);
 
+		//! Make a copy of a geometry
+		GeometryID clone(const GeometryID gid);
+
+		//! trim a geometry with another one
+		//! NOTE: the trimmer will be deleted, so make a clone if you're interested
+		//! in keeping the original
+		//! NOTE: the trimmer's EraseOperation is ignored, but its IntersectionType is not
+		void trim(GeometryID gid, const GeometryID trimmer);
+
 		// methods to enable/disable handling of dynamics/collisions for a specific geometry
 		void enableDynamics(const GeometryID gid);
 		void enableCollisions(const GeometryID gid);
@@ -437,7 +442,7 @@ class ProblemAPI<1> : public ProblemCore
 		void setUnfillRadius(const GeometryID gid, double unfillRadius);
 
 		// get read-only information
-		const GeometryInfo* getGeometryInfo(GeometryID gid) const;
+		const GeometryPtr getGeometryInfo(GeometryID gid) const;
 
 		//! get (pointer to) Object associated with the given geometry
 		const ObjectPtr getGeometryObject(GeometryID gid) const;

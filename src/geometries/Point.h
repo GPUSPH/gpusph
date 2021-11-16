@@ -135,7 +135,7 @@ typedef std::vector<Point> PointVect;
 
 // Small utility functions, useful for bbox and world size computation
 // Writes in pmin and pmax the per-element minima and maxima
-inline void setMinMaxPerElement(Point &pmin, Point &pmax, Point a)
+inline void setMinMaxPerElement(Point &pmin, Point &pmax, Point const& a)
 {
 	for (uint elem = 0; elem < 3; elem++) {
 		pmin(elem) = fmin( pmin(elem), a(elem));
@@ -143,13 +143,13 @@ inline void setMinMaxPerElement(Point &pmin, Point &pmax, Point a)
 	}
 }
 // Writes in pmin the per-element minima
-inline void setMinPerElement(Point &pmin, Point a)
+inline void setMinPerElement(Point &pmin, Point const& a)
 {
 	for (uint elem = 0; elem < 3; elem++)
 		pmin(elem) = fmin( pmin(elem), a(elem));
 }
 // Writes in pmax the per-element maxima
-inline void setMaxPerElement(Point &pmax, Point a)
+inline void setMaxPerElement(Point &pmax, Point const& a)
 {
 	for (uint elem = 0; elem < 3; elem++)
 		pmax(elem) = fmax( pmax(elem), a(elem));
