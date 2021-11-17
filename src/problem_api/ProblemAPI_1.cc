@@ -59,7 +59,8 @@
 #include "UnionObject.h"
 #include "IntersectionObject.h"
 
-//#define USE_PLANES 0
+//! Unfill radius to use with the BORDER_TANGENT filling method
+#define BORDER_TANGENT_UNFILL_RADIUS DBL_EPSILON
 
 using namespace std;
 
@@ -1269,7 +1270,7 @@ void ProblemAPI<1>::trim(GeometryID gid, const GeometryID trimmer)
 		? trimmer_geo->unfill_radius
 		: Object::get_default_filling_method() == Object::BORDER_CENTERED
 		? preferredDeltaP(trimmer_geo->type)
-		: 0;
+		: BORDER_TANGENT_UNFILL_RADIUS;
 	ptr->addComponent(trimmer_geo->ptr, trimmer_geo->intersection_type, unfill_radius);
 
 	deleteGeometry(trimmer);
@@ -1903,7 +1904,7 @@ int ProblemAPI<1>::fill_parts(bool fill)
 
 		double unfill_dx = Object::get_default_filling_method() == Object::BORDER_CENTERED
 			? dx // or, dp also if (r0!=dp)?
-			: 0;
+			: BORDER_TANGENT_UNFILL_RADIUS;
 		if (!std::isnan(m_geometries[g]->unfill_radius))
 			unfill_dx = m_geometries[g]->unfill_radius;
 		// erase operations with existent geometries
