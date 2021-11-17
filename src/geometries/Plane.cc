@@ -83,21 +83,34 @@ void Plane::setEulerParameters(const EulerParameters &ep)
 // but at least it is correct...
 void Plane::getBoundingBox(Point &output_min, Point &output_max)
 {
+	// as a general rule, a plane spans the entire coordinate system
+	output_min = Point(-INFINITY, -INFINITY, -INFINITY);
+	output_max = Point(INFINITY, INFINITY, INFINITY);
+
+	// there are exceptions for planes parallel to the coordinate system,
+	// in which case we only take the half-plane
+	// “above” (if the nonzero axis coefficient is positive)
+	// or “below” (if the nonzero axis coefficient is negative)
+
+	// the half plane in this case is give by {x,y,z} = -m_d/{m_a, m_b, m_c}
+	// depending on which one is nonzero.
+	// The trick we use in this case is that since only one of a, b, c is nonzero,
+	// the sum of all three is equal to the nonzeroone:
+
+	const double nonzero = m_a + m_b + m_c;
+	const double coord = -m_d/nonzero;
+
+	// we update output_min if the coefficient is positive, output_max if it's negative
+	Point& changed = nonzero > 0 ? output_min : output_max;
+
 	if (m_a == 0 && m_b == 0) {
-		output_min = Point(INFINITY, INFINITY, m_d/m_c);
-		output_max = Point(INFINITY, INFINITY, m_d/m_c);
-	} else
-	if (m_a == 0 && m_c == 0) {
-		output_min = Point(INFINITY, m_d/m_b, INFINITY);
-		output_max = Point(INFINITY, m_d/m_b, INFINITY);
-	} else
-	if (m_b == 0 && m_c == 0) {
-		output_min = Point(m_d/m_a, INFINITY, INFINITY);
-		output_max = Point(m_d/m_a, INFINITY, INFINITY);
-	} else {
-		output_min = Point(INFINITY, INFINITY, INFINITY);
-		output_max = Point(INFINITY, INFINITY, INFINITY);
+		changed(2) = coord;
+	} else if (m_a == 0 && m_c == 0) {
+		changed(3) = coord;
+	} else if (m_b == 0 && m_c == 0) {
+		changed(0) = coord;
 	}
+	// else there is more than one nonzero coefficient, so there's nothing to do
 }
 
 void Plane::shift(const double3 &offset)
