@@ -30,6 +30,10 @@
 int IntersectionObject::Fill(PointVect& points, const double dx, const bool fill)
 {
 	if (m_components.empty()) return 0;
+
+	// propagate mass information
+	m_components[0].object->SetPartMass(m_center(3));
+
 	// TODO FIXME fill=false is only used when computing particle properties
 	// such as mass or density, in relation to the volume of geometry.
 	// Since we don't have an easy way to compute the volume of an intersection
@@ -53,6 +57,10 @@ int IntersectionObject::Fill(PointVect& points, const double dx, const bool fill
 void IntersectionObject::FillIn(PointVect& points, const double dx, const int layers)
 {
 	if (m_components.empty()) return;
+
+	// propagate mass information
+	m_components[0].object->SetPartMass(m_center(3));
+
 	if (m_components.size() == 1) return m_components[0].object->FillIn(points, dx, layers);
 
 	PointVect all;
