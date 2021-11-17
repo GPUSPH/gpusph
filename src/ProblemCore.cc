@@ -2119,7 +2119,6 @@ ProblemCore::calculateDensityDiffusionCoefficient()
 		if (isnan(simparams()->densityDiffCoeff)) {
 			simparams()->densityDiffCoeff = 0.1f;
 			printf("Colagrossi diffusion coefficient: %e (default value)\n", simparams()->densityDiffCoeff);
-			fprintf(stderr, "WARNING: Colagrossi density diffusion enabled, but no coefficient given!\n");
 		}
 		else
 			printf("Colagrossi diffusion coefficient ξ = %e\n", simparams()->densityDiffCoeff);
