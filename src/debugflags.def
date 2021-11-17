@@ -115,7 +115,15 @@ unsigned clobber_invalid_buffers : 1;
 /// Throw (instead of just warn) if a particle is out of bounds during init
 unsigned validate_init_positions : 1;
 
-/// Warn if partiles end up behind planes or DEM during the simulation
+/// Mark out-of-boundary particles with a flag during initialization
+/*! This can be used to visually identify the particles that were generated
+ *  outside the domain.
+ *  \note the particles get marked with the flag after the last one, which is
+ *  otherwise meaningless.
+ */
+unsigned flag_oob_positions : 1;
+
+/// Warn if particles end up behind planes or DEM during the simulation
 unsigned planes : 1;
 
 /// Check (and throw) if cells have more particles that can be encoded in the compact neighbors list

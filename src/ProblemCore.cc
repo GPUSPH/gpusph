@@ -2299,6 +2299,8 @@ ProblemCore::calc_localpos_and_hash(const Point& pos, const particleinfo& info, 
 			else
 				cerr << errmsg.str() << endl;
 		}
+		if (g_debug.flag_oob_positions)
+			SET_FLAG(*const_cast<particleinfo*>(&info), FG_LAST_FLAG<<1);
 	}
 
 	if (!isfinite(pos(0) + pos(1) + pos(2)))
