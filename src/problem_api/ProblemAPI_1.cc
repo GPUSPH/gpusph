@@ -345,7 +345,7 @@ bool ProblemAPI<1>::initialize()
 	// NOTE: if there is no fluid geometry and both water level and maxFall are autocomputed, then
 	// water level will be equal to highest domain point and max fall to domain height
 	if (!isfinite(m_maxFall)) {
-		m_maxFall = m_waterLevel - globalMin(2);
+		m_maxFall = m_waterLevel - globalMin(dims-1);
 		printf("Max fall height not set, autocomputed: %g\n", m_maxFall);
 	}
 
