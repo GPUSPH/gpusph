@@ -396,7 +396,9 @@ class ProblemAPI<1> : public ProblemCore
 		void setInertia(const GeometryID gid, const double* mainDiagonal);
 
 		// method to set a custom center of gravity (and overwrite the precomputed one)
-		void setCenterOfGravity(const GeometryID gid, const double3 cg);
+		void setCenterOfGravity(const GeometryID gid, double3 const& cg);
+		void setCenterOfGravity(const GeometryID gid, Point const& pt)
+		{ setCenterOfGravity(gid, make_double3(pt)); }
 
 		// methods for rotating an existing object
 		void setOrientation(const GeometryID gid, const EulerParameters &ep);

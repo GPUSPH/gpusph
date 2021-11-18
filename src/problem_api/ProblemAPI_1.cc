@@ -1384,7 +1384,7 @@ void ProblemAPI<1>::setInertia(const GeometryID gid, const double* mainDiagonal)
 }
 
 // Set a custom center of gravity. Will overwrite the precomputed one
-void ProblemAPI<1>::setCenterOfGravity(const GeometryID gid, const double3 cg)
+void ProblemAPI<1>::setCenterOfGravity(const GeometryID gid, double3 const& cg)
 {
 	if (!validGeometry(gid)) return;
 
