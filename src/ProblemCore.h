@@ -722,6 +722,9 @@ class ProblemCore
 			const	uint			numOpenBoundaries,
 			const	uint			particleRangeEnd);
 
+		// TODO FIXME this is an old callback (when we were still using ODE) which is currently unused.
+		// At least partially it covers bodies_forces_callback and moving_bodies_callback,
+		// but it allows for greater flexibility. Should we just expunge it?
 		virtual void imposeForcedMovingObjects(
 					float3	&gravityCenters,
 					float3	&translations,

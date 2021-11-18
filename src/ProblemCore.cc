@@ -1005,7 +1005,10 @@ ProblemCore::bodies_timestep(const float3 *forces, const float3 *torques, const 
 			if (step == 2 && !fea_is_enabled) {
 				body->SetPos(::chrono::ChVector<>(mbdata->kdata.crot.x, mbdata->kdata.crot.y, mbdata->kdata.crot.z));
 				body->SetPos_dt(::chrono::ChVector<>(mbdata->kdata.lvel.x, mbdata->kdata.lvel.y, mbdata->kdata.lvel.z));
+				body->SetPos_dtdt(::chrono::ChVector<>(mbdata->adata.lvel_dt.x, mbdata->adata.lvel_dt.y, mbdata->adata.lvel_dt.z));
 				body->SetWvel_par(::chrono::ChVector<>(mbdata->kdata.avel.x, mbdata->kdata.avel.y, mbdata->kdata.avel.z));
+				::chrono::ChVector<> vec(mbdata->adata.avel_dt.x, mbdata->adata.avel_dt.y, mbdata->adata.avel_dt.z);
+				body->SetWacc_par(vec);
 				body->SetRot(EulerParametersQuaternion(mbdata->kdata.orientation));
 			}
 
