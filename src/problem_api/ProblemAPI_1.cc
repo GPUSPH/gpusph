@@ -66,6 +66,8 @@ using namespace std;
 
 ProblemAPI<1>::ProblemAPI(GlobalData *_gdata) : ProblemCore(_gdata)
 {
+	m_collisions_enabled_by_default = true;
+
 	// *** XProblem initialization
 	m_numActiveGeometries = 0;
 	m_numForcesBodies = 0;
@@ -538,7 +540,7 @@ RESTORE_WARNINGS
 			geomInfo->fea = false;
 			break;
 		case GT_FIXED_BOUNDARY:
-			geomInfo->handle_collisions = true; // optional
+			geomInfo->handle_collisions = m_collisions_enabled_by_default; // optional
 			geomInfo->handle_dynamics = false;
 			geomInfo->measure_forces = false;
 			geomInfo->fea = false;
@@ -550,19 +552,19 @@ RESTORE_WARNINGS
 			geomInfo->fea = false;
 			break;
 		case GT_FLOATING_BODY:
-			geomInfo->handle_collisions = true; // optional
+			geomInfo->handle_collisions = m_collisions_enabled_by_default; // optional
 			geomInfo->handle_dynamics = true;
 			geomInfo->measure_forces = true;
 			geomInfo->fea = false;
 			break;
 		case GT_MOVING_BODY:
-			geomInfo->handle_collisions = true; // optional
+			geomInfo->handle_collisions = m_collisions_enabled_by_default; // optional
 			geomInfo->handle_dynamics = false; // optional
 			geomInfo->measure_forces = false; // optional
 			geomInfo->fea = false;
 			break;
 		case GT_PLANE:
-			geomInfo->handle_collisions = true; // optional
+			geomInfo->handle_collisions = m_collisions_enabled_by_default; // optional
 			geomInfo->handle_dynamics = false;
 			geomInfo->measure_forces = false;
 			geomInfo->fea = false;
@@ -1328,6 +1330,16 @@ void ProblemAPI<1>::disableCollisions(const GeometryID gid)
 
 	// it is possible to disable collisions for any geometry type, so no need to check it
 	m_geometries[gid]->handle_collisions = false;
+}
+
+void ProblemAPI<1>::disableCollisionsByDefault()
+{
+	m_collisions_enabled_by_default = false;
+}
+
+void ProblemAPI<1>::enableCollisionsByDefault()
+{
+	m_collisions_enabled_by_default = true;
 }
 
 void ProblemAPI<1>::enableFeedback(const GeometryID gid)

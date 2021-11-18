@@ -233,6 +233,8 @@ template<>
 class ProblemAPI<1> : public ProblemCore
 {
 	private:
+		bool m_collisions_enabled_by_default;
+
 		std::vector<GeometryPtr> m_geometries;
 		PointVect m_fluidParts;
 		PointVect m_boundaryParts;
@@ -386,6 +388,13 @@ class ProblemAPI<1> : public ProblemCore
 		void enableCollisions(const GeometryID gid);
 		void disableDynamics(const GeometryID gid);
 		void disableCollisions(const GeometryID gid);
+
+		//! Set future solid geometries to have collisions disabled by default
+		//! This is simpler and quicker than disabling collisions one by one
+		//! for each new generated geometry
+		void disableCollisionsByDefault();
+		//! Return to the default
+		void enableCollisionsByDefault();
 
 		// enable/disable the measurement of forces acting on the object
 		void enableFeedback(const GeometryID gid);
