@@ -71,8 +71,8 @@ typedef struct KinematicData {
 } KinematicData;
 
 typedef struct AccelerateData {
-	double3			lvel_dt; ///< Linear velocity
-	double3			avel_dt; ///< Angular velocity
+	double3			lvel_dt; ///< Linear acceleration
+	double3			avel_dt; ///< Angular acceleration
 
 	AccelerateData():
 		lvel_dt(make_double3(0.0)),
@@ -96,7 +96,7 @@ typedef struct MovingBodyData {
 	uint				index;	///< Sequential insertion index (NOTE: NOT index in the array)
 	uint				id;		///< index in the moving bodies list
 	MovingBodyType		type;
-	Object				*object;
+	ObjectPtr			object;
 	KinematicData		kdata;
 	KinematicData		initial_kdata;
 	AccelerateData		adata;

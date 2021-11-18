@@ -2271,13 +2271,13 @@ int ProblemAPI<1>::fill_parts(bool fill)
 		// TODO when that's done we won't need the .get()s when
 		// passing the Object ptr to add_moving_body
 		if (m_geometries[g]->type == GT_FLOATING_BODY)
-			add_moving_body(m_geometries[g]->ptr.get(), MB_FLOATING);
+			add_moving_body(m_geometries[g]->ptr, MB_FLOATING);
 		else
 		if (m_geometries[g]->type == GT_MOVING_BODY) {
 			if (m_geometries[g]->measure_forces)
-				add_moving_body(m_geometries[g]->ptr.get(), MB_FORCES_MOVING);
+				add_moving_body(m_geometries[g]->ptr, MB_FORCES_MOVING);
 			else
-				add_moving_body(m_geometries[g]->ptr.get(), MB_MOVING);
+				add_moving_body(m_geometries[g]->ptr, MB_MOVING);
 		}
 
 		if (m_geometries[g]->type == GT_DEFORMABLE_BODY) {// FIXME make a has_tet file? 

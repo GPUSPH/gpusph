@@ -617,7 +617,7 @@ class ProblemCore
 		virtual float3 ext_force_callback(const double t);
 
 		void allocate_bodies_storage();
-		void add_moving_body(Object *, const MovingBodyType);
+		void add_moving_body(ObjectPtr, const MovingBodyType);
 		void add_fea_body(Object *);
 #if USE_CHRONO == 1
 		void groundFeaNodes(std::shared_ptr<::chrono::fea::ChMesh> fea_mesh);
@@ -665,7 +665,7 @@ class ProblemCore
 		// callback for initializing joints between Chrono bodies
 		virtual void initializeObjectJoints();
 
-		//!
+		//! Modify body forces and torques before they get applied by Chrono
 		/*! This method can be overridden in problems when the object
 		 * forces have to be altered in some way before being applied.
 		 */
@@ -681,6 +681,26 @@ class ProblemCore
 		moving_bodies_callback(const uint index, Object* object, const double t0, const double t1,
 							const float3& force, const float3& torque, const KinematicData& initial_kdata,
 							KinematicData& kdata, double3& dx, EulerParameters& dr);
+
+		//! Impose rigid body motion
+		//! This supersedes moving_bodies_callback()
+		virtual void
+		moving_body_dynamics_callback
+			( const uint index ///< sequential index of the moving body
+			, ObjectPtr object ////< pointer to the moving body object
+			, const double t0 ///< time at the beginning of the timestep
+			, const double t1 ///< time at the end of the timestep
+			, const double dt ///< timestep
+			, const int step  ///< integration step (0 = predictor, 1 = corrector)
+			, float3 const& force ///< force exherted on the body by the fluid
+			, float3 const& torque ///< torque exherted on the body by the fluid
+			, KinematicData const& initial_kdata // kinematic data at time t = 0
+			, KinematicData const& kdata0 // kinematic data at time t = t0
+			, KinematicData& kdata ///< kinematic body data at time t = t1 (computed by the callback)
+			, AccelerateData& adata ///< acceleration at time t = t1 (computed by the callback)
+			, double3& dx ///< translation to be applied at time t = t1
+			, EulerParameters& dr ////< rotation to be applied at time t = t1
+			);
 
 		/* Initialize FEA step (e.g. assign forces to nodes)*/
 		void write_fea_nodes(const double t);
@@ -721,17 +741,6 @@ class ProblemCore
 			const	uint			numParticles,
 			const	uint			numOpenBoundaries,
 			const	uint			particleRangeEnd);
-
-		// TODO FIXME this is an old callback (when we were still using ODE) which is currently unused.
-		// At least partially it covers bodies_forces_callback and moving_bodies_callback,
-		// but it allows for greater flexibility. Should we just expunge it?
-		virtual void imposeForcedMovingObjects(
-					float3	&gravityCenters,
-					float3	&translations,
-					float*	rotationMatrices,
-			const	uint	ob,
-			const	double	t,
-			const	float	dt);
 
 		/// Problem-specific implementation of CALC_PRIVATE
 		/*! A problem requesting the CALC_PRIVATE post-processing filter

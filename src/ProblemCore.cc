@@ -355,7 +355,7 @@ ProblemCore::allocate_bodies_storage()
 }
 
 void
-ProblemCore::add_moving_body(Object* object, const MovingBodyType mbtype)
+ProblemCore::add_moving_body(ObjectPtr object, const MovingBodyType mbtype)
 {
 	// Moving bodies are put at the end of the bodies vector,
 	// ODE bodies and moving bodies for which we want a force feedback
@@ -564,7 +564,7 @@ MovingBodyData *
 ProblemCore::get_mbdata(const Object* object)
 {
 	for (vector<MovingBodyData *>::iterator it = m_bodies.begin() ; it != m_bodies.end(); ++it) {
-		if ((*it)->object == object)
+		if ((*it)->object.get() == object)
 			return *it;
 	}
 	throw runtime_error("get_body: invalid object\n");
@@ -963,6 +963,25 @@ ProblemCore::moving_bodies_callback(const uint index, Object* object, const doub
 		KinematicData& kdata, double3& dx, EulerParameters& dr)
 { /* default does nothing */ }
 
+void
+ProblemCore::moving_body_dynamics_callback
+			( const uint index ///< sequential index of the moving body
+			, ObjectPtr object ////< pointer to the moving body object
+			, const double t0 ///< time at the start of the timestep
+			, const double t1 ///< time at the end of the timestep
+			, const double dt ///< timestep
+			, const int step  ///< integration step (0 = predictor, 1 = corrector)
+			, float3 const& force ///< force exherted on the body by the fluid
+			, float3 const& torque ///< torque exherted on the body by the fluid
+			, KinematicData const& initial_kdata // kinematic data at time t = 0
+			, KinematicData const& kdata0 // kinematic data at time t = t0
+			, KinematicData& kdata ///< kinematic body data at time t = t1 (computed by the callback)
+			, AccelerateData& adata ///< acceleration at time t = t1 (computed by the callback)
+			, double3& dx ///< translation to be applied at time t = t1
+			, EulerParameters& dr ////< rotation to be applied at time t = t1
+			)
+{ /* default does nothing */ }
+
 // input: force, torque, step number, dt
 // output: cg, trans, steprot (can be input uninitialized)
 void
@@ -988,12 +1007,23 @@ ProblemCore::bodies_timestep(const float3 *forces, const float3 *torques, const 
 	for (size_t i = 0; i < m_bodies.size(); i++) {
 		// Shortcut to body data
 		MovingBodyData* mbdata = m_bodies[i];
+
 		// Store kinematic data at the beginning of the time step
 		if (step == 1)
 			m_bodies_storage[i] = mbdata->kdata;
 		// Restore kinematic data from the value stored at the beginning of the time step
-		if (step == 2)
+		// ISSUE: for the old callback (moving_bodies_callback), we always pass the
+		// kinematic data from the beginning of the time step as kdata.
+		// With the new callback (moving_body_dynamics_callback), we want both the
+		// t0 kinematic data, and the half-step kinematic data
+		// So we restore mbdata->kdata to the t0 case, but also put the half-step data
+		// in storage, so that we can restore it before calling the NEW callback
+		if (step == 2) {
+			KinematicData kdata_step1 = mbdata->kdata;
 			mbdata->kdata = m_bodies_storage[i];
+			m_bodies_storage[i] = kdata_step1;
+		}
+
 #if USE_CHRONO == 1
 		// If current body has a Chrono body associated (no matter whether type moving or floating), we
 		// want to copy its parameters (velocities, position, etc.) from its kdata to Chrono
@@ -1063,7 +1093,7 @@ ProblemCore::bodies_timestep(const float3 *forces, const float3 *torques, const 
 			mbdata->kdata.orientation = new_orientation;
 		}
 #endif
-		// If the body is not floating, the user is probably providing linear and angular velocity trough a call back
+		// If the body is not floating, the user is probably providing linear and angular velocity through a call back
 		// function.
 		if (mbdata->type != MB_FLOATING) {
 			const uint index = mbdata->index;
@@ -1075,8 +1105,24 @@ ProblemCore::bodies_timestep(const float3 *forces, const float3 *torques, const 
 				torque = torques[i];
 			}
 
-			moving_bodies_callback(index, mbdata->object, t0, t1, force, torque, mbdata->initial_kdata,
+			moving_bodies_callback(index, mbdata->object.get(), t0, t1, force, torque, mbdata->initial_kdata,
 					mbdata->kdata, new_trans, dr);
+
+			// the new callback expects the writable kdata to be the half-step one during the 
+			// step 2 invokation
+			KinematicData kdata0 = mbdata->kdata;
+			if (step == 2) {
+				mbdata->kdata = m_bodies_storage[i];
+			}
+			moving_body_dynamics_callback(
+				index, mbdata->object,
+				t0, t1, dt, step,
+				force, torque,
+				mbdata->initial_kdata,
+				kdata0,
+				mbdata->kdata,
+				mbdata->adata,
+				new_trans, dr);
 		}
 
 		calc_grid_and_local_pos(mbdata->kdata.crot, cgGridPos + i, cgPos + i);
@@ -2452,18 +2498,6 @@ ProblemCore::imposeBoundaryConditionHost(
 			const	uint			particleRangeEnd)
 {
 	fprintf(stderr, "WARNING: open boundaries are present, but imposeBoundaryCondtionHost was not implemented\n");
-	return;
-}
-
-void ProblemCore::imposeForcedMovingObjects(
-			float3	&gravityCenters,
-			float3	&translations,
-			float*	rotationMatrices,
-	const	uint	ob,
-	const	double	t,
-	const	float	dt)
-{
-	// not implemented
 	return;
 }
 
