@@ -1379,14 +1379,11 @@ void ProblemAPI<1>::setInertia(const GeometryID gid, const double i11, const dou
 {
 	if (!validGeometry(gid)) return;
 
-	// implicitly checking that geometry is a GT_FLOATING_BODY
-	if (!m_geometries[gid]->handle_dynamics) {
-		printf("WARNING: trying to set inertia of a geometry with no dynamics! Ignoring\n");
-		return;
-	}
-	m_geometries[gid]->custom_inertia[0] = i11;
-	m_geometries[gid]->custom_inertia[1] = i22;
-	m_geometries[gid]->custom_inertia[2] = i33;
+	auto& geom = m_geometries[gid];
+
+	geom->custom_inertia[0] = i11;
+	geom->custom_inertia[1] = i22;
+	geom->custom_inertia[2] = i33;
 }
 
 // overload
@@ -1400,14 +1397,11 @@ void ProblemAPI<1>::setCenterOfGravity(const GeometryID gid, double3 const& cg)
 {
 	if (!validGeometry(gid)) return;
 
-	// implicitly checking that geometry is a GT_FLOATING_BODY
-	if (!m_geometries[gid]->handle_dynamics) {
-		printf("WARNING: trying to set inertia of a geometry with no dynamics! Ignoring\n");
-		return;
-	}
-	m_geometries[gid]->custom_cg.x = cg.x;
-	m_geometries[gid]->custom_cg.y = cg.y;
-	m_geometries[gid]->custom_cg.z = cg.z;
+	auto& geom = m_geometries[gid];
+
+	geom->custom_cg.x = cg.x;
+	geom->custom_cg.y = cg.y;
+	geom->custom_cg.z = cg.z;
 }
 
 // NOTE: GPUSPH uses ZXZ angles counterclockwise, ODE used XYZ clockwise (http://goo.gl/bV4Zeb - http://goo.gl/oPnMCv)
@@ -2004,6 +1998,29 @@ int ProblemAPI<1>::fill_parts(bool fill)
 					parts_vector->push_back( Point( start + xp * v1 + yp*v2 ) );
 		}
 #endif
+		// Overwrite the computed inertia matrix if user set a custom one
+		// NOTE: this must be done before body creation!
+
+		bool use_custom_inertia = false;
+		// Use custom inertia only if entirely finite (no partial overwrite)
+		const double i11 = m_geometries[g]->custom_inertia[0];
+		const double i22 = m_geometries[g]->custom_inertia[1];
+		const double i33 = m_geometries[g]->custom_inertia[2];
+		if (isfinite(i11) && isfinite(i22) && isfinite(i33)) {
+			use_custom_inertia = true;
+			m_geometries[g]->ptr->SetInertia(i11, i22, i33);
+		}
+
+		// Use custom center of gravity only if entirely finite (no partial overwrite)
+		double cg[3];
+		cg[0] = m_geometries[g]->custom_cg.x;
+		cg[1] = m_geometries[g]->custom_cg.y;
+		cg[2] = m_geometries[g]->custom_cg.z;
+		if (isfinite(cg[0]) && isfinite(cg[1]) && isfinite(cg[2])) {
+			m_geometries[g]->ptr->SetCenterOfGravity(cg);
+			double3 cg = m_geometries[g]->ptr->GetCenterOfGravity();
+			printf("CG override: %g %g %g\n", cg.x, cg.y, cg.z);
+		}
 
 #if USE_CHRONO == 1
 		/* We need to create a Chrono body if
@@ -2018,17 +2035,7 @@ int ProblemAPI<1>::fill_parts(bool fill)
 			 (m_geometries[g]->type != GT_PLANE) &&
 			 (m_geometries[g]->handle_dynamics || m_geometries[g]->handle_collisions) ) {
 
-			// Overwrite the computed inertia matrix if user set a custom one
-			// NOTE: this must be done before body creation!
-			// NOTE: this is needed also if only handle_collision holds
-
-			// Use custom inertia only if entirely finite (no partial overwrite)
-			const double i11 = m_geometries[g]->custom_inertia[0];
-			const double i22 = m_geometries[g]->custom_inertia[1];
-			const double i33 = m_geometries[g]->custom_inertia[2];
-			if (isfinite(i11) && isfinite(i22) && isfinite(i33)) {
-				m_geometries[g]->ptr->SetInertia(i11, i22, i33);
-			} else {
+			if (!use_custom_inertia) {
 				// if no custom inertia has been set, call default Object::SetInertia()
 				// NOTE: this overwrites default inertia set by Chrono for "easy" bodies
 				// (Box, Sphere, Cylinder), but it would be only necessary for non-primitive
@@ -2037,15 +2044,6 @@ int ProblemAPI<1>::fill_parts(bool fill)
 					physparams()->r0 : 0;
 				m_geometries[g]->ptr->SetInertia(inertia_add_dx);
 			}
-
-			// Use custom center of gravity only if entirely finite (no partial overwrite)
-			double cg[3];
-			cg[0] = m_geometries[g]->custom_cg.x;
-			cg[1] = m_geometries[g]->custom_cg.y;
-			cg[2] = m_geometries[g]->custom_cg.z;
-			if (isfinite(cg[0]) && isfinite(cg[1]) && isfinite(cg[2]))
-				m_geometries[g]->ptr->SetCenterOfGravity(cg);
-
 
 			// Fix the geometry *before the creation of the Chrono body* if not moving nor floating.
 			// TODO: check if it holds for moving
