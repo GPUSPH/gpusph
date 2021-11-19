@@ -77,6 +77,9 @@ constexpr double slope_angle = M_PI/4; // 45° for the slope TODO allow customiz
 
 constexpr double wedge_side = 0.5;
 
+// gage position from the intersection of the inclines
+constexpr double gage_dist[] = { 3.0, 7.0, 11.0 };
+
 SlidingWedge::SlidingWedge(GlobalData *_gdata) : Problem(_gdata),
 	// *** command-line parameters
 	use_ccsph(get_option("use-ccsph", true)),
@@ -103,10 +106,6 @@ SlidingWedge::SlidingWedge(GlobalData *_gdata) : Problem(_gdata),
 	// sanity check
 	if (H >= channel_depth)
 		throw std::invalid_argument("water depth must be lower than channel depth");
-
-	// gage position from the intersection of the inclines
-	// TODO
-	constexpr double gage_dist[] = { 3.0, 7.0, 11.0 };
 
 	// *** SPH configuration
 	// This is done before constructing the domain, since some finer details are tied
@@ -294,6 +293,34 @@ SlidingWedge::SlidingWedge(GlobalData *_gdata) : Problem(_gdata),
 		// in 3D, we also need to put it correctly in the middle of the cross axis
 		+ (dim == 3 ? channel_width : 0)*Vector::Ydir/2;
 	setCenterOfGravity(wedge, wedge_barycenter);
+
+	// Finally, add wave gages. Note that adding gages automatically enables
+	// the SURFACE_DETECTION post-processing filter.
+	//
+	// We can define one point per gage,
+	// with the first component matching the position we want along the x axis,
+	// and the second component matching the position we want alongthe y axis in 3D.
+	// This works in 2D as well because the .y component in 2D is the vertical one,
+	// and the vertical component of the point is ignored by wave gages
+	// (since it will be replaced during computation of the water level).
+
+	const double mid_channel_width_pos = origin(1) + channel_width/2;
+	for (double g : gage_dist) {
+		const Point gage_pos(slope_corner(0) + g, mid_channel_width_pos, 0);
+		// add a nearest-neighbor gage
+		add_gage(gage_pos, 0);
+		// and a smoothing gage with the same smoothing length as the particle system
+		add_gage(gage_pos, simparams()->slength);
+
+		// additionally, in the 3D case, there are two wave gages on the first position,
+		// placed 10 cm and 40cm from the wall. In Heinrich (1992) these are only
+		// at the first location, we put them at all locations
+		if (dim == 3) {
+			const Point glazed_wall_pos(gage_pos(0), 0, 0);
+			add_gage(glazed_wall_pos + 0.1*Vector::Ydir, simparams()->slength);
+			add_gage(glazed_wall_pos + 0.4*Vector::Ydir, simparams()->slength);
+		}
+	}
 }
 
 static constexpr double const& vertical_component(double3 const& pos, int dim)
