@@ -662,7 +662,7 @@ RESTORE_WARNINGS
 	return (m_geometries.size() - 1);
 }
 
-bool ProblemAPI<1>::validGeometry(GeometryID gid)
+bool ProblemAPI<1>::validGeometry(GeometryID gid, bool warn_if_deleted)
 {
 	// no warning if the gid explicitly refers to the invalid geometry
 	if (gid == INVALID_GEOMETRY)
@@ -676,7 +676,8 @@ bool ProblemAPI<1>::validGeometry(GeometryID gid)
 
 	// ensure geometry was not deleted
 	if (!m_geometries[gid]->enabled) {
-		printf("WARNING: GeometryID %zu refers to a deleted geometry!\n", gid);
+		if (warn_if_deleted)
+			printf("WARNING: GeometryID %zu refers to a deleted geometry!\n", gid);
 		return false;
 	}
 
@@ -1199,7 +1200,8 @@ void ProblemAPI<1>::flipNormals(const GeometryID gid, bool flip)
 
 void ProblemAPI<1>::deleteGeometry(const GeometryID gid)
 {
-	if (!validGeometry(gid)) return;
+	// no warning if geometry was deleted
+	if (!validGeometry(gid, false)) return;
 
 	m_geometries[gid]->enabled = false;
 

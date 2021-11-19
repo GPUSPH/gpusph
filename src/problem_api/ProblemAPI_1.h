@@ -268,7 +268,7 @@ class ProblemAPI<1> : public ProblemCore
 			const char *hdf5_fname = NULL, const char *xyz_fname = NULL, const char *stl_fname = NULL);
 
 		// check validity of given GeometryID
-		bool validGeometry(GeometryID gid);
+		bool validGeometry(GeometryID gid, bool warn_if_deleted=false);
 
 		//! Maximum height for a particle fall
 		/*! This is used to autocompute the Lennard-Jones boundary coefficient dcoeff,
