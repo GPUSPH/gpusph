@@ -3,7 +3,7 @@
 This test case was originally used by cite:[gomez-gesteira_using_2004]
 to test a prototype version of SPHysics.
 It is based on some experiments done by cite:[arnason_interactions_2005]
-at the University of Wshington.
+at the University of Washington.
 
 We assume an instantaneous breaking dam and the resulting flow impinging
 onto a rectangular object. The whole problem is contained within a

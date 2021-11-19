@@ -1,0 +1,4 @@
+NOTE: this should _not_ be used in the constructor when using the automatic domain definition of API 1,
+since in such a case the world origin, domain size and auxiliary grid properties are not defined
+until _after_ the constructor is finished.
+The method can be called from other member functions (e.g. one of the callbacks).

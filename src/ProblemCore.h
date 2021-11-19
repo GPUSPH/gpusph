@@ -694,8 +694,8 @@ class ProblemCore
 			, const int step  ///< integration step (0 = predictor, 1 = corrector)
 			, float3 const& force ///< force exherted on the body by the fluid
 			, float3 const& torque ///< torque exherted on the body by the fluid
-			, KinematicData const& initial_kdata // kinematic data at time t = 0
-			, KinematicData const& kdata0 // kinematic data at time t = t0
+			, KinematicData const& initial_kdata ///< kinematic data at time t = 0
+			, KinematicData const& kdata0 ///< kinematic data at time t = t0
 			, KinematicData& kdata ///< kinematic body data at time t = t1 (computed by the callback)
 			, AccelerateData& adata ///< acceleration at time t = t1 (computed by the callback)
 			, double3& dx ///< translation to be applied at time t = t1

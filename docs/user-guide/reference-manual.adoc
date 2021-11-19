@@ -349,24 +349,27 @@ double preferredDeltaP(GeometryType type)
 
 Get the inter-particle spacing based on the geometry type
 
-==== setDynamicBoundariesLayers
+==== setNumBoundaryLayers [[setNumBoundaryLayers,setDynamicBoundariesLayers]]
 
 [source,cpp]
 ----
-void setDynamicBoundariesLayers(const uint numLayers)
+void setDynamicBoundariesLayers(const uint numLayers) /* DEPRECATED */
+void setNumBoundaryLayers(const uint numLayers)
 ----
 
 Set number of layers for multi-layer boundary models (e.g. Dynamic boundary and Dummy boundary).
-Default is 0, which means autocompute
+Default is 0, which means autocompute.
 
-==== getDynamicBoundariesLayers
+==== getNumBoundaryLayers [[getNumBoundaryLayers,getDynamicBoundariesLayers]]
 
 [source,cpp]
 ----
-uint getDynamicBoundariesLayers()
+uint getDynamicBoundariesLayers() /* DEPRECATED */
+uint getNumBoundaryLayers()
 ----
 
-Get number of layers used for multi-layer boundary models (e.g. Dynamic boundary and Dummy boundary.
+Get number of layers used for multi-layer boundary models (e.g. Dynamic boundary and Dummy boundary).
+Returns 1 for single-layer boundary models (e.g. Lennard–Jones).
 
 ==== get_worldorigin
 
@@ -376,6 +379,8 @@ double3 const& get_worldorigin(void) const
 ----
 Returns the coordinates of the origin of the simulation domain.
 
+include::warn-no-world-in-constructor.adoc[]
+
 ==== get_worldsize
 
 [source,cpp]
@@ -383,6 +388,8 @@ Returns the coordinates of the origin of the simulation domain.
 double3 const& get_worldsize(void) const
 ----
 Return the size of the simulation domain
+
+include::warn-no-world-in-constructor.adoc[]
 
 ==== get_cellsize
 
@@ -392,6 +399,8 @@ double3 const& get_cellsize(void) const
 ----
 Return the size of cells in the simulation grid.
 
+include::warn-no-world-in-constructor.adoc[]
+
 ==== get_gridsize
 
 [source,cpp]
@@ -400,6 +409,8 @@ uint3 const& get_gridsize(void) const
 ----
 Return the number of cells in the three dimensions that compose the simulation grid.
 
+include::warn-no-world-in-constructor.adoc[]
+
 ==== set_deltap
 
 [source,cpp]
@@ -407,6 +418,7 @@ Return the number of cells in the three dimensions that compose the simulation g
 double set_deltap(const double dflt)
 ----
 Set the initial inter-particle spacing.
+The provided value can be overridden at runtime using the `--deltap` command-line option.
 
 ==== get_deltap
 
@@ -905,7 +917,7 @@ GeometryID myrectangle = addRect(GT_FIXED_BOUNDARY, FT_SOLID, Point(0.0, 0.0, 0.
 ----
 
 ****
-#TODO see what happens here for the several FillType, different boundary models, and in what coordinates are the two axis by default
+#TODO# see what happens here for the several FillType, different boundary models, and in what coordinates are the two axis by default
 ****
 
 General syntax:
@@ -1212,11 +1224,11 @@ FT_SOLID_BORDERLESS:: only the interior of the geometry will be
 filled with particles;
 
 === Interactions
-When geometries intersect each other an erase operation can be set. This operation can be ment
-to avoid filling the intersection region multiple times, but also as a way to obtain complex geometries
-as the subtraction of elementary ones.
+When geometries intersect each other an erase operation can be set.
+This operation is meant to avoid filling the intersection region multiple times,
+but can also as a way to obtain complex geometries as the subtraction of elementary ones.
 
-Each geometry can be assigned an `EraseType` using the command 
+Each geometry can be assigned an `EraseType` using the command
 [source,cpp]
 ----
 setEraseOperation(const GeometryID id, const EraseOperation erasetype);
@@ -1229,9 +1241,21 @@ ET_ERASE_FLUID:: the new geometry erases only the fluid particles that intersect
 ET_ERASE_BOUNDARY:: the new geometry erases only the boundary paricles that intersects
 ET_ERASE_ALL:: the new geometry erases intersected particles from both fluid and boundary geometries
 
-Note that particles belonging to moving or floating objects are never erased.
+NOTE: particles belonging to moving or floating objects are never erased, but see the <<trim,trimming>>
+command for an alternative approach.
 
 A geometry with erase operations will erase particles only from the geometries previously defined.
+
+It is also possible to set the intersection type
+[source,cpp]
+----
+setIntersectionType(const GeometryID id, const IntersectionType i_type);
+----
+where the possible values for the intersection type are:
+[horizontal]
+IT_NONE:: no intersection is computed
+IT_INTERSECT:: particles outside the geometry will be removed
+IT_SUBTRACT:: particles inside the geometry will be removed
 
 .Cube with cylindrical hole
 [example]
@@ -1293,6 +1317,33 @@ setUnfillRadius(mycylinder, 2*m_deltap); // erase particles within two deltap
 ----
 ====
 
+==== Trimming [[trimming]]
+
+To define complex shapes, or to “carve out”parts of a moving or floating object,
+one can use the `trim()` command:
+[source,cpp]
+----
+trim(const GeometryID id, const GeometryID trimmer);
+----
+
+This will use the geometry `trimmer` to carve out particles from the filling of geometry `id`.
+In this case, the `EraseOperation` of `trimmer` is ignored, but the `IntersectionType`
+and unfill radius are still taken into account.
+
+NOTE: the `trimmer` geometry gets disabled automatically, so it cannot be used for
+filling or global unfilling operations after being used as an argument to a `trim` command.
+The `clone()` command can be used to pass a copy of it if the original geometry is intended
+for global usage as well, e.g.:
+[source,cpp]
+----
+trim(id, clone(trimmer));
+----
+
+TIP: a trimmed geometry can be used to trim other geometries as well.
+This makes it easier to define more complex geometries where only part of another shape
+should be removed. See the <<<SlidingWedge>>> test case for example usage.
+
+
 === Positioning Policy
 The positioning policy specifies which point of the geometries is used as a reference for the positioning.
 The coordinates given during the definition of a geometry will be thus assigned to the chosen point.
@@ -1347,41 +1398,91 @@ void shift(const GeometryID gid, const double Xoffset, const double Yoffset, con
 ****
 
 These functions are defined in the `problem_name.cu` file, outside the problem constructor, and must be
-declared in the See the `problem_name.h` file.
+declared in the `problem_name.h` file.
 
 The auxiliary functions are defined as a method for the class associated to the problem,
-then the definition should begin with `problem_name::auxiliary_function_name`.
+so the definition should begin with `problem_name::auxiliary_function_name`.
 
+=== moving_body_dynamics_callback
 
-=== moving_bodies_callback
-This function assigns the motion to moving bodies, i.e. bodies that are marked as `GT_MOVING_BODY`, and it is
-executed at every time-step for every moving body.
+This function is used to assign a prescribed motion to moving bodies
+(i.e. bodies defined with the `GT_MOVING_BODY` geometry type).
+It gets called for each moving body, twice per integration step
+(once during the predictor and once during the corrector)
+between the forces computation step and the integration step.
 
-The available variables inside the function are:
+The signature of the function is:
+[source,cpp]
+----
+virtual void
+moving_body_dynamics_callback
+	( const uint index ///< sequential index of the moving body
+	, ObjectPtr object ////< pointer to the moving body object
+	, const double t0 ///< time at the beginning of the timestep
+	, const double t1 ///< time at the end of the timestep
+	, const double dt ///< timestep
+	, const int step  ///< integration step (0 = predictor, 1 = corrector)
+	, float3 const& force ///< force exherted on the body by the fluid
+	, float3 const& torque ///< torque exherted on the body by the fluid
+	, KinematicData const& initial_kdata ///< kinematic data at time t = 0
+	, KinematicData const& kdata0 ///< kinematic data at time t = t0
+	, KinematicData& kdata ///< kinematic body data at time t = t1 (computed by the callback)
+	, AccelerateData& adata ///< acceleration at time t = t1 (computed by the callback)
+	, double3& dx ///< translation to be applied at time t = t1
+	, EulerParameters& dr ////< rotation to be applied at time t = t1
+	);
+----
 
-* const uint index: Index of the moving body for which the function is being called;
-* Object* object: Pointer to the moving body `Object`
-* const double t0: time reached with the last time-step
-* const double t1: time that will be reached with the upcoming time-step
-* const float3& force: 
-* const float3& torque
-* const KinematicData& initial_kdata: kinematic status at `t0`
-* KinematicData& kdata: kinematic status at `t1`
-* double3& dx: body linear displacement during the upcoming time-step
-* EulerParameters& dr: body angular displacement during the upcoming time-step
+The forces and torques are only available if the body had force-feedback enabled
+(`enableFeedback(geometry_id)`) and only account for contributions from the fluid
+External forces such as gravity must be taken into account in the callback, if so desired.
 
-The last three parameters need to be computed as part of the function.
+Three copies of the kinematic data are avalable:
+`initial_kdata` holds the initial state of the body (at simulation start);
+`kdata0` holds the state of the body at the beginning of the time step;
+`kdata` holds the state of the body at the last half integration step
+(and is thus equal to `kdata0` during the predictor, and equal to the predictor output during the corrector),
+and should be overwritten with the new state by the callback,
+together with the acceleration data `adata` and the translation and rotation increments `dx` and `dr`.
 
-In the follow eexample we show of how to define the `moving_bodies_callback` for a problem that we name `MyCase`.
-We will impose a rotational motion to the moving object with index `0` and a translational motion to the moving object with index `1`.
+NOTE: the linear and rotation increments `dx`, `dr` describe the difference between the new
+(`kdata`) and old (`kdata0`) position of the center of mass and orientation of the body around it.
+Although it may seem redundant having to specify both, this choice ensures that all data can be computed
+with the highest possible accuracy.
+
+****
+#TODO# descrption of the `KinematicData` and `AccelerateData` structures
+****
+
+The recommended way to prescribe the object motion is to define or calculate the linear and angular acceleration,
+(`adata.avel_dt`, `adata.lvel_dt`),
+using them to compute the new linear and angular velocity
+(`kdata.avel`, `kdata.lvel`),
+from these compute the new rotation increment (`dr`) around the center of rotation,
+as well as the new linear translation (`dx`) of the center of rotation,
+and finally apply `dx` to `kdata0` to obtain the new position of the center of rotation.
+This ensures that all fields are properly and consistently initialized.
+
+.Imposing linear and angular motions to different objects
+[example]
+====
+In this example we show an example usage of `moving_body_dynamics_callback` for a sample test case named `MyCase`.
+We will impose a rotational motion to the moving object with index `0`
+and a translational motion to the moving object with index `1`.
+
+****
+#TODO FIXME# it doesn't really do what it's supposed to be doing.
+****
 
 In file `MyCase.cu`
 [source,cpp]
 ----
 void
-MyCase::moving_bodies_callback(const uint index, Object* object, const double t0, const double t1,
-			const float3& force, const float3& torque, const KinematicData& initial_kdata,
-			KinematicData& kdata, double3& dx, EulerParameters& dr)
+MyCase::moving_body_dynamics_callback(const uint index, ObjectPtr object,
+	const double t0, const double t1, const double dt, const int step,
+	float3 const& force, float3 const& torque,
+	KinematicData const& initial_kdata, KinematicData const& initial_kdata,
+	KinematicData& kdata, AccelerateData& adata, double3& dx, EulerParameters& dr)
 {
 
     if (index == 0) {
@@ -1414,6 +1515,14 @@ MyCase::moving_bodies_callback(const uint index, Object* object, const double t0
 	}
 }
 ----
+====
+
+
+=== moving_bodies_callback (**DEPRECATED**) [[moving-bodies-callback]]
+
+This function was used to assign the motion of moving bodies before GPUSPH v6.
+It has been deprecated in favor of <<<moving_body_dynamics_callback>>,
+that provides more information.
 
 === initializeParticles
 This function is executed only once, after all the particles have been generated, and allows
