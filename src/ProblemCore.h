@@ -541,9 +541,11 @@ class ProblemCore
 		 *  The .y coordinate will be ignored in 2D
 		 */
 		void add_gage(double2 const& pt, double gage_smoothing=0);
+		void add_gage(Point const& pt, double gage_smoothing=0);
 
 		inline void add_gage(double3 const& pt, double gage_smoothing=0)
 		{ add_gage(make_double2(pt.x, pt.y), gage_smoothing); }
+
 		inline void add_gage(double x, double y, double gage_smoothing)
 		{ add_gage(make_double2(x, y), gage_smoothing); }
 

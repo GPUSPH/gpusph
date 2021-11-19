@@ -1513,6 +1513,14 @@ ProblemCore::add_gage(double2 const& pt, double gage_smoothing)
 
 	simparams()->gage.push_back(shared_ptr<WaveGage>(gage));
 }
+
+void
+ProblemCore::add_gage(Point const& pt, double gage_smoothing)
+{
+	static const uint ndim = space_dimensions_for(simparams()->dimensions);
+	add_gage(make_double2(pt(0), (ndim > 2 ? pt(1) : 0)), gage_smoothing);
+}
+
 void
 ProblemCore::add_gage(double x, double y_or_gs)
 {
