@@ -429,7 +429,7 @@ class ProblemAPI<1> : public ProblemCore
 		void setParticleMass(const GeometryID gid, const double mass);
 		double setParticleMassByDensity(const GeometryID gid, const double density);
 
-		// set mass (only meaningful for floating objects)
+		// set mass (only meaningful for floating or moving objects)
 		void setMass(const GeometryID gid, const double mass);
 		double setMassByDensity(const GeometryID gid, const double density);
 

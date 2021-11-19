@@ -1499,8 +1499,8 @@ void ProblemAPI<1>::setMass(const GeometryID gid, const double mass)
 {
 	if (!validGeometry(gid)) return;
 
-	if (m_geometries[gid]->type != GT_FLOATING_BODY)
-		printf("WARNING: setting mass of a non-floating body\n");
+	if (m_geometries[gid]->type != GT_FLOATING_BODY && m_geometries[gid]->type != GT_MOVING_BODY)
+		printf("WARNING: setting mass of a non-floating, non-moving body\n");
 	m_geometries[gid]->ptr->SetMass(mass);
 	m_geometries[gid]->mass_was_set = true;
 }
@@ -1554,8 +1554,8 @@ double ProblemAPI<1>::setMassByDensity(const GeometryID gid, const double densit
 	if (!validGeometry(gid)) return NAN;
 
 	auto geom = m_geometries[gid];
-	if (geom->type != GT_FLOATING_BODY)
-		printf("WARNING: setting mass of a non-floating body\n");
+	if (m_geometries[gid]->type != GT_FLOATING_BODY && m_geometries[gid]->type != GT_MOVING_BODY)
+		printf("WARNING: setting mass of a non-floating, non-moving body\n");
 
 	const double volume_add_dx = Object::get_default_filling_method() == Object::BORDER_CENTERED ?
 		preferredDeltaP(geom->type) : 0;
@@ -2988,7 +2988,7 @@ void ProblemAPI<1>::copy_to_array(BufferList &buffers)
 					// there should be no eulerVel with LJ bounds, but it is safe to init the array anyway
 					eulerVel[i] = make_float4(0);
 				// NOTE: setting/showing rigid_body_part_mass only makes sense with non-SA bounds
-				if (m_geometries[g]->type == GT_FLOATING_BODY && !isfinite(rigid_body_part_mass))
+				if (!isfinite(rigid_body_part_mass))
 					rigid_body_part_mass = pos[i].w;
 				// set appropriate particle flags
 				switch (m_geometries[g]->type) {
