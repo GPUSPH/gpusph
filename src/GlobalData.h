@@ -598,7 +598,7 @@ struct GlobalData {
 	void countResumeBuffers()
 	{
 		for (auto& iter : s_hBuffers) {
-			if (!(iter.first & EPHEMERAL_BUFFERS))
+			if (!(iter.first & NO_RESUME_BUFFERS))
 				++numResumeBuffers;
 		}
 	}

@@ -381,6 +381,9 @@ SET_BUFFER_TRAITS(BUFFER_PRIVATE4, float4, 1, "Private vector4");
 #define SUPPORT_BUFFERS \
 	(ALL_DEFINED_BUFFERS & ~(PARTICLE_PROPS_BUFFERS | EPHEMERAL_BUFFERS))
 
+//! Buffers that we don't resume
+#define NO_RESUME_BUFFERS (EPHEMERAL_BUFFERS | FEA_BUFFERS)
+
 //! Buffers that get (re)initialized during the neighbors list construction
 /*! These are otherwise immutable, shouldn't be sorted, and are shared between states.
  * Note that BUFFER_COMPACT_DEV_MAP is excluded from these buffers because it's

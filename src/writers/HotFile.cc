@@ -113,20 +113,13 @@ void HotFile::save() {
 	// write a header
 	writeHeader(_fp.out, VERSION_2);
 
-	// TODO instead of hardcoding this here, we might want to have save/load
-	// take a BufferList, so that the caller (GPUSPH) can manage which buffers
+	// TODO currently NO_RESUME_BUFFERS is hardcoded (in src/define_buffers.h),
+	// but it might be better to have save/load take a BufferList,
+	// so that the caller (GPUSPH) can manage which buffers
 	// will be loaded and which not
-	// TODO notice that since we skip ephemeral buffers, currnetly the header
-	// buffer_count (which is equal to the number of buffers in s_hBuffers)
-	// does not match the number of buffers stored in the HotFile.
-	// This is not a problem on resume, since we compare buffer_count with s_hBuffers
-	// size, but it is an issue for external tools used to inspect HotFiles.
-	// TODO consider changing the header (and remember to bump the version this time!)
-	// to include both the total buffer count and the stored buffer count.
-	const flag_t skip_bufs = EPHEMERAL_BUFFERS;
 
 	for (auto& iter : _gdata->s_hBuffers) {
-		if (iter.first & skip_bufs)
+		if (iter.first & NO_RESUME_BUFFERS)
 			continue;
 
 		writeBuffer(_fp.out, iter.second.get(), VERSION_2);
