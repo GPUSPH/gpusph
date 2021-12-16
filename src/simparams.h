@@ -282,6 +282,13 @@ typedef struct SimParams {
 	float			jacobi_residual;	//< residual threshold for fluid particles effective pressure convergence
 	/** @} */
 
+private:
+	//! Run some behind-the-scenes global initialization steps
+	//! See implementation for details
+	void initialize();
+
+public:
+
 	template<typename Framework>
 	SimParams(Framework *simframework) :
 		dimensions(Framework::dimensions),
@@ -346,7 +353,7 @@ typedef struct SimParams {
 		jacobi_maxiter(1000),
 		jacobi_backerr(0.00001),
 		jacobi_residual(0.000001)
-	{}
+	{ initialize(); }
 
 	/** \name Kernel parameters related methods
 	 * @{ */
