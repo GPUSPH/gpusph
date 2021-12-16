@@ -31,22 +31,9 @@
 #include "GlobalData.h"
 #include "cudasimframework.cu"
 
-#define CENTER_DOMAIN 0
-// set to coords (x,y,z) if more accuracy is needed in such point
-// (waiting for relative coordinates)
-#if CENTER_DOMAIN
-#define OFFSET_X (-l/2)
-#define OFFSET_Y (-w/2)
-#define OFFSET_Z (-h/2)
-#else
-#define OFFSET_X 0
-#define OFFSET_Y 0
-#define OFFSET_Z 0
-#endif
-
 StillWater::StillWater(GlobalData *_gdata) : Problem(_gdata)
 {
-	m_usePlanes = get_option("use-planes", false); // --use-planes true to enable use of planes for boundaries
+	const bool use_planes = get_option("use-planes", false); // --use-planes true to enable use of planes for boundaries
 	const int mlsIters = get_option("mls", 0); // --mls N to enable MLS filter every N iterations
 	const int ppH = get_option("ppH", 16); // --ppH N to change deltap to H/N
 
@@ -61,43 +48,29 @@ StillWater::StillWater(GlobalData *_gdata) : Problem(_gdata)
 		//boundary<LJ_BOUNDARY>
 	).select_options(
 		rhodiff,
-		m_usePlanes, add_flags<ENABLE_PLANES>()
+		use_planes, add_flags<ENABLE_PLANES>()
 	);
 
 	if (mlsIters > 0)
 		addFilter(MLS_FILTER, mlsIters);
 
-	H = 1;
+	// water height
+	const double H = 1;
 
 	set_deltap(H/ppH);
 
 	setMaxFall(H);
 
-	l = w = sqrt(2)*H; h = 1.1*H;
-
-	// Size and origin of the simulation domain
-	m_size = make_double3(l, w ,h);
-	m_origin = make_double3(OFFSET_X, OFFSET_Y, OFFSET_Z);
+	// box size
+	const double l = sqrt(2)*H;
+	const double w = l;
+	const double box_height = 1.1*H;
 
 	// SPH parameters
 	set_timestep(0.00004f);
 	simparams()->dtadaptfactor = 0.3;
 	simparams()->buildneibsfreq = 20;
 	simparams()->ferrariLengthScale = H;
-
-	// enlarge the domain to take into account the extra layers of particles
-	// of the boundary
-	if (simparams()->boundarytype == DYN_BOUNDARY && !m_usePlanes) {
-		// number of layers
-		dyn_layers = ceil(simparams()->kernelradius*simparams()->sfactor);
-		// extra layers are one less (since other boundary types still have
-		// one layer)
-		double3 extra_offset = make_double3((dyn_layers-1)*m_deltap);
-		m_origin -= extra_offset;
-		m_size += 2*extra_offset;
-	} else {
-		dyn_layers = 1;
-	}
 
 	simparams()->tend = 100.0;
 	if (simparams()->boundarytype == SA_BOUNDARY) {
@@ -111,8 +84,8 @@ StillWater::StillWater(GlobalData *_gdata) : Problem(_gdata)
 	// purely for cosmetic reason, let's round the soundspeed to the next
 	// integer
 	const float c0 = ceil(10*maxvel);
-	add_fluid(1000.0);
-	set_equation_of_state(0, 7.0f, c0);
+	auto water = add_fluid(1000.0);
+	set_equation_of_state(water, 7.0f, c0);
 
 	//physparams()->visccoeff = 0.05f;
 	set_kinematic_visc(0, 3.0e-2f);
@@ -121,38 +94,35 @@ StillWater::StillWater(GlobalData *_gdata) : Problem(_gdata)
 	// Drawing and saving times
 	add_writer(VTKWRITER, 1.0);
 
-	// Name of problem used for directory creation
-	m_name = "StillWater";
+	// BORDER_TANGENT filling method means that particle filling begins
+	// half a deltap “inside” the geometry
+	setFillingMethod(Object::BORDER_TANGENT);
 
-	// Building the geometry
+	// place geometries by their corner
 	setPositioning(PP_CORNER);
-	// distance between fluid box and wall
-	float wd = m_deltap;
 
-	// outer walls
-	addBox(GT_FIXED_BOUNDARY, FT_BORDER,
-		Point(m_origin), m_size.x, m_size.y, m_size.z);
+	const Point box_corner(0, 0, 0);
 
-	m_fluidOrigin = m_origin;
-	if (dyn_layers > 1) // shift by the extra offset of the experiment box
-		m_fluidOrigin += make_double3((dyn_layers)*m_deltap);
-	m_fluidOrigin += make_double3(wd); // one wd space from the boundary
-	double shift = 2*wd;
-	if (dyn_layers > 1)
-		shift = (dyn_layers-1)*m_deltap*2;
-	addBox(GT_FLUID, FT_SOLID,
-		m_fluidOrigin, l-shift, w-shift, H-shift);
+	// outer walls: if using particles, build a box and remove the top,
+	// otherwise defines the 5 planes
+	if (use_planes) {
+		const Point other_corner = box_corner + Vector(l, w, 0);
+		// geometric planes are FT_NOFILL
+		addPlane(box_corner, Vector(1, 0, 0), FT_NOFILL);
+		addPlane(box_corner, Vector(0, 1, 0), FT_NOFILL);
+		addPlane(box_corner, Vector(0, 0, 1), FT_NOFILL);
+		addPlane(other_corner, Vector(-1, 0, 0), FT_NOFILL);
+		addPlane(other_corner, Vector(0, -1, 0), FT_NOFILL);
+		// planes will end up half a dp from the fluid, so set r0 for the LJ force correctly:
+		physparams()->r0 = m_deltap/2;
+	} else {
+		addBox(GT_FIXED_BOUNDARY, FT_OUTER_BORDER, box_corner, l, w, box_height);
+		// cutting plane: the normal points downwards so that it can unfill upwards
+		// NOTE: fill type is FT_UNFILL because this is NOT a geometric plane involved in the simulation,
+		// it's only used for cutting out unnecessary particles
+		addPlane(box_corner + Vector(0, 0, box_height), Vector(0, 0, -1), FT_UNFILL);
+	}
 
+	// water
+	addBox(GT_FLUID, FT_SOLID, box_corner, l, w, H);
 }
-
-void StillWater::copy_planes(PlaneList& planes)
-{
-	if (!m_usePlanes) return;
-
-	planes.push_back( implicit_plane(0, 0, 1.0, -m_origin.z) );
-	planes.push_back( implicit_plane(0, 1.0, 0, -m_origin.x) );
-	planes.push_back( implicit_plane(0, -1.0, 0, m_origin.x + w) );
-	planes.push_back( implicit_plane(1.0, 0, 0, -m_origin.y) );
-	planes.push_back( implicit_plane(-1.0, 0, 0, m_origin.y + l) );
-}
-
