@@ -32,14 +32,16 @@
 #include "cudasimframework.cu"
 
 RTInstability2D::RTInstability2D(GlobalData *_gdata) : Problem(_gdata),
-	domain_height(1.0),
-	domain_width(domain_height/2)
+	perturbation_wavelength(0.5),
+	perturbation_amplitude(0.05),
+	// the domain is sized so that it covers one full wavelength
+	domain_width(perturbation_wavelength),
+	domain_height(2*domain_width),
+	periodic_domain(get_option("periodic", false))
 {
 	// *** user parameters from command line
 	// density diffusion terms: 0 none, 1 Ferrari, 2 Molteni & Colagrossi, 3 Brezzi
 	const DensityDiffusionType RHODIFF = get_option("density-diffusion", COLAGROSSI);
-	// periodicity along the X direction
-	const bool periodic_domain = get_option("periodic", false);
 	// particles in the initial water height
 	const uint ppH = get_option("ppH", 128);
 	// density ratio between right and heavy fluid
@@ -98,52 +100,41 @@ RTInstability2D::RTInstability2D(GlobalData *_gdata) : Problem(_gdata),
 
 	// *** Setup geometries
 
-	// set positioning policy to PP_CORNER: given point will be the corner of the geometry
+	// set filling method to BORDER_TANGENT: first layer of particles will be half a dp inside the geometry
+	setFillingMethod(Object::BORDER_TANGENT);
+
 	setPositioning(PP_CORNER);
 
-	// main container: the top and bottom segments are always present,
-	// the sides are only present if not periodic.
-	// we would use segments to define the boundaries if we had the geometry (TODO),
-	// but since we're using dummy boundaries we can just use appropriately-sized
-	// Rectangles instead
-	const double wall_thickness = getDynamicBoundariesLayers()*m_deltap;
+	const Point corner(0, 0, 0);
 
-	// When using DUMMY_BOUNDARY, the walls should be m_deltap/2 “outside” the wall. We achieve this
-	// by defining the domain box components with an extra m_deltap in size, and shifting it by half m_deltap>
-	// Of course, the top/bottom slabs start aligned with the fluid in the horizontal direction,
-	// due to the possible presence of the side walls
-	const double half_dp = m_deltap/2;
+	// main container: a box if non-periodic, top and bottom geometries if periodic
+	if (periodic_domain) {
+		GeometryID bottom = addSegment(GT_FIXED_BOUNDARY, FT_OUTER_BORDER,
+			corner, domain_width);
 
-	GeometryID bottom = addRect(GT_FIXED_BOUNDARY, FT_SOLID,
-		Point( half_dp, -half_dp-wall_thickness, 0),
-		domain_width, wall_thickness);
+		// TODO note the shift in the X direction, needed to compensate for the rotation
+		// because the rotation is always done around the corner
+		// FIXME we should be able to specify the center of rotation, with these shifts computed
+		// automatically
+		GeometryID top = addSegment(GT_FIXED_BOUNDARY, FT_OUTER_BORDER,
+			corner + Vector(domain_width, domain_height, 0), domain_width);
+		rotate(top, Vector::Zdir, M_PI);
 
-	GeometryID top = addRect(GT_FIXED_BOUNDARY, FT_SOLID,
-		Point( half_dp, domain_height + half_dp, 0),
-		domain_width, wall_thickness);
+		// TODO multifluid. Currently multi-fluid is not supported natively in Problem API 1,
+		// so we set all particle masses assuming density 1 and then we will multiply by the actual density
+		setParticleMassByDensity(top, 1);
+		setParticleMassByDensity(bottom, 1);
+	} else {
+		GeometryID domain_box = addRect(GT_FIXED_BOUNDARY, FT_OUTER_BORDER,
+			corner, domain_width, domain_height);
 
-	// TODO multifluid. Currently multi-fluid is not supported natively in Problem API 1,
-	// so we set all particle masses assuming density 1 and then we will multiply by the actual density
-	setParticleMassByDensity(top, 1);
-	setParticleMassByDensity(bottom, 1);
-
-	if (!periodic_domain) {
-		const double wall_shift = wall_thickness + half_dp;
-		const double wall_height = domain_height + 2*wall_thickness + m_deltap;
-		GeometryID left_wall = addRect(GT_FIXED_BOUNDARY, FT_SOLID,
-			Point( -wall_shift, -wall_shift, 0),
-			wall_thickness, wall_height);
-		GeometryID right_wall = addRect(GT_FIXED_BOUNDARY, FT_SOLID,
-			Point( domain_width + half_dp, -wall_shift, 0),
-			wall_thickness, wall_height);
-		setParticleMassByDensity(left_wall, 1);
-		setParticleMassByDensity(right_wall, 1);
+		setParticleMassByDensity(domain_box, 1);
 	}
 
 	// Fluid box: we fill the entire domain with a single box, and then mark particles
 	// as belonging to one fluid or the other based on the position
 	GeometryID fluid_box = addRect(GT_FLUID, FT_SOLID,
-		Point(half_dp, half_dp, 0), domain_width-m_deltap, domain_height-m_deltap);
+		corner, domain_width, domain_height);
 
 	setParticleMassByDensity(fluid_box, 1);
 }
@@ -151,7 +142,12 @@ RTInstability2D::RTInstability2D(GlobalData *_gdata) : Problem(_gdata),
 double
 RTInstability2D::interface_height(double x) const
 {
-	return domain_height/2 + 0.05*sin(2*M_PI/domain_width*x);
+	static const double period = 2*M_PI/perturbation_wavelength;
+	// shift the wave so that it's in the middle, but only if periodic
+	static const double shift = periodic_domain*domain_width*perturbation_wavelength/2;
+	return
+		domain_height/2 + perturbation_amplitude*
+		sin(period*(x - shift));
 }
 
 // Mass and density initialization
@@ -177,28 +173,41 @@ RTInstability2D::initializeParticles(BufferList &buffers, const uint numParticle
 		float rho;
 		double4 const& gpos = pos_global[i];
 		const double depth = domain_height - gpos.y;
+		const double intf = interface_height(gpos.x);
 
 		// for boundary particles, we use the heavy density,
 		int fluid_idx = heavy;
 
 		if (FLUID(info[i])) {
-			const double intf = interface_height(gpos.x);
 			// fluid index depends on the position wrt the interface
-			fluid_idx = gpos.y < intf ? light : heavy;
-
+			fluid_idx = gpos.y > 0 && gpos.y < intf ? light : heavy;
 			rho = hydrostatic_density(depth, fluid_idx);
+
 			if (fluid_idx == light) {
 				// pressure at interface, from heavy fluid
 				float P = physparams()->rho0[heavy]*(domain_height - intf)*g;
 				// plus hydrostatic pressure from _our_ fluid
 				P += physparams()->rho0[light]*(intf - gpos.y)*g;
 				rho = density_for_pressure(P, light);
-			} else {
-				rho = hydrostatic_density(depth, fluid_idx);
 			}
-			info[i]= make_particleinfo(PT_FLUID, fluid_idx, i);
+
+			info[i] = make_particleinfo(PT_FLUID, fluid_idx, i);
 		} else if (BOUNDARY(info[i])) {
 			rho = hydrostatic_density(depth, fluid_idx);
+
+			// for the bottom, the density must compensate the hydrostatic density above it,
+			// which depends on the interface position
+			// TODO we really need a better way to initialize these kinds of problems
+			if (gpos.y < 0 && gpos.x > 0 && gpos.x < domain_width) {
+				// pressure at interface, from heavy fluid
+				float P = physparams()->rho0[heavy]*(domain_height - intf)*g;
+				// plus hydrostatic pressure from light fluid, from 0 to intf
+				P += physparams()->rho0[light]*intf*g;
+				// plus hydrostatic pressure through
+				P -= physparams()->rho0[heavy]*gpos.y*g;
+				rho = density_for_pressure(P, heavy);
+			}
+
 			info[i] = make_particleinfo(PT_BOUNDARY, fluid_idx, i);
 		}
 		// fix up the particle mass according to the actual density

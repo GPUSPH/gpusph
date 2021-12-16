@@ -33,7 +33,10 @@
 
 class RTInstability2D: public Problem {
 private:
-	const double domain_height, domain_width;
+	const double perturbation_wavelength, perturbation_amplitude;
+	const double domain_width, domain_height;
+	const bool periodic_domain;
+
 	size_t light, heavy; // fluid indices of air and water
 
 	// function defining the interface y = interface_height(x)
