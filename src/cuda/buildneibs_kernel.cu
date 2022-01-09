@@ -70,13 +70,6 @@
 
 #include "posvel_struct.h"
 
-//! We have two ways to build the neighbors list: by particle or by cell
-#ifndef BUILDNEIBS_BY_PARTICLE
-#define BUILDNEIBS_BY_PARTICLE CPU_BACKEND_ENABLED
-#endif
-#define BUILDNEIBS_BY_CELL (!BUILDNEIBS_BY_PARTICLE)
-
-
 /* Important notes on block sizes:
 	- a parallel reduction for max neibs number is done inside neiblist, block
 	size for neiblist MUST BE A POWER OF 2
