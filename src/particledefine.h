@@ -314,6 +314,12 @@ const char* PeriodicityName[PERIODIC_XYZ+1]
 
 DEFINE_OPTION_RANGE(Periodicity, PeriodicityName, PERIODIC_NONE, PERIODIC_XYZ);
 
+//! Gravity (external force) type
+enum ExternalForceType {
+	UNIFORM_EXTERNAL_FORCE = 0,
+	CUSTOM_EXTERNAL_FORCE
+};
+
 //! Density filters
 //! we define FIRST and INVALID filters to make iterating over all filters easier
 /*! \defpsubsection{density_filters,DENSITY_FILTERS}

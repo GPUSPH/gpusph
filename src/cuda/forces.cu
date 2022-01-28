@@ -163,6 +163,7 @@ template<
 	SPHFormulation sph_formulation,
 	DensityDiffusionType densitydiffusiontype,
 	typename ViscSpec,
+	ExternalForceType extforce,
 	BoundaryType boundarytype,
 	flag_t simflags,
 	Dimensionality dimensions>
@@ -219,6 +220,7 @@ template<
 	SPHFormulation sph_formulation,
 	DensityDiffusionType densitydiffusiontype,
 	typename ViscSpec,
+	ExternalForceType extforce,
 	BoundaryType boundarytype,
 	flag_t simflags,
 	Dimensionality dimensions>
@@ -755,11 +757,11 @@ run_forces(
 		dummy_shared = 2560 - dtadapt*BLOCK_SIZE_FORCES*4;
 	#endif
 
-	using FluidFluidParams    = forces_params<kerneltype, sph_formulation, densitydiffusiontype, boundarytype, ViscSpec, simflags, dimensions, PT_FLUID, PT_FLUID>;
-	using FluidVertexParams   = forces_params<kerneltype, sph_formulation, densitydiffusiontype, boundarytype, ViscSpec, simflags, dimensions, PT_FLUID, PT_VERTEX>;
-	using VertexFluidParams   = forces_params<kerneltype, sph_formulation, densitydiffusiontype, boundarytype, ViscSpec, simflags, dimensions, PT_VERTEX, PT_FLUID>;
-	using FluidBoundaryParams = forces_params<kerneltype, sph_formulation, densitydiffusiontype, boundarytype, ViscSpec, simflags, dimensions, PT_FLUID, PT_BOUNDARY>;
-	using BoundaryFluidParams = forces_params<kerneltype, sph_formulation, densitydiffusiontype, boundarytype, ViscSpec, simflags, dimensions, PT_BOUNDARY, PT_FLUID>;
+	using FluidFluidParams    = forces_params<kerneltype, sph_formulation, densitydiffusiontype, boundarytype, ViscSpec, extforce, simflags, dimensions, PT_FLUID, PT_FLUID>;
+	using FluidVertexParams   = forces_params<kerneltype, sph_formulation, densitydiffusiontype, boundarytype, ViscSpec, extforce, simflags, dimensions, PT_FLUID, PT_VERTEX>;
+	using VertexFluidParams   = forces_params<kerneltype, sph_formulation, densitydiffusiontype, boundarytype, ViscSpec, extforce, simflags, dimensions, PT_VERTEX, PT_FLUID>;
+	using FluidBoundaryParams = forces_params<kerneltype, sph_formulation, densitydiffusiontype, boundarytype, ViscSpec, extforce, simflags, dimensions, PT_FLUID, PT_BOUNDARY>;
+	using BoundaryFluidParams = forces_params<kerneltype, sph_formulation, densitydiffusiontype, boundarytype, ViscSpec, extforce, simflags, dimensions, PT_BOUNDARY, PT_FLUID>;
 
 	FluidFluidParams params_ff(
 		bufread, bufwrite,
@@ -815,7 +817,7 @@ run_forces(
 		boundary_forces(numThreads, dummy_shared, params_bf);
 	}
 
-	using FinalizeForcesParams = finalize_forces_params<sph_formulation, boundarytype, ViscSpec, simflags>;
+	using FinalizeForcesParams = finalize_forces_params<sph_formulation, boundarytype, ViscSpec, extforce, simflags>;
 
 	FinalizeForcesParams params_finalize(
 			bufread, bufwrite,
@@ -881,9 +883,9 @@ run_repack(
 	dummy_shared = 2560 - dtadapt*BLOCK_SIZE_FORCES*4;
 #endif
 
-	using FluidFluidParams    = repack_params<kerneltype, boundarytype, simflags, dimensions, PT_FLUID, PT_FLUID>;
-	using FluidVertexParams   = repack_params<kerneltype, boundarytype, simflags, dimensions, PT_FLUID, PT_VERTEX>;
-	using FluidBoundaryParams = repack_params<kerneltype, boundarytype, simflags, dimensions, PT_FLUID, PT_BOUNDARY>;
+	using FluidFluidParams    = repack_params<kerneltype, boundarytype, extforce, simflags, dimensions, PT_FLUID, PT_FLUID>;
+	using FluidVertexParams   = repack_params<kerneltype, boundarytype, extforce, simflags, dimensions, PT_FLUID, PT_VERTEX>;
+	using FluidBoundaryParams = repack_params<kerneltype, boundarytype, extforce, simflags, dimensions, PT_FLUID, PT_BOUNDARY>;
 
 	FluidFluidParams params_ff(
 		bufread, bufwrite,
@@ -917,7 +919,7 @@ run_repack(
 
 	execute_kernel(cuforces::repackDevice<FluidBoundaryParams>(params_fb), numBlocks, numThreads, dummy_shared);
 
-	using FinalizeRepackParams = finalize_repack_params<boundarytype, simflags>;
+	using FinalizeRepackParams = finalize_repack_params<boundarytype, extforce, simflags>;
 	FinalizeRepackParams params_finalize(
 		bufread, bufwrite,
 		particleRange, numParticles, slength, deltap,

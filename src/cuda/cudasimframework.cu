@@ -187,6 +187,7 @@ template<
 	ViscousModel _viscmodel,
 	AverageOperator _viscavgop,
 	LegacyViscosityType _legacyvisctype,
+	ExternalForceType _extforce,
 	BoundaryType _boundarytype,
 	Periodicity _periodicbound,
 	flag_t _simflags,
@@ -268,6 +269,8 @@ public:
 	using ViscSpec = FullViscSpec<_rheologytype, _turbmodel, _compvisc,
 	      _viscmodel, viscavgop, _simflags, _is_const_visc>;
 
+	static const ExternalForceType extforce = _extforce;
+
 	static const BoundaryType boundarytype = _boundarytype;
 	static const Periodicity periodicbound = _periodicbound;
 	static const flag_t simflags = _simflags;
@@ -278,7 +281,7 @@ public:
 		m_neibsEngine = CUDANeibsEngineSelector<dimensions, sph_formulation, ViscSpec, boundarytype, periodicbound, simflags>::select();
 		m_integrationEngine = new CUDAPredCorrEngine<sph_formulation, boundarytype, kerneltype, ViscSpec, simflags>();
 		m_viscEngine = new CUDAViscEngine<ViscSpec, kerneltype, boundarytype, simflags>();
-		m_forcesEngine = new CUDAForcesEngine<kerneltype, sph_formulation, densitydiffusiontype, ViscSpec, boundarytype, simflags, dimensions>();
+		m_forcesEngine = new CUDAForcesEngine<kerneltype, sph_formulation, densitydiffusiontype, ViscSpec, extforce, boundarytype, simflags, dimensions>();
 		m_bcEngine = CUDABoundaryConditionsSelector<kerneltype, ViscSpec, boundarytype, simflags>::select();
 
 		// TODO should be allocated by the integration scheme
@@ -398,7 +401,7 @@ template<typename Arg1, typename Arg2, typename Arg3,
 	typename Arg4, typename Arg5, typename Arg6,
 	typename Arg7, typename Arg8, typename Arg9,
 	typename Arg10, typename Arg11, typename Arg12,
-	typename Arg13>
+	typename Arg13, typename Arg14>
 struct ArgSelector :
 	virtual public MultiplexSubclass<Arg1,1>,
 	virtual public MultiplexSubclass<Arg2,2>,
@@ -412,7 +415,8 @@ struct ArgSelector :
 	virtual public MultiplexSubclass<Arg10,10>,
 	virtual public MultiplexSubclass<Arg11,11>,
 	virtual public MultiplexSubclass<Arg12,12>,
-	virtual public MultiplexSubclass<Arg12,13>
+	virtual public MultiplexSubclass<Arg12,13>,
+	virtual public MultiplexSubclass<Arg12,14>
 {};
 
 // Now we set the defaults for each argument
@@ -428,6 +432,7 @@ struct TypeDefaults
 	typedef TypeValue<ViscousModel, MORRIS> ViscModel;
 	typedef TypeValue<AverageOperator, ARITHMETIC> ViscAveraging;
 	typedef TypeValue<LegacyViscosityType, INVALID_VISCOSITY> LegacyViscType;
+	typedef TypeValue<ExternalForceType, UNIFORM_EXTERNAL_FORCE> ExternalForce;
 	typedef TypeValue<BoundaryType, LJ_BOUNDARY> Boundary;
 	typedef TypeValue<Periodicity, PERIODIC_NONE> Periodic;
 	typedef TypeValue<flag_t, DEFAULT_FLAGS> Flags;
@@ -462,7 +467,7 @@ template<SelectorType value> \
 struct selector_for<SelectorType, value> : virtual public selector<value> \
 {}
 
-// Kernel override
+// Dimensionality override
 DEFINE_ARGSELECTOR(space_dimensions, Dimensionality, Dimensions);
 
 // Kernel override
@@ -507,6 +512,9 @@ struct viscosity : virtual public ParentArgs
 	template<typename NewParent> struct reparent :
 		virtual public viscosity<visctype, NewParent> {};
 };
+
+// External force override
+DEFINE_ARGSELECTOR(extforce_type, ExternalForceType, ExternalForce);
 
 // Boundary override
 DEFINE_ARGSELECTOR(boundary, BoundaryType, Boundary);
@@ -579,11 +587,12 @@ template<
 	typename Arg10 = DefaultArg,
 	typename Arg11 = DefaultArg,
 	typename Arg12 = DefaultArg,
-	typename Arg13 = DefaultArg>
+	typename Arg13 = DefaultArg,
+	typename Arg14 = DefaultArg>
 class DEFINED_SIMFRAMEWORK {
 	/// The collection of arguments for our current setup
 	typedef ArgSelector<Arg1, Arg2, Arg3, Arg4, Arg5, Arg6,
-		Arg7, Arg8, Arg9, Arg10, Arg11, Arg12, Arg13> Args;
+		Arg7, Arg8, Arg9, Arg10, Arg11, Arg12, Arg13, Arg14> Args;
 
 	/// Comfort static defines
 	static const Dimensionality dimensions = Args::Dimensions::value;
@@ -596,6 +605,8 @@ class DEFINED_SIMFRAMEWORK {
 	static const ComputationalViscosityType compvisc = Args::ComputationalViscosity::value;
 	static const ViscousModel viscmodel = Args::ViscModel::value;
 	static const AverageOperator viscavgop = Args::ViscAveraging::value;
+
+	static const ExternalForceType extforce = Args::ExternalForce::value;
 
 	static const BoundaryType boundarytype = Args::Boundary::value;
 	static const Periodicity periodicbound = Args::Periodic::value;
@@ -613,6 +624,7 @@ class DEFINED_SIMFRAMEWORK {
 			viscmodel,
 			viscavgop,
 			Args::LegacyViscType::value,
+			extforce,
 			boundarytype,
 			periodicbound,
 			simflags> CUDASimFrameworkType;

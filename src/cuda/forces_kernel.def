@@ -83,6 +83,15 @@ DECLARE_MEMBER_DETECTOR(volume, has_volume)
 DECLARE_MEMBER_DETECTOR(gammaCfl, has_gammaCfl)
 DECLARE_MEMBER_DETECTOR(relEulerVel, has_relEulerVel)
 
+//! Function that defines the external force
+//! A specialization for CUSTOM_EXTERNAL_FORCE must be provided by the problem
+//! TODO FIXME support time-dependent external force (would need a t parameter)
+template<typename FP /* ForcesParams */, typename P /* ParticleData */>
+__device__ __forceinline__
+enable_if_t<FP::extforce == UNIFORM_EXTERNAL_FORCE, float3>
+external_force(FP const& params, P const& pdata)
+{ return cubounds::d_gravity; }
+
 namespace cuforces {
 
 /// Selector to check if we need a CFL condition for gamma
@@ -1857,7 +1866,7 @@ compute_density_diffusion(FP const& params, P const& pdata, N const& ndata, ON &
 	const float neib_rho = physical_density(ndata);
 	const uint fType =  fluid_num(pdata.info);
 	// gravity correction for free-surface flows
-	const float grav_corr = -dot3(d_gravity, ndata.relPos)*d_rho0[fType]/d_sqC0[fType];
+	const float grav_corr = -dot3(external_force(params, pdata), ndata.relPos)*d_rho0[fType]/d_sqC0[fType];
 	// actual diffusion term
 	const float3 ferraricor = (ndata.r > 1e-4f*params.slength) ?
 		max(pdata.sspeed, ndata.sspeed)*
@@ -1896,7 +1905,7 @@ compute_density_diffusion(FP const& params, P const& pdata, N const& ndata, ON &
 	const float n_theta = volume_fraction<FP, nptype>(n_volume0, params.deltap);
 
 	// gravity correction for free-surface flows
-	const float grav_corr = -dot3(d_gravity, ndata.relPos)*d_rho0[p_fluid_num]/d_sqC0[p_fluid_num];
+	const float grav_corr = -dot3(external_force(params, pdata), ndata.relPos)*d_rho0[p_fluid_num]/d_sqC0[p_fluid_num];
 
 	// actual diffusion term -- SPH_HA: the term (rho - neib_rho) is replaced by
 	// mass*(1/vol - neib_theta/(theta*neib_volume))
@@ -1926,7 +1935,7 @@ compute_density_diffusion(FP const& params, P const& pdata, N const& ndata, ON &
 	const float neib_rho = physical_density(ndata);
 	const int fType =  fluid_num(pdata.info);
 	// gravity correction for free-surface flows
-	const float grav_corr = -dot3(d_gravity, ndata.relPos)*d_rho0[fType]/d_sqC0[fType];
+	const float grav_corr = -dot3(external_force(params, pdata), ndata.relPos)*d_rho0[fType]/d_sqC0[fType];
 	// actual diffusion term
 	const float ferraricor = (ndata.r > 1e-4f*params.slength) ?
 		max(pdata.sspeed, ndata.sspeed)*
@@ -1979,7 +1988,7 @@ compute_density_diffusion(FP const& params, P const& pdata, N const& ndata, ON &
 
 
 	// gravity correction for free-surface flows
-	const float grav_corr = -dot3(d_gravity, ndata.relPos)*d_rho0[p_fluid_num]/d_sqC0[p_fluid_num];
+	const float grav_corr = -dot3(external_force(params, pdata), ndata.relPos)*d_rho0[p_fluid_num]/d_sqC0[p_fluid_num];
 	// actual diffusion term
 
 	const float ferraricor = (ndata.r > 1e-4f*params.slength) ?
@@ -2011,7 +2020,7 @@ compute_density_diffusion(FP const& params, Pt const& pdata, N const& ndata, ON 
 	// this is the new volumic term for the laplacian: dt Div(1/rho Grad(p) + Grad(g.r))
 	nout.DrDt += d_densityDiffCoeff*((2.0f/(rho + neib_rho))*
 		(P(pdata.rhotilde, fluid_num(pdata.info)) - P(ndata.rhotilde, fluid_num(ndata.info)))
-		- dot3(d_gravity, ndata.relPos)
+		- dot3(external_force(params, pdata), ndata.relPos)
 		)*ndata.mass/neib_rho*corrected_f(ndata)*params.dt*2.0f*rho;
 }
 
@@ -2051,7 +2060,7 @@ compute_density_diffusion(FP const& params, Pt const& pdata, N const& ndata, ON 
 	nout.DrDt += d_densityDiffCoeff*(
 			2.0f/(pdata.mass*(1./p_volume + n_theta/(p_theta*n_volume )))*
 			(P(pdata.rhotilde, fluid_num(pdata.info)) - P(ndata.rhotilde, fluid_num(ndata.info)))
-			- dot3(d_gravity, ndata.relPos)
+			- dot3(external_force(params, pdata), ndata.relPos)
 			)*ndata.mass/n_rho*corrected_f(ndata)*params.dt*2.0f*p_rho;
 }
 
@@ -2079,7 +2088,7 @@ compute_density_diffusion(FP const& params, Pt const& pdata, N const& ndata, ON 
 		const float neib_rho = physical_density(ndata);
 		nout.DrDt -= ((2.0f/(rho + neib_rho))*
 			(P(pdata.rhotilde, fluid_num(pdata.info)) - P(ndata.rhotilde, fluid_num(ndata.info)))
-			- dot3(d_gravity, ndata.relPos)
+			- dot3(external_force(params, pdata), ndata.relPos)
 			)*nout.ggamAS/ndata.r_as*params.dt*2.0f*rho;
 	}
 }
@@ -2133,7 +2142,7 @@ compute_density_diffusion(FP const& params, Pt const& pdata, N const& ndata, ON 
 
 		nout.DrDt -= (2.0f/(pdata.mass*(1./p_volume + n_theta/(p_theta*n_volume)))*
 				(P(pdata.rhotilde, fluid_num(pdata.info)) - P(ndata.rhotilde, fluid_num(ndata.info)))
-				- dot3(d_gravity, ndata.relPos)
+				- dot3(external_force(params, pdata), ndata.relPos)
 			     )*nout.ggamAS/ndata.r_as*params.dt*2.0f*p_rho;
 	}
 }
@@ -2199,7 +2208,7 @@ compute_density_diffusion(FP const& params, Pt const& pdata, N const& ndata, ON 
 	// only apply diffusion for large density ratios, specifically
 	// when DeltaP > rhogh
 	if (fabs(P(pdata.rhotilde, fType) - P(ndata.rhotilde, fType)) <
-		fabs(dot3(d_gravity, ndata.relPos)*physical_density(pdata)))
+		fabs(dot3(external_force(params, pdata), ndata.relPos)*physical_density(pdata)))
 		return;
 
 	const float diff_term = colagrossi_density_diffusion_term(params, pdata, ndata, fType);
@@ -4570,7 +4579,7 @@ struct finalizeforcesDevice : FP
 			const float dynvisc = viscous_fixup(params, pdata, pout);
 
 			// Adding gravity
-			pout.force.xyz += d_gravity;
+			pout.force.xyz += external_force(params, pdata);
 
 			float geom_coeff = finalize_geometric_forces(params, pdata, pout, dynvisc);
 			// TODO: check for time step limitation in case of geometrical boundaries (DEM or planes)

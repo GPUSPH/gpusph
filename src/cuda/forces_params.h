@@ -368,6 +368,7 @@ template<KernelType _kerneltype,
 	DensityDiffusionType _densitydiffusiontype,
 	BoundaryType _boundarytype,
 	typename _ViscSpec,
+	ExternalForceType _extforce,
 	flag_t _simflags,
 	Dimensionality _dimensions,
 	ParticleType _cptype,
@@ -438,6 +439,8 @@ struct forces_params : _ViscSpec,
 	static const TurbulenceModel turbmodel = ViscSpec::turbmodel;
 	static const ViscousModel viscmodel = ViscSpec::viscmodel;
 
+	static const ExternalForceType extforce = _extforce;
+
 	static const flag_t simflags = _simflags;
 	static const Dimensionality dimensions = _dimensions;
 	static const ParticleType cptype = _cptype;
@@ -497,17 +500,19 @@ using repackViscSpec = FullViscSpec<NEWTONIAN, LAMINAR_FLOW, KINEMATIC, MORRIS, 
 
 template<KernelType _kerneltype,
 	BoundaryType _boundarytype,
+	ExternalForceType _extforce,
 	flag_t _simflags,
 	Dimensionality _dimensions,
 	ParticleType _cptype,
 	ParticleType _nptype>
 using repack_params = forces_params<_kerneltype, SPH_F1, DENSITY_DIFFUSION_NONE,
-	  _boundarytype, repackViscSpec<_simflags>, _simflags, _dimensions, _cptype, _nptype, REPACK>;
+	  _boundarytype, repackViscSpec<_simflags>, _extforce, _simflags, _dimensions, _cptype, _nptype, REPACK>;
 
 /// The actual finalize_forces_params struct, which concatenates all of the above, as appropriate.
 template<SPHFormulation _sph_formulation,
 	BoundaryType _boundarytype,
 	typename _ViscSpec,
+	ExternalForceType _extforce,
 	flag_t _simflags,
 	RunMode _run_mode = SIMULATE,
 	bool _repacking = (_run_mode == REPACK),
@@ -557,6 +562,8 @@ struct finalize_forces_params :
 	static const TurbulenceModel turbmodel = ViscSpec::turbmodel;
 	static const ViscousModel viscmodel = ViscSpec::viscmodel;
 
+	static const ExternalForceType extforce = _extforce;
+
 	static const flag_t simflags = _simflags;
 
 	static const RunMode run_mode = _run_mode;
@@ -597,9 +604,9 @@ struct finalize_forces_params :
 	{}
 };
 
-template<BoundaryType _boundarytype, flag_t _simflags>
+template<BoundaryType _boundarytype, ExternalForceType _extforce, flag_t _simflags>
 using finalize_repack_params = finalize_forces_params<SPH_F1,
-	  _boundarytype, repackViscSpec<_simflags>, _simflags, REPACK>;
+	  _boundarytype, repackViscSpec<_simflags>, _extforce, _simflags, REPACK>;
 
 
 #endif // _FORCES_PARAMS_H
