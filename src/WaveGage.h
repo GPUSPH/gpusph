@@ -37,6 +37,7 @@
 #include <stdexcept>
 
 #include "device_runtime_api.h"
+#include "vector_math.h"
 
 //! The base wavegage class
 /*! WaveGages work by looking at neighboring SURFACE particles and interpolating their z coordinates.
