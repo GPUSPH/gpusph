@@ -19,6 +19,7 @@ The general format, when all options are included is something like:
     visc_average<ARITHMETIC>,
     boundary<SA_BOUNDARY>,
     periodicity<PERIODIC_NONE>,
+    extforce_type<UNIFORM_EXTERNAL_FORCE>,
     add_flags<ENABLE_INLET_OUTLET | ENABLE_DENSITY_SUM
         | ENABLE_MOVING_BODIES | ENABLE_REPACKING>
   );
@@ -171,6 +172,39 @@ This is used to specify that the domain is periodic in one or more directions:
 `PERIODIC_XZ`:: periodic in X and Z;
 `PERIODIC_YZ`:: periodic in Y and Z;
 `PERIODIC_XYZ`:: periodic in all directions;
+
+==== External force type (`extforce_type`) [[extforce_type,extforce-type]]
+
+This is used to specify how the external body force (e.g. gravity) is defined in space:
+[horizontal]
+`UNIFORM_EXTERNAL_FORCE`:: the external body force is uniform in space (default)
+`CUSTOM_EXTERNAL_FORCE`:: the external body force at each point in space is determined by a user-define, problem-specific function.
+
+NOTE: variability of gravity / external forces in _time_ is controlled by the `gcallback`
+boolean member in the simulations parameters (see the <<Seiche>> test case as an example).
+
+****
+#TODO#: Document the `simparams()->gcallback` setting and the `g_callback()` function.
+****
+
+If the external force type is set to `CUSTOM_EXTERNAL_FORCE`, then the test case must define
+an `external_force` device function with the following structure:
+[source,cpp]
+----
+template<typename FP /* ForcesParams */, typename P /* ParticleData */>
+__device__ __forceinline__
+enable_if_t<FP::extforce == CUSTOM_EXTERNAL_FORCE, float3>
+external_force(FP const& params, P const& pdata)
+{
+    float3 g;
+    /* HERE: compute g based pdata.gridPos and pdata.pos or any other parameter */
+    return g;
+}
+----
+
+****
+#TODO#: This syntax isn't very friendly, ideally this should be simplified a bit.
+****
 
 ==== Miscellaneous boolean flags (`add_flags`, `disable_flags`) [[add_flags,disable_flags]]
 
