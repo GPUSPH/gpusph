@@ -142,7 +142,7 @@ DamBreak3DFEA::DamBreak3DFEA(GlobalData *_gdata) : Problem(_gdata)
 			dimX - water_length, dimY, water_bed_height);
 	}
 
-	// addTetFile(GT_DEFORMABLE_BODY, FT_BORDER, Point(0,0,0), "dambreak.1.node", "dambreak.1.ele", 0.021);
+	// addTetFile(GT_DEFORMABLE_BODY, FT_INNER_BORDER, Point(0,0,0), "dambreak.1.node", "dambreak.1.ele", 0.021);
 	// set positioning policy to PP_BOTTOM_CENTER: given point will be the center of the base
 
 	//	set_fea_ground(0, 0, 1, 0.05); // a, b, c and d parameters of a plane equation. Grounding nodes in the negative side of the plane
@@ -201,7 +201,7 @@ DamBreak3DFEA::DamBreak3DFEA(GlobalData *_gdata) : Problem(_gdata)
 	// set positioning policy to PP_CENTER: given point will be the geometrical center of the object
 	setPositioning(PP_CENTER);
 	GeometryID floating_obj =
-		addSphere(GT_FLOATING_BODY, FT_BORDER, Point(water_length, dimY/2, water_height), obstacle_side);
+		addSphere(GT_FLOATING_BODY, FT_INNER_BORDER, Point(water_length, dimY/2, water_height), obstacle_side);
 	// half water density to make it float
 	setMassByDensity(floating_obj, physparams()->rho0[0] / 2);
 	setParticleMassByDensity(floating_obj, physparams()->rho0[0] / 2);

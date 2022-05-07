@@ -90,7 +90,7 @@ AccuracyTest::AccuracyTest(GlobalData *_gdata) : Problem(_gdata)
 	const Point corner(0, 0, 0);
 
 	// add a m_deltap to the the z direction, which is where we will be cutting out
-	addBox(GT_FIXED_BOUNDARY, FT_BORDER, corner, lx, ly, lz + m_deltap);
+	addBox(GT_FIXED_BOUNDARY, FT_OUTER_BORDER, corner, lx, ly, lz + m_deltap);
 	// use a cutting plane to remove the top
 	addPlane(0, 0, -1, lz + m_deltap/2, FT_UNFILL);
 

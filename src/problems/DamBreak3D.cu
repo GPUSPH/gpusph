@@ -121,7 +121,7 @@ DamBreak3D::DamBreak3D(GlobalData *_gdata) : Problem(_gdata)
 		// but this would cause issues with the obstacles,
 		// which are filled with particles instead.
 		// Instead, we shift the corners of the universe box out by half a dp.
-		// TODO remeber to fix this when we implement ghost particles!
+		// TODO remember to fix this when we implement ghost particles!
 		const double half_dp = m_deltap/2;
 		const Vector half_dp_vec = Vector(half_dp, half_dp, half_dp);
 		const Vector dim_vec = Vector(dimX, dimY, dimZ);
@@ -169,7 +169,7 @@ DamBreak3D::DamBreak3D(GlobalData *_gdata) : Problem(_gdata)
 	// set positioning policy to PP_CENTER: given point will be the geometrical center of the object
 	setPositioning(PP_CENTER);
 	GeometryID floating_obj =
-		addSphere(GT_FLOATING_BODY, FT_BORDER, Point(water_length, dimY/2, water_height), obstacle_side);
+		addSphere(GT_FLOATING_BODY, FT_INNER_BORDER, Point(water_length, dimY/2, water_height), obstacle_side);
 	// half water density to make it float
 	setMassByDensity(floating_obj, physparams()->rho0[0] / 2);
 	setParticleMassByDensity(floating_obj, physparams()->rho0[0] / 2);
