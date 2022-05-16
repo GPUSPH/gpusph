@@ -59,7 +59,7 @@ AntociGate::AntociGate(GlobalData *_gdata) : XProblem(_gdata)
 	setDynamicBoundariesLayers(3);
 
 	// *** Initialization of minimal physical parameters
-	set_deltap(0.001);
+	set_deltap(0.002);
 	physparams()->r0 = m_deltap;
 	physparams()->gravity = make_float3(0.0, 0.0, -9.81);
 	const float g = length(physparams()->gravity);
@@ -94,55 +94,52 @@ AntociGate::AntociGate(GlobalData *_gdata) : XProblem(_gdata)
 		BOUNDARY_THICKNESS *= (getDynamicBoundariesLayers() - 1);
 	}
 
-	m_origin = make_double3(0, m_deltap/2.0, 0);
-	m_size = make_double3(dimX, dimY - m_deltap, dimZ);
+	m_origin = make_double3(0.0, 0.0, 0.0);
+
+	setFillingMethod(Object::BORDER_TANGENT);
 
 	// set positioning policy to PP_CORNER: given point will be the corner of the geometry
 	setPositioning(PP_CORNER);
 	// main container
 
-	GeometryID box = addBox(GT_FIXED_BOUNDARY, FT_BORDER, Point(-BOUNDARY_THICKNESS, -BOUNDARY_THICKNESS, -BOUNDARY_THICKNESS),
-		dimX + 2*BOUNDARY_THICKNESS, dimY + 2*BOUNDARY_THICKNESS, dimZ + 2*BOUNDARY_THICKNESS, 2, 5); // the last two integers are the number of fea shell in the two directions
+	GeometryID box = addBox(GT_FIXED_BOUNDARY, FT_OUTER_BORDER, m_origin,
+		dimX, dimY, dimZ); // the last two integers are the number of fea shell in the two directions
 	setEraseOperation(box, ET_ERASE_NOTHING);
 
 	// Add the main water part
-	addBox(GT_FLUID, FT_SOLID, Point(m_deltap, m_deltap, m_deltap),
-		water_length - 2*m_deltap, dimY - 2*m_deltap, water_height - m_deltap); // check BC on the free surface
+	addBox(GT_FLUID, FT_SOLID, m_origin,
+		water_length, dimY, water_height); // check BC on the free surface
 
 	// add wall above the gate
-	GeometryID wall = addRect(GT_FIXED_BOUNDARY, FT_BORDER, Point(water_length, m_deltap, 2*m_deltap + AntociGateL), dimZ - AntociGateL - 3*m_deltap, dimY - 2*m_deltap);
+	GeometryID wall = addRect(GT_FIXED_BOUNDARY, FT_OUTER_BORDER, Point(water_length, 0.0, AntociGateL), dimZ - AntociGateL, dimY);
 
 	rotate(wall, 0, M_PI/2, 0);
 	setEraseOperation(wall, ET_ERASE_NOTHING);
 
 
 	// erase side walls in case of periodicity
-	GeometryID wall1 = addBox(GT_FIXED_BOUNDARY, FT_UNFILL, Point(-BOUNDARY_THICKNESS, dimY + m_deltap/2.0, -BOUNDARY_THICKNESS), dimX + 2*BOUNDARY_THICKNESS, BOUNDARY_THICKNESS, dimZ + 2*BOUNDARY_THICKNESS);
+	GeometryID wall1 = addPlane(0.0, 1.0, 0.0, 0.0, FT_UNFILL);
 	setEraseOperation(wall1, ET_ERASE_BOUNDARY);
-	GeometryID wall2 = addBox(GT_FIXED_BOUNDARY, FT_UNFILL, Point(-BOUNDARY_THICKNESS, -BOUNDARY_THICKNESS, -BOUNDARY_THICKNESS), dimX + 2*BOUNDARY_THICKNESS, BOUNDARY_THICKNESS, dimZ + 2*BOUNDARY_THICKNESS);
-	setEraseOperation(wall2, ET_ERASE_BOUNDARY);
-
-	GeometryID erase_ceil = addBox(GT_FIXED_BOUNDARY, FT_UNFILL, Point(-BOUNDARY_THICKNESS, -BOUNDARY_THICKNESS, dimZ), dimX + 2*BOUNDARY_THICKNESS, dimY + 2*BOUNDARY_THICKNESS, dimZ);
+	GeometryID wall2 = addPlane(0.0, -1.0, 0.0, dimY, FT_UNFILL);
 	setEraseOperation(wall2, ET_ERASE_BOUNDARY);
 
 
+	GeometryID erase_ceil = addPlane(0.0, 0.0, -1.0, dimZ, FT_UNFILL);
+	setEraseOperation(wall2, ET_ERASE_BOUNDARY);
+
+
+	const int nels = 10;
 	// Add the flexible gate as a mesh
-	GeometryID gate = addBox(GT_DEFORMABLE_BODY, FT_BORDER, Point(water_length + 0.005, m_deltap, m_deltap), AntociGateL, dimY - 2*m_deltap, round_up(0.005, m_deltap), 10, 1);
+	GeometryID gate = addBox(GT_DEFORMABLE_BODY, FT_SOLID, Point(water_length, 0.0, AntociGateL), AntociGateL, dimY, round_up(0.005, m_deltap), nels, 1);
+	rotate(gate, 0, -M_PI/2, 0);
 	setEraseOperation(gate, ET_ERASE_NOTHING);
 	setYoungModulus(gate, 1e7);
 	setPoissonRatio(gate, 0.3);
 	setAlphaDamping(gate, 0.001);
 	setDensity(gate, 1100);
-	rotate(gate, 0, M_PI/2, 0);
-	set_fea_ground(0, 0, -1, -(AntociGateL + 0.5*m_deltap)); // a, b, c and d parameters of a plane equation. Grounding nodes in the negative side of the plane
-}
 
-// since the fluid topology is roughly symmetric along Y through the whole simulation, prefer Y split
-/*void AntociGate::fillDeviceMap()
-{
-	fillDeviceMapByAxis(Y_AXIS);
+	set_fea_ground(0, 0, -1, -(1 - 1/(2*nels))*AntociGateL); // a, b, c and d parameters of a plane equation. Grounding nodes in the negative side of the plane
 }
-*/
 
 void AntociGate::initializeParticles(BufferList &buffer, const uint numParticle)
 {
