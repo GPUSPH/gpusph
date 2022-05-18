@@ -94,7 +94,6 @@ AntociGate::AntociGate(GlobalData *_gdata) : XProblem(_gdata)
 		BOUNDARY_THICKNESS *= (getDynamicBoundariesLayers() - 1);
 	}
 
-	m_origin = make_double3(0.0, 0.0, 0.0);
 
 	setFillingMethod(Object::BORDER_TANGENT);
 
@@ -102,16 +101,16 @@ AntociGate::AntociGate(GlobalData *_gdata) : XProblem(_gdata)
 	setPositioning(PP_CORNER);
 	// main container
 
-	GeometryID box = addBox(GT_FIXED_BOUNDARY, FT_OUTER_BORDER, m_origin,
+	GeometryID box = addBox(GT_FIXED_BOUNDARY, FT_OUTER_BORDER, Point(-water_length, 0.0, 0.0),
 		dimX, dimY, dimZ); // the last two integers are the number of fea shell in the two directions
 	setEraseOperation(box, ET_ERASE_NOTHING);
 
 	// Add the main water part
-	addBox(GT_FLUID, FT_SOLID, m_origin,
+	addBox(GT_FLUID, FT_SOLID, Point(-water_length, 0.0, 0.0),
 		water_length, dimY, water_height); // check BC on the free surface
 
 	// add wall above the gate
-	GeometryID wall = addRect(GT_FIXED_BOUNDARY, FT_OUTER_BORDER, Point(water_length, 0.0, AntociGateL), dimZ - AntociGateL, dimY);
+	GeometryID wall = addRect(GT_FIXED_BOUNDARY, FT_OUTER_BORDER, Point(0.0, 0.0, AntociGateL), dimZ - AntociGateL, dimY);
 
 	rotate(wall, 0, M_PI/2, 0);
 	setEraseOperation(wall, ET_ERASE_NOTHING);
@@ -125,12 +124,12 @@ AntociGate::AntociGate(GlobalData *_gdata) : XProblem(_gdata)
 
 
 	GeometryID erase_ceil = addPlane(0.0, 0.0, -1.0, dimZ, FT_UNFILL);
-	setEraseOperation(wall2, ET_ERASE_BOUNDARY);
+	setEraseOperation(erase_ceil, ET_ERASE_BOUNDARY);
 
 
 	const int nels = 10;
 	// Add the flexible gate as a mesh
-	GeometryID gate = addBox(GT_DEFORMABLE_BODY, FT_SOLID, Point(water_length, 0.0, AntociGateL), AntociGateL, dimY, round_up(0.005, m_deltap), nels, 1);
+	GeometryID gate = addBox(GT_DEFORMABLE_BODY, FT_SOLID, Point(0.0, 0.0, AntociGateL), AntociGateL, dimY, round_up(0.005, m_deltap), nels, 1);
 	rotate(gate, 0, -M_PI/2, 0);
 	setEraseOperation(gate, ET_ERASE_NOTHING);
 	setYoungModulus(gate, 1e7);
@@ -150,7 +149,7 @@ void AntociGate::initializeParticles(BufferList &buffer, const uint numParticle)
 
 	for (uint i = 0; i < numParticle; i++) {
 
-		double depth = 3*m_deltap +  H - pos_global[i].z + m_origin.z;
+		double depth = H - pos_global[i].z;
 
 		pos[i].w = physparams()->rho0[0]*m_deltap*m_deltap*m_deltap;
 		vel[i].w = hydrostatic_density(depth, water);
