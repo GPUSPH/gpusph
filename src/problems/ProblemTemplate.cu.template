@@ -1,0 +1,56 @@
+/*  Copyright (c) 2022 INGV, EDF, UniCT, JHU
+
+    Istituto Nazionale di Geofisica e Vulcanologia, Sezione di Catania, Italy
+    Électricité de France, Paris, France
+    Università di Catania, Catania, Italy
+    Johns Hopkins University, Baltimore (MD), USA
+
+    This file is part of GPUSPH. Project founders:
+        Alexis Hérault, Giuseppe Bilotta, Robert A. Dalrymple,
+        Eugenio Rustico, Ciro Del Negro
+    For a full list of authors and project partners, consult the logs
+    and the project website <https://www.gpusph.org>
+
+    GPUSPH is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    GPUSPH is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with GPUSPH.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+#include <iostream>
+
+#include "ProblemTemplate.h"
+#include "GlobalData.h"
+#include "cudasimframework.cu"
+
+void ProblemTemplate::setup_framework()
+{
+	SETUP_FRAMEWORK(
+		/* R2 for 2-D problems, R3 for 3-D problems. R3 is the default */
+		//space_dimensions<R3>,
+		//kernel<WENDLAND>
+		//formulation<SPH_F1>,
+		//densitydiffusion<DENSITY_DIFFUSION_NONE>,
+		//rheology<INVISCID>,
+		//turbulence_model<ARTIFICIAL>,
+		//visc_model<MORRIS>,
+		//boundary<LJ_BOUNDARY>,
+		//periodicity<PERIODIC_NONE>
+		/*  adaptive time-stepping (ENABLE_DTADAPT) is enabled by default,
+		 *  other flags may be specified here, in addition to the default.
+		 */
+		//add_flags<ENABLE_CCSPH>
+		/*  flags that are enabled by default can be removed from the framework flags
+		 *  by specifying them here
+		 */
+		//disable_flags<ENABLE_DTADAPT>
+	);
+}

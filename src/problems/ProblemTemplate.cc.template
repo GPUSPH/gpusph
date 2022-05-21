@@ -1,0 +1,66 @@
+/*  Copyright (c) 2022 INGV, EDF, UniCT, JHU
+
+    Istituto Nazionale di Geofisica e Vulcanologia, Sezione di Catania, Italy
+    Électricité de France, Paris, France
+    Università di Catania, Catania, Italy
+    Johns Hopkins University, Baltimore (MD), USA
+
+    This file is part of GPUSPH. Project founders:
+        Alexis Hérault, Giuseppe Bilotta, Robert A. Dalrymple,
+        Eugenio Rustico, Ciro Del Negro
+    For a full list of authors and project partners, consult the logs
+    and the project website <https://www.gpusph.org>
+
+    GPUSPH is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    GPUSPH is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with GPUSPH.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+#include <iostream>
+
+#include "ProblemTemplate.h"
+#include "GlobalData.h"
+
+ProblemTemplate::ProblemTemplate(GlobalData *_gdata) : Problem(_gdata)
+{
+	// setup_framework is defined in the .cu file
+	setup_framework();
+
+	// set the inter-particle spacing. Many problems define this in terms of
+	// the number of particles in some length, e.g. the still-water height,
+	// where the number of particles per lenght is defined through a comman-line option
+	set_deltap(0.01);
+
+
+	// Physical parameters
+	set_gravity(-9.81f);
+
+	// add a fluid
+	auto water = add_fluid(1000.0);
+	// and set its equation of state. The second argument is the polytropic constant,
+	// the third is the speed of sound at rest. Not-A-Number means auto-compute from problem geometry.
+	set_equation_of_state(water, 7.0f, NAN);
+
+	// set the kinematic viscosity of the fluid
+	set_kinematic_visc(water, 1.0e-6f);
+
+	// Specify the output file format and how often we should save
+	// (in simulated seonds)
+	add_writer(VTKWRITER, 1.0);
+
+	// BORDER_TANGENT filling method means that particle filling begins
+	// half a deltap “inside” the geometry
+	setFillingMethod(Object::BORDER_TANGENT);
+
+	/* From here on, you can define the problem geometries */
+	/* TODO */
+}
