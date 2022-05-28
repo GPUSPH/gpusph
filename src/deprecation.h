@@ -54,6 +54,16 @@
 
 #define GPUSPH_DEPRECATED_MSG(str) __attribute__((deprecated(str)))
 
+/* Mark an enum value as deprecated. In GCC this is only supported
+ * from version 6 onwards, so for older version the macro doesn't do anything
+ */
+
+#if  __clang_major__ > 2 || __GNUC__ > 5
+#define GPUSPH_DEPRECATED_VALUE(str) __attribute__((deprecated(str)))
+#else
+#define GPUSPH_DEPRECATED_VALUE(str) /* unsupported */
+#endif
+
 /* For the functions that provide compatibility between the deprecated
  * and new APIs, we want to avoid getting deprecation warnings,
  * since they are only for (all the) other uses of the deprecated APIs.

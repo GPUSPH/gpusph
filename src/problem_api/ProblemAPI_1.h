@@ -92,7 +92,7 @@ enum FillType {	FT_NOFILL,
 				FT_SOLID,
 				FT_OUTER_BORDER, /* outer border, e.g. domain box */
 				FT_INNER_BORDER, /* inner border, e.g. obstacle */
-				FT_BORDER GPUSPH_DEPRECATED_MSG("use FT_OUTER_BORDER or FT_INNER_BORDER as appropriate instead of the ambiguous FT_BORDER")
+				FT_BORDER GPUSPH_DEPRECATED_VALUE("use FT_OUTER_BORDER or FT_INNER_BORDER as appropriate instead of the ambiguous FT_BORDER")
 };
 
 // TODO currently we need to keep this in sync with the
