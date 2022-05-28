@@ -35,8 +35,6 @@
 
 #include "vector_math.h"
 
-using std::isfinite;
-
 /*
  * Generic split
  */
