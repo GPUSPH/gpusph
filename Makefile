@@ -986,7 +986,7 @@ ifeq ($(THRUST_VERSION),$(empty))
  ifneq ($(THRUST_VERSION),$(empty))
   INCPATH += -I$(THRUST_PATH)
  else
-  $(error could not find Thrust in default include path, ./thrust or ../thrust)
+  $(error could not find Thrust in default include path, ./thrust or ../thrust, you may use scripts/get-thrust to fetch it from GitHub)
  endif
 endif
 $(call traceconfig,Thrust version $(THRUST_VERSION) found in $(if $(THRUST_PATH),$(THRUST_PATH),default path))

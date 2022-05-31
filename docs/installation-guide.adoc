@@ -139,6 +139,10 @@ git clone --recursive https://github.com/NVIDIA/thrust/
 ----
 and GPUSPH will automatically detect the presence of the library.
 
+NOTE: this will fetch the latest (possibly experimental) version of Thrust.
+You may also run `scripts/get-thrust` from the GPUSPH working directory
+to fetch a known stable version of the library.
+
 == Building GPUSPH
 
 From the <<workdir-setup,GPUSPH working directory>>, just run
