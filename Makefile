@@ -86,6 +86,18 @@ else # Linux
  SED_COMMAND := sed -i -e
 endif
 
+# check availability of AsciiDoctor
+ASCIIDOCTOR ?= asciidoctor
+ASCIIDOCTOR := $(ASCIIDOCTOR)
+ASCIIDOCTOR_VERSION := $(shell $(ASCIIDOCTOR) --version 2> /dev/null | head -1)
+ifeq ($(ASCIIDOCTOR_VERSION),$(empty))
+ $(call traceconfig,AsciiDoctor ($(ASCIIDOCTOR)) not found$(comma) cannot build documentation)
+ BUILD_DOCS ?=
+else
+ $(call traceconfig,$(ASCIIDOCTOR_VERSION) found ($(ASCIIDOCTOR))$(comma) documentation built by default)
+ BUILD_DOCS ?= docs
+endif
+
 
 # TODO ideally, this could be used for cross-compilation too
 # option: target_arch - if set, force compilation for the specific architecture
@@ -1209,7 +1221,7 @@ export CMDECHO
 .PHONY: FORCE
 
 # target: GPUSPH - A symlink to the last built problem, or the default problem (DamBreak3D)
-GPUSPH: $(GPUSPH_PROBLEM_DEP) Makefile.conf
+GPUSPH: $(GPUSPH_PROBLEM_DEP) Makefile.conf $(BUILD_DOCS)
 	$(call show_stage_nl,SYM,$@)
 	$(CMDECHO)ln -sf $(LAST_BUILT_PROBLEM) $(CURDIR)/$@
 
@@ -1623,8 +1635,14 @@ $(DOCSDIR)/%.html: $(DOCSDIR)/%.adoc $(DOCSDIR)/defines.adoc $(DOCSDIR)/common-i
 	$(call show_stage,DOCS,$(basename $@))
 	$(CMDECHO)asciidoctor $<
 
+%.html: %.adoc $(DOCSDIR)/defines.adoc
+	$(call show_stage,DOCS,$(basename $@))
+	$(CMDECHO)asciidoctor $<
+
 INSTALLATION_GUIDE := $(DOCSDIR)/installation-guide.html
 USER_GUIDE := $(DOCSDIR)/user-guide.html
+README := README.html
+CONTRIBUTING := CONTRIBUTING.html
 PROBLEM_LIST_DOCS := DamBreak3D DamBreakGate OpenChannel WaveTank SlidingWedge SolitaryWave Seiche DEMExample
 
 $(USER_GUIDE): $(patsubst %,$(DOCSDIR)/user-guide/test-case-%.adoc,$(PROBLEM_LIST_DOCS))
@@ -1633,7 +1651,7 @@ $(USER_GUIDE): $(DOCSDIR)/user-guide/appendix-history.adoc
 $(USER_GUIDE): $(DOCSDIR)/appendix-license.adoc
 
 # target: docs - Generate the offline documentation
-docs: $(INSTALLATION_GUIDE) $(USER_GUIDE)
+docs: $(INSTALLATION_GUIDE) $(USER_GUIDE) $(README) $(CONTRIBUTING)
 
 # target: dev-guide - Generate the developers' guide
 dev-guide:

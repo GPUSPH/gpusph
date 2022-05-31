@@ -51,7 +51,7 @@ GPUSPH v2.0:: was first released in 2012.
 Introduces support for moving bodies with generic imposed motion,
 optimizations for the Fermi architeture,
 a faster neighbors list construction,
-and new sample test case.
+and new sample test cases.
 
 GPUSPH v3.0:: was first released in 2014.
 This huge release saw the start of a much more active participation of partners such as
@@ -75,7 +75,7 @@ Major features include support for the dummy boundary model,
 support for the Hu & Adams multi-fluid formulation,
 non-Newtonian rheological models, and the concept of versioned APIs for the `Problem` class.
 
-GPUSPH v6.0 (current version):: was first released in 2021.
+GPUSPH v6.0 (current version):: was first released in 2022.
 Major features include support for fluid/structure interaction with deformable bodies
 through the Finite Element Analysis module of Project Chrono,
 the possibility to define truly 2D and 1D problems,
@@ -85,4 +85,3 @@ using the Clang compiler.
 A new neighbors traversal implementation also led to significant improved runtimes
 (between 2 and 5 times faster depending on hardware, framework options and number of particles).
 The documentation has also been cleaned up, expanded, and made more accessible through modern technologies.
-
