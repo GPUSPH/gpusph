@@ -1,3 +1,5 @@
 #!/bin/sh
 
-git clone --branch cuda-11.6 --single-branch --depth 1 --recursive --shallow-submodules https://github.com/NVIDIA/thrust/
+git help clone | grep -q -- --shallow-submodules && shallow='--shallow-submodules' || shallow=
+
+git clone --branch cuda-11.6 --depth 1 --recursive $shallow https://github.com/NVIDIA/thrust/
