@@ -43,6 +43,7 @@
 
 #ifndef __CUDACC__
 #include <cmath>
+using std::isfinite;
 #endif
 
 // we use CUDA types and host/device specifications here
