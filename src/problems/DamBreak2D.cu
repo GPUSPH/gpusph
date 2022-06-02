@@ -63,7 +63,7 @@ DamBreak2D::DamBreak2D(GlobalData *_gdata) : Problem(_gdata)
 		viscosity<KINEMATICVISC>,
 		// TODO FIXME we should be using DUMMY, but there seem to be some stability issues at some resolutions
 		// due to the particles 'sticking' to the walls.
-		boundary<DYN_BOUNDARY>
+		boundary<LJ_BOUNDARY>
 	).select_options(
 		RHODIFF,
 		artvisc > 0, viscosity<ARTVISC>()
