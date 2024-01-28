@@ -414,9 +414,9 @@ setconstants(const SimParams *simparams, const PhysParams *physparams,
 
 	// Neibs cell to offset table
 	char3 cell_to_offset[27];
-	for(char z=-1; z<=1; z++) {
-		for(char y=-1; y<=1; y++) {
-			for(char x=-1; x<=1; x++) {
+	for(signed char z=-1; z<=1; z++) {
+		for(signed char y=-1; y<=1; y++) {
+			for(signed char x=-1; x<=1; x++) {
 				int i = (x + 1) + (y + 1)*3 + (z + 1)*9;
 				cell_to_offset[i] =  make_char3(x, y, z);
 			}
