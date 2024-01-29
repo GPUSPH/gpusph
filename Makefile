@@ -758,14 +758,19 @@ LIB_PATH_SFX =
 # override: TARGET_ARCH - set the target architecture
 # override:               defaults to -m64 for 64-bit machines
 # override:                           -m32 for 32-bit machines
-ifeq ($(findstring 64,$(arch)), 64)
+ifeq ($(arch), x86_64)
  TARGET_ARCH ?= -m64
- # on Linux, toolkit libraries are under /lib64 for 64-bit
+else ifeq ($(findstring 86,$(arch)), 86) # matches i386 and i686
+ TARGET_ARCH ?= -m32
+else # other architectures such as aarch64 and ppc64
+ TARGET_ARCH ?=
+endif
+
+# on Linux, toolkit libraries are under /lib64 for 64-bit
+ifeq ($(findstring 64,$(arch)), 64)
  ifeq ($(platform), Linux)
   LIB_PATH_SFX = 64
  endif
-else # i386 or i686
- TARGET_ARCH ?= -m32
 endif
 
 # override: INCPATH - paths for include files
